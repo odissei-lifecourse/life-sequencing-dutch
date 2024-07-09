@@ -29,7 +29,7 @@ def precompute_global(var_type, years):
 
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
     if var_type == 'income':
-        with open("data/processed/income_by_year.pkl", 'rb') as pkl_file:
+        with open("data/processed/income_baseline_dict_by_year.pkl", 'rb') as pkl_file:
             data = dict(pickle.load(pkl_file))
 
         return data
