@@ -83,6 +83,8 @@ if __name__ == '__main__':
     with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/income_baseline_by_year.pkl", 'rb') as pkl_file:
         income_baseline_by_year = dict(pickle.load(pkl_file))
         income_baseline = income_baseline_by_year[income_baseline_year]
+        # Save this as the income target variable for section 3
+        income_by_year = income_baseline_by_year
     
     for person in person_birth_year:
         birth_year = person_birth_year[person]
@@ -115,7 +117,7 @@ if __name__ == '__main__':
     
     full_start = time.time()
 
-    income_by_year = report_utils.precompute_global('income', years)
+    #income_by_year = report_utils.precompute_global('income', years)
     marriages_by_year, partnerships_by_year = report_utils.precompute_global('marriage', years)
     deaths_by_year = report_utils.precompute_global('death', years)
 
