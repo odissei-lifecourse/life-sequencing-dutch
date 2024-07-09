@@ -804,7 +804,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
         print("Not enough samples or classes! Aborting", flush=True)
         return None, None, None
         
-    scores = cross_val_score(model, full_embedding_list, full_label_list, cv=5, n_jobs=5)
+    scores = cross_val_score(model, full_embedding_list, full_label_list, cv=5, n_jobs=1)
     overall_r2 = scores.mean()
     return_dict['OVERALL'] = overall_r2
     
@@ -814,7 +814,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
         elif dtype == 'pair':
             baseline_model = LogisticRegression(max_iter=10000)
             
-        scores = cross_val_score(baseline_model, full_baseline_list, full_label_list, cv=5, n_jobs=5)
+        scores = cross_val_score(baseline_model, full_baseline_list, full_label_list, cv=5, n_jobs=1)
         baseline_overall = scores.mean()
         baseline_return_dict['OVERALL'] = baseline_overall
     
