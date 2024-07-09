@@ -24,7 +24,7 @@ if __name__ == '__main__':
     # 7 = Prediction - Highest Education Level
     # 8 = Prediction - Death
 
-    income_baseline_year = '2016'
+    income_baseline_year = 2016
     report_parts = [1, 2, 3, 5.1, 6.1]
     regen_images = True
 
@@ -48,6 +48,13 @@ if __name__ == '__main__':
         default=-1,
         type=int,
         help="If positive, use embeddings of the first `sample` records in the hdf5 file."
+    )
+
+    parser.add_argument(
+        "--embedding_size",
+        default=-1,
+        type=int,
+        help="If positive, restrict embedding dimension to this size."
     )
     
     args = parser.parse_args()
@@ -154,7 +161,7 @@ if __name__ == '__main__':
         section_start = time.time()
 
         embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
-            emb, only_embedding=False, sample_size=args.sample)
+            emb, only_embedding=False, sample_size=args.sample, embedding_size=args.embedding_size)
         #embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
         #distance_matrix = {}
 
@@ -188,7 +195,7 @@ if __name__ == '__main__':
             for j in range(i + 1, len(embedding_sets)):
                 emb_2 = embedding_sets[j]
                 embedding_dict_2 = report_utils.precompute_local(
-                    emb_2, only_embedding=True, sample_size=args.sample)
+                    emb_2, only_embedding=True, sample_size=args.sample, embedding_size=args.embedding_size)
                 name_2 = emb_2['name']
 
                 results_10 = report_utils.embedding_rank_comparison(embedding_dict, embedding_dict_2, top_k=10,
