@@ -1,5 +1,6 @@
 import pandas as pd
 import pickle
+from tqdm import tqdm
 import os 
 import re 
 
@@ -7,11 +8,11 @@ source_dir = "/gpfs/ostor/ossc9424/homedir/cbs_data/real/InkomenBestedingen/INPA
 target_dir = "data/processed/"
 
 baseline_by_years = {}
-years = [str(x) for x in range(2011, 2023)]
+years = [x for x in range(2011, 2023)]
 
 inpa_files = os.listdir(source_dir)
 
-for f in inpa_files:
+for f in tqdm(inpa_files):
     filename = os.path.join(source_dir, f)
     df = pd.read_spss(filename,
                       usecols=['RINPERSOON', 'INPBELI'])
@@ -19,7 +20,7 @@ for f in inpa_files:
     # make sure we record the year correctly and only have 1 file per year
     year_matches = re.findall(r"\d{4}", f)
     assert len(year_matches) == 1
-    year = year_matches[0]
+    year = int(year_matches[0])
     years = [y for y in years if y != year]
 
     user_list = list(df['RINPERSOON'])
