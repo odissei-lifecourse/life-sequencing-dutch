@@ -150,7 +150,7 @@ def precompute_global(var_type, years):
 
 ########################################################################################################################
 # Computes/Loads any values that are used in multiple steps to evaluate a single embedding set, such as distance matrices
-def precompute_local(embedding_set, only_embedding=False, sample_size=-1):
+def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedding_size=-1):
     """Load and compute values that are used in multiple steps to evaluate a single embedding set, 
     such as distance matrices.
 
@@ -160,6 +160,9 @@ def precompute_local(embedding_set, only_embedding=False, sample_size=-1):
         sample_size (int, optional): If positive, only load a random sample of embeddings of as many people. 
         Currently, changing this option only affects LLM embeddings that are stored as hdf5.
         Defaults to -1, in which case all persons are loaded.    
+        embedding_size (int, optional): IF positive, restrict the maximum embedding size to this number.
+        Currently only affects LLM embeddings that are stored as hdf5.
+        Defaults to -1, in which case full embeddings are loaded.
     """
     root = embedding_set['root']
     url = embedding_set['url']
@@ -208,6 +211,7 @@ def precompute_local(embedding_set, only_embedding=False, sample_size=-1):
                 emb_url=emb_url, 
                 embedding_type=embedding_type,
                 sample_size=sample_size,
+                embedding_size=embedding_size,
                 person_key="sequence_id",
                 replace_bad_values=True
                 )
@@ -246,7 +250,7 @@ def draw_sample(input_list, size):
 
 
 
-def load_hdf5(emb_url, id_key, value_key , sample_size=-1):
+def load_hdf5(emb_url, id_key, value_key , sample_size=-1, embedding_size=-1):
     """Load (a subset of) data from an HDF5 file.
 
     Args:
@@ -256,6 +260,7 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1):
         sample_size (int, optional): The number of samples to load.
           If -1 (the deafault), load all data. If non-negative, the records in the 
           first indices until `sample_size` are read.
+        embedding_size (int, optional): The maximum embedding dimension to load. For dry runs.
 
     Returns:
         tuple: A tuple containing:
@@ -271,7 +276,12 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1):
     if sample_size == -1:
         with h5py.File(emb_url, "r") as f:
             ids = f[id_key][:]
-            values = f[value_key][:, :]
+            emb_dim = f[value_key].shape[1]
+            if embedding_size > 0:
+                embedding_size = min(emb_dim, embedding_size)
+                values = f[value_key][:, :embedding_size]
+            else:
+                values = f[value_key][:, :]
     else:
         with h5py.File(emb_url, "r") as f:
             nobs = f[id_key].shape[0]
@@ -279,7 +289,12 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1):
             universe = np.arange(nobs)
             
             ids = f[id_key][:sample_size]
-            values = f[value_key][:sample_size, :]
+            emb_dim = f[value_key].shape[1]
+            if embedding_size > 0:
+                embedding_size = min(emb_dim, embedding_size)
+                values = f[value_key][:sample_size, :embedding_size]
+            else:
+                values = f[value_key][:sample_size, :]
 
     return ids, values
 
@@ -289,6 +304,7 @@ def load_embeddings_from_hdf5(
         emb_url, 
         embedding_type, 
         sample_size=-1,
+        embedding_size=-1,
         person_key="sequence_id", 
         replace_bad_values=True
         ):
@@ -301,6 +317,7 @@ def load_embeddings_from_hdf5(
         emb_url (str): full url to the hdf5 file.
         embedding_type (str): name of one of the embedding types to retrieve. Must be a key in the hdf5f file.
         sample_size (int, optional): The number of samples to load. If -1, load all data (default: -1).
+        embedding_size (int, optional): maximum embedding size to load. For dry runs.
         person_key (str, optional): unique person identifier. Must be a key in the hdf5 file.
         replace_bad_values (bool, optional): If true, replaces embeddings with NaNs and inifite embedding values with 0.
 
@@ -316,7 +333,8 @@ def load_embeddings_from_hdf5(
         emb_url=emb_url, 
         id_key=person_key, 
         value_key=embedding_type, 
-        sample_size=sample_size)
+        sample_size=sample_size,
+        embedding_size=embedding_size)
     
     embeddings = embeddings.astype(np.float32)
 
