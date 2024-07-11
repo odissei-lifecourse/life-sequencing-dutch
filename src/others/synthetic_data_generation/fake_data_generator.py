@@ -4,9 +4,20 @@ import pandas as pd
 import json 
 import os
 import re 
+from .utils import split_at_last_match
 
 class FakeDataGenerator: 
-    """Class to read file with data summary stats.
+    """Class to generate fake data from summary statistics.
+
+    The class is intended to work with summary statistics that are created with `gen_spreadsheets.py`, and in particular
+    requires that each data source is associated with three summary files:
+    - *_meta.json: metadata about the data source
+    - *_columns.csv
+    - *_covariance.csv
+    where * is the name of the original data source.
+
+    - For PII variables, it is assumed that each PII identifier is associated with one row.    
+    - For numerical variables with a low interquartile range (IQR), the unique integers from the range are drawn with equal probability.
     """
 
     def __init__(self):
@@ -48,7 +59,7 @@ class FakeDataGenerator:
 
 
     def load_metadata(self, url, filename):
-        """Load meta data and column summaries
+        """Load meta data and column summaries.
 
         Arguments:
             url (str): local path where the summary files are stored
@@ -144,9 +155,6 @@ def add_nans(rng, data, size):
     return data
 
 
-
-
-
 def detect_variable_type(row, max_diff_q10_q90=10):
     """Detect how a fake variable should be generated.
 
@@ -206,9 +214,3 @@ def detect_variable_type(row, max_diff_q10_q90=10):
     return result_dict
     
 
-def split_at_last_match(s, p):
-    "Split a string `s` at the last occurence of `p`"
-    last_match = list(re.finditer(p, s))[-1]
-    first = s[:last_match.end()-1]
-    second = s[last_match.end():]
-    return first, second

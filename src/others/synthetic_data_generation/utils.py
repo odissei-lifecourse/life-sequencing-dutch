@@ -1,7 +1,8 @@
 import numpy as np 
 import pyreadstat
-import logging
 import pandas as pd 
+import os 
+import re 
 
 def check_column_names(column_names, names_to_check):
     "Check if a colum name matches exactly, or on a substring, the names to check."
@@ -77,3 +78,41 @@ def sample_from_file(source_file_path, n_rows):
 
   return df, nobs
 
+
+def yield_filepaths(root):
+  "Yield full paths to all files in `root` and its subdirs"
+  for root, _, files in os.walk(root):
+      for filename in files:
+          filename = os.path.join(root, filename)
+          if os.path.isfile(filename): 
+              yield filename   
+
+
+def get_unique_source_files(root):
+  """Return full paths to unique data files.
+
+  Deals with the files of summary statistics generated from data. 
+
+  Args:
+    root (str): root directory to search
+
+
+  Example: from ["data1_meta.json", "data1_covariance.csv", "data1_columns.csv"] it returns "data1".
+  """
+  files = list(yield_filepaths(root))
+  src_files = set()
+
+  for f in files:
+    src_file, _ = split_at_last_match(f, "_")
+    src_files.add(src_file)
+
+  return src_files
+
+
+
+def split_at_last_match(s, p):
+  "Split a string `s` at the last occurence of `p`"
+  last_match = list(re.finditer(p, s))[-1]
+  first = s[:last_match.end()-1]
+  second = s[last_match.end():]
+  return first, second
