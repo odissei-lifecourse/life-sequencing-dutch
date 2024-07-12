@@ -10,5 +10,5 @@ for year in data:
     for person in yearly_income:
         person_set.add(person)
 
-with open("data/processed/income_subset.pkl", 'rb') as pkl_file:
+with open("data/processed/income_subset.pkl", 'wb') as pkl_file:
     pickle.dump(person_set, pkl_file)
