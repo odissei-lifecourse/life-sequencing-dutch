@@ -3,11 +3,11 @@
 #SBATCH --job-name=create_fake_data
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=15:00
-#SBATCH --mem=200MB
-#SBATCH -p work_env
-#SBATCH -e /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/synthetic/logs/%x.%j.err
-#SBATCH -o /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/synthetic/logs/%x.%j.out
+#SBATCH --time=00:02:00
+#SBATCH --mem=100MB
+#SBATCH -p rome 
+#SBATCH -e %x-%j.err
+#SBATCH -o %x-%j.out
 
 stringContain() { case $2 in *$1* ) return 0;; *) return 1;; esac ;}
 
@@ -23,8 +23,8 @@ if stringContain "ossc" $USER; then
     declare VENV="$ROOTDIR/ossc_env"
 elif stringContain "fhafner" $USER; then 
     declare ROOTDIR="/gpfs/home4/$USER"
-    declare VENV="$ROOTDIR/.venv"
-    declare REPO_DIR="$ROOTDIR/repositories/life-sequenceing-dutch"
+    declare REPO_DIR="$ROOTDIR/repositories/life-sequencing-dutch"
+    declare VENV="$REPO_DIR/.venv"
 fi
 
 module purge 
@@ -39,7 +39,7 @@ echo "job started"
 cd $REPO_DIR
 
 date
-time python src/others/synthetic_data_generation/create_fake_data.py \
+time python -m src.others.synthetic_data_generation.create_fake_data \
  --cfg src/others/synthetic_data_generation/fake_data_cfg.json \
  --dry-run
 

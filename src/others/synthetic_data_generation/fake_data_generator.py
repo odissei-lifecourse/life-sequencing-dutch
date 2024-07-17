@@ -5,6 +5,7 @@ import json
 import os
 import re 
 from .utils import split_at_last_match
+import logging
 
 class FakeDataGenerator: 
     """Class to generate fake data from summary statistics.
@@ -178,11 +179,14 @@ def detect_variable_type(row, max_diff_q10_q90=10):
     """
     category_0 = row["category_top_0"]
     if isinstance(category_0, str):
+        logging.debug("category_0 is str")
         top_cats = [row[f"category_top_{i}"] for i in range(5)]
         top_cats = [x for x in top_cats if isinstance(x, str)]
         top_cats = [x.split("--") for x in top_cats]
         classes = [x[0] for x in top_cats]
         probs = [float(x[1]) for x in top_cats]
+        probsum = sum(probs)
+        probs = [prob/probsum for prob in probs]
         result_dict = {
             "type": "categorical",
             "classes": classes,
@@ -191,6 +195,7 @@ def detect_variable_type(row, max_diff_q10_q90=10):
     else:
         p10, p90 = row["10th_percentile"], row["90th_percentile"]
         if p90 - p10 <= max_diff_q10_q90:
+            logging.debug("creating categorical from percentiles")
             pdiff = int(p90) - int(p10)
             # we want to include the end of the range, and deal with cases where p10=p90
             addon = 1 if pdiff > 0 else 2
@@ -210,6 +215,10 @@ def detect_variable_type(row, max_diff_q10_q90=10):
             }
 
     result_dict["null_fraction"] = row["null_fraction"]
+    
+    if "probs" in result_dict.keys():
+        if sum(result_dict["probs"]) != 1:
+            logging.debug("probs do not sum to one!")
     
     return result_dict
     

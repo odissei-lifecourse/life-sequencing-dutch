@@ -28,6 +28,7 @@ Constants:
 import argparse
 import numpy as np 
 import os
+import logging
 from tqdm import tqdm
 
 from src.others.synthetic_data_generation.fake_data_generator import FakeDataGenerator
@@ -75,8 +76,19 @@ if __name__ == "__main__":
     parser.add_argument("--cfg",
                         type=str,
                         help="Path to config file")
+    parser.add_argument("--debug",
+                        action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()
+    logging_level = logging.DEBUG if args.debug else logging.INFO
+
+
+    logging.basicConfig(
+        format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging_level
+    )
+
 
     n_obs = None
     if args.dry_run:
