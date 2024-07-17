@@ -9,3 +9,4 @@ __pycache__/
 *.pyo                # Ignore optimized compiled Python files
 *.pyd                # Ignore Windows specific Python extension files
 env_ossc/
+.venv/
