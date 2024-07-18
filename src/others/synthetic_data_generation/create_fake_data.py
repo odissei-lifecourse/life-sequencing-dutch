@@ -93,8 +93,6 @@ if __name__ == "__main__":
     n_obs = None
     if args.dry_run:
         n_obs = SAMPLE_SIZE_DRY_RUN
-    else:
-        raise NotImplementedError
 
     main(cfg=args.cfg, n_observations=n_obs)
 

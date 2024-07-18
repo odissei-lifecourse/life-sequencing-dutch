@@ -1,14 +1,15 @@
 #!/bin/bash
 #
 #SBATCH --job-name=create_fake_data
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=50
 #SBATCH --nodes=1
-#SBATCH --time=00:02:00
-#SBATCH --mem=100MB
+#SBATCH --time=00:30:00
+#SBATCH --mem=5GB
 #SBATCH -p rome 
 #SBATCH -e %x-%j.err
 #SBATCH -o %x-%j.out
 
+# function to check if $2 is in $1
 stringContain() { case $2 in *$1* ) return 0;; *) return 1;; esac ;}
 
 # This function can be called with `source script.sh` -> fast initialization during interactive jobs
@@ -51,9 +52,7 @@ else
    
     date
     time python -m src.others.synthetic_data_generation.create_fake_data \
-    --cfg src/others/synthetic_data_generation/fake_data_cfg.json \
-    --dry-run \
-    --debug
+    --cfg src/others/synthetic_data_generation/fake_data_cfg.json 
 
     echo "job ended" 
 fi
