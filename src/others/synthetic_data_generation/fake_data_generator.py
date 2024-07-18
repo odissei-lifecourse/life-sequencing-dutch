@@ -4,6 +4,7 @@ import pandas as pd
 import json 
 import os
 import re 
+import math
 from .utils import split_at_last_match
 import logging
 
@@ -217,7 +218,8 @@ def detect_variable_type(row, max_diff_q10_q90=10):
     result_dict["null_fraction"] = row["null_fraction"]
     
     if "probs" in result_dict.keys():
-        if sum(result_dict["probs"]) != 1:
+        probs_sum = sum(result_dict["probs"])
+        if not math.isclose(1, probs_sum):
             logging.debug("probs do not sum to one!")
     
     return result_dict
