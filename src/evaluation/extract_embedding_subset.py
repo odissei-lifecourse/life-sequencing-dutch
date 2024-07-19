@@ -9,15 +9,16 @@ from tqdm import tqdm
 from report_utils import load_hdf5
 
 RINPERS_ID = "sequence_id"
-EMB_TYPES = ["cls_emb", "mean_emb"]
+#EMB_TYPES = ["cls_emb", "mean_emb"]
+EMB_TYPES = ['embeddings']
 
 NOBS_DRY_RUN = 30
 EMB_SIZE_DRY_RUN = 5
 EMB_SUBSET_SAVEDIR = "embedding_subsets/"
 
 data_root = "data/processed/"
-emb_url = "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/"
-
+#emb_url = "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/"
+emb_url = "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/"
 
 def load_and_subset_embeddings(
         embedding_file_url: str,
@@ -39,14 +40,16 @@ def load_and_subset_embeddings(
         emb_ids = embedding_data[RINPERS_ID]
 
         # careful here: some elements in subset_ids may not be in emb_ids!
-        id_selector = np.where(np.isin(subset_ids, emb_ids))[0] # elements in subset_ids for whome there is an embedding
-        emb_selector = np.where(np.isin(emb_ids, subset_ids))[0] # elements in embeddings that are also in subset_ids (our persons of interest)
-        
+        id_selector = np.where(np.isin(subset_ids, emb_ids))[
+            0]  # elements in subset_ids for whome there is an embedding
+        emb_selector = np.where(np.isin(emb_ids, subset_ids))[
+            0]  # elements in embeddings that are also in subset_ids (our persons of interest)
+
         data = {}
         data[RINPERS_ID] = subset_ids[id_selector]
         for emb_type in embedding_types:
             embs = embedding_data[emb_type][emb_selector]
-            if not dry_run: 
+            if not dry_run:
                 assert embs.shape[0] == id_selector.shape[0], "mismatch between number of IDs and number of embeddings"
             data[emb_type] = embs
         data_dict[subset_type] = data
