@@ -2,8 +2,8 @@
 #
 #SBATCH --job-name=isolate_evaluation_subset
 #SBATCH --nodes=1
-#SBATCH --time=24:00:00
-#SBATCH --mem=0
+#SBATCH --time=03:00:00
+#SBATCH --mem=200GB
 #SBATCH -p comp_env
 #SBATCH -e /gpfs/ostor/ossc9424/homedir/logs/%x.%j.err
 #SBATCH -o /gpfs/ostor/ossc9424/homedir/logs/%x.%j.err
