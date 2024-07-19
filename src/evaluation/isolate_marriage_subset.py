@@ -59,9 +59,15 @@ for year in marriage_data:
     marriage_model_set.update(model_group)
     marriage_eval_set.update(eval_group)
 
+# Grab 1000 people from the training group for rank prediction
+marriage_rank_set = set(random.sample(marriage_model_set, 1000))
+
 # Save the sets of IDs
 with open("data/processed/marriage_model_subset.pkl", "wb") as pkl_file:
     pickle.dump(marriage_model_set, pkl_file)
 
 with open("data/processed/marriage_eval_subset.pkl", "wb") as pkl_file:
     pickle.dump(marriage_eval_set, pkl_file)
+
+with open("data/processed/marriage_rank_subset.pkl", "wb") as pkl_file:
+    pickle.dump(marriage_rank_set, pkl_file)
