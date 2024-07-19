@@ -37,11 +37,17 @@ def load_and_subset_embeddings(
     data_dict = {}
     for subset_type, subset_ids in id_subsets.items():
         emb_ids = embedding_data[RINPERS_ID]
-        selector = np.where(np.isin(emb_ids, subset_ids))[0]
+
+        # careful here: some elements in subset_ids may not be in emb_ids!
+        id_selector = np.where(np.isin(subset_ids, emb_ids))[0] # elements in subset_ids for whome there is an embedding
+        emb_selector = np.where(np.isin(emb_ids, subset_ids))[0] # elements in embeddings that are also in subset_ids (our persons of interest)
+        
         data = {}
-        data[RINPERS_ID] = subset_ids
+        data[RINPERS_ID] = subset_ids[id_selector]
         for emb_type in embedding_types:
-            embs = embedding_data[emb_type][selector]
+            embs = embedding_data[emb_type][emb_selector]
+            if not dry_run: 
+                assert embs.shape[0] == id_selector.shape[0], "mismatch between number of IDs and number of embeddings"
             data[emb_type] = embs
         data_dict[subset_type] = data
 
