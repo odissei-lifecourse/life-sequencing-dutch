@@ -37,5 +37,8 @@ def convert_file(filename, mapping_url):
         f.create_dataset('embeddings', data=embeddings)
 
 if __name__ == '__main__':
-    convert_file("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/Dakota_network/embeddings/lr_steve_full_network_2020.emb")
-    convert_file("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/Dakota_network/embeddings/lr_steve_full_network_2010.emb")
+    convert_file("/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/lr_steve_full_network_2020.emb",
+                 "/gpfs/ostor/ossc9424/homedir/Dakota_network/mappings/family_2020.pkl")
+
+    convert_file("/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/lr_steve_full_network_2010.emb",
+                 "/gpfs/ostor/ossc9424/homedir/Dakota_network/mappings/family_2010.pkl")
