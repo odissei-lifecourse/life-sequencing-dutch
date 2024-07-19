@@ -8,7 +8,7 @@ import argparse
 from tqdm import tqdm
 from report_utils import load_hdf5
 
-RINPERS_ID = ["sequence_id"]
+RINPERS_ID = "sequence_id"
 EMB_TYPES = ["cls_emb", "mean_emb"]
 
 NOBS_DRY_RUN = 30
@@ -45,7 +45,7 @@ def load_and_subset_embeddings(
             data[emb_type] = embs
         data_dict[subset_type] = data
 
-    return data
+    return data_dict
 
 
 def save_nested_dict_to_h5(data_dict: dict, filename: str):
