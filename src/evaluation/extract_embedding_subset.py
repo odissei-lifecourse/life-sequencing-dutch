@@ -9,22 +9,36 @@ from tqdm import tqdm
 from report_utils import load_hdf5
 
 RINPERS_ID = "sequence_id"
-#EMB_TYPES = ["cls_emb", "mean_emb"]
-EMB_TYPES = ['embeddings']
+EMB_TYPES_LLM = ["cls_emb", "mean_emb"]
+EMB_TYPES_NETWORK = ['embeddings']
 
 NOBS_DRY_RUN = 30
 EMB_SIZE_DRY_RUN = 5
 EMB_SUBSET_SAVEDIR = "embedding_subsets/"
 
 data_root = "data/processed/"
-#emb_url = "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/"
-emb_url = "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/"
+
+input_map = {
+    "llm_new": {
+        "emb_url": "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/",
+        "emb_types": EMB_TYPES_LLM
+    },
+    "llm_old": {
+        "emb_url": "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/old_embeddings/",
+        "emb_types": EMB_TYPES_LLM
+    },
+    "network": {
+        "emb_url": "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/",
+        "emb_types": EMB_TYPES_NETWORK
+    }
+}
+
 
 def load_and_subset_embeddings(
         embedding_file_url: str,
         id_subsets: dict,
         dry_run: bool,
-        embedding_types: list = EMB_TYPES
+        embedding_types: list = EMB_TYPES_LLM
 ):
     embedding_data = {}
     n_obs = NOBS_DRY_RUN if dry_run else -1
@@ -40,10 +54,8 @@ def load_and_subset_embeddings(
         emb_ids = embedding_data[RINPERS_ID]
 
         # careful here: some elements in subset_ids may not be in emb_ids!
-        id_selector = np.where(np.isin(subset_ids, emb_ids))[
-            0]  # elements in subset_ids for whome there is an embedding
-        emb_selector = np.where(np.isin(emb_ids, subset_ids))[
-            0]  # elements in embeddings that are also in subset_ids (our persons of interest)
+        id_selector = np.where(np.isin(subset_ids, emb_ids))[0]  # elements in subset_ids for whome there is an embedding
+        emb_selector = np.where(np.isin(emb_ids, subset_ids))[0]  # elements in embeddings that are also in subset_ids (our persons of interest)
 
         data = {}
         data[RINPERS_ID] = subset_ids[id_selector]
@@ -65,7 +77,7 @@ def save_nested_dict_to_h5(data_dict: dict, filename: str):
                 group.create_dataset(subkey, data=array)
 
 
-def main(dry_run: bool):
+def main(emb_url: str, emb_types: list, dry_run: bool):
     file_map = {
         "income_eval": "income_eval_subset.pkl",
         "income_model": "income_model_subset.pkl",
@@ -79,14 +91,17 @@ def main(dry_run: bool):
         with open(os.path.join(data_root, filename), "rb") as pkl_file:
             id_subsets[subset_type] = np.array(list(pickle.load(pkl_file)))
 
-    for embedding_file in tqdm(os.listdir(emb_url)):
+    all_files = os.listdir(emb_url)
+    filter_func = lambda x: os.path.splitext(x)[1] == ".h5"
+    for embedding_file in tqdm(filter(filter_func, all_files)):
         logging.info("Processing %s" % embedding_file)
 
         embedding_file_url = os.path.join(emb_url, embedding_file)
         data = load_and_subset_embeddings(
             embedding_file_url,
             id_subsets,
-            dry_run
+            dry_run,
+            emb_types
         )
 
         save_dir = os.path.join(data_root, EMB_SUBSET_SAVEDIR)
@@ -105,6 +120,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", dest="dry_run", action=argparse.BooleanOptionalAction)
     parser.add_argument("--debug", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--model", 
+                        choices=["llm_new", "llm_old", "network"],
+                        type="str", 
+                        help="Which model embeddings to use")
 
     args = parser.parse_args()
     logging_level = logging.DEBUG if args.debug else logging.INFO
@@ -115,4 +134,6 @@ if __name__ == "__main__":
         level=logging_level
     )
 
-    main(args.dry_run)
+    emb_url = input_map[args.model]["emb_url"]
+    emb_types = input_map[args.model]["emb_types"]
+    main(emb_url, emb_types, args.dry_run)
