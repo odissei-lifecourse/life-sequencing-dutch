@@ -13,20 +13,27 @@ with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
 with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
     full_female_list = list(pickle.load(pkl_file))
 
-seen_people = set()
+marriage_model_set = set()
+marriage_eval_set = set()
 
 for year in marriage_data:
 
     relevant_marriages = marriage_data[year]
 
+    yearly_people = set()
+
     for person in relevant_marriages:
         partner = relevant_marriages[person]
 
-        if person in seen_people or partner in seen_people:
+        # Only 1 real marriage per person per year
+        if person in yearly_people or partner in yearly_people:
             continue
 
-        seen_people.add(person)
-        seen_people.add(partner)
+        yearly_people.add(person)
+        yearly_people.add(partner)
+
+        #seen_people.add(person)
+        #seen_people.add(partner)
 
         real_pair = (person, partner)
 
@@ -38,7 +45,23 @@ for year in marriage_data:
             partner_list = full_female_list
 
         fake_partner = random.choice(partner_list)
-        seen_people.add(fake_partner)
+        yearly_people.add(fake_partner)
 
-with open("data/processed/marriage_subset.pkl", "wb") as pkl_file:
-    pickle.dump(seen_people, pkl_file)
+    # Grab 5000 people from each year
+    isolated_group = list(random.sample(yearly_people, 5000))
+
+    # 4000 for model training
+    model_group = isolated_group[:4000]
+    # 1000 for eval
+    eval_group = isolated_group[4000:]
+
+    # Add the people to the corresponding sets
+    marriage_model_set.update(model_group)
+    marriage_eval_set.update(eval_group)
+
+# Save the sets of IDs
+with open("data/processed/marriage_model_subset.pkl", "wb") as pkl_file:
+    pickle.dump(marriage_model_set, pkl_file)
+
+with open("data/processed/marriage_eval_subset.pkl", "wb") as pkl_file:
+    pickle.dump(marriage_eval_set, pkl_file)
