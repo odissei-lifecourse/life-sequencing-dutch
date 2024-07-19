@@ -1,5 +1,6 @@
 from scipy.spatial import distance as dst
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
 from torch import Tensor
 from sentence_transformers import util
@@ -10,9 +11,13 @@ import numpy as np
 import random
 import csv
 import json
-import h5py 
-import logging 
+import h5py
+import logging
 from nearest_neighbor import build_index, get_nearest_neighbor_e2e
+
+# Tree Parameters
+max_depth = 100
+
 
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
 def precompute_global(var_type, years):
@@ -20,11 +25,11 @@ def precompute_global(var_type, years):
     Load data necessary to evaluate all embedding sets.
 
     Args:
-    years (list): Subset the data to years that are present both in the data in this list. 
+    years (list): Subset the data to years that are present both in the data in this list.
     var_type (str): Target variable, either of 'income', 'marriage', or 'death'.
 
     Returns:
-    A single or a tuple of data objects, depending on the `var_type`. 
+    A single or a tuple of data objects, depending on the `var_type`.
     """
 
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
@@ -33,133 +38,134 @@ def precompute_global(var_type, years):
             data = dict(pickle.load(pkl_file))
 
         return data
-        
-    #-----------------------------------------------------------------------------------------------------------------#
+
+    # -----------------------------------------------------------------------------------------------------------------#
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'marriage':
         with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
             marriage_data = dict(pickle.load(pkl_file))
-            
+
         with open("data/processed/partnerships_by_year.pkl", "rb") as pkl_file:
             partnership_data = dict(pickle.load(pkl_file))
-            
+
         with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
             gender_map = dict(pickle.load(pkl_file))
-            
+
         with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
             full_male_list = list(pickle.load(pkl_file))
-            
+
         with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
             full_female_list = list(pickle.load(pkl_file))
-                
+
         marriage_data_by_year = {}
         partnership_data_by_year = {}
-        
+
         seen_marriages = set()
         seen_partnerships = set()
 
         marriage_years = [int(x) for x in list(marriage_data.keys())]
         marriage_years = [str(x) for x in np.intersect1d(marriage_years, years)]
-        
+
         for year in marriage_years:
             marriage_data_by_year[int(year)] = {}
             partnership_data_by_year[int(year)] = {}
-        
+
             relevant_marriages = marriage_data[year]
             relevant_partnerships = partnership_data[year]
-            
+
             for person in relevant_marriages:
                 partner = relevant_marriages[person]
-                
+
                 if person in seen_marriages or partner in seen_marriages:
                     continue
-                    
+
                 seen_marriages.add(person)
                 seen_marriages.add(partner)
-                
+
                 real_pair = (person, partner)
-                
+
                 partner_gender = gender_map[partner]
-                
+
                 if partner_gender == 1:
                     partner_list = full_male_list
                 else:
                     partner_list = full_female_list
-                    
+
                 fake_partner = random.choice(partner_list)
-                        
+
                 fake_pair = (person, fake_partner)
-                
+
                 marriage_data_by_year[int(year)][real_pair] = 1
                 marriage_data_by_year[int(year)][fake_pair] = 0
-                
+
             for person in relevant_partnerships:
                 partner = relevant_partnerships[person]
-                
+
                 if person in seen_partnerships or partner in seen_partnerships:
                     continue
-                    
+
                 seen_partnerships.add(person)
                 seen_partnerships.add(partner)
-                
+
                 real_pair = (person, partner)
-                
+
                 partner_gender = gender_map[partner]
-                
+
                 if partner_gender == 1:
                     partner_list = full_male_list
                 else:
                     partner_list = full_female_list
-                    
+
                 fake_partner = random.choice(partner_list)
-                        
+
                 fake_pair = (person, fake_partner)
-                
+
                 partnership_data_by_year[int(year)][real_pair] = 1
                 partnership_data_by_year[int(year)][fake_pair] = 0
-                        
+
         return marriage_data_by_year, partnership_data_by_year
-        
-    #------------------------------------------------------------------------------------------------------------------#
+
+    # ------------------------------------------------------------------------------------------------------------------#
     if var_type == 'death':
-        
-        with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/death_years_by_person.pkl", 'rb') as pkl_file:
+
+        with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/death_years_by_person.pkl",
+                  'rb') as pkl_file:
             death_years_by_person = dict(pickle.load(pkl_file))
-            
+
         full_person_set = set(death_years_by_person.keys())
-        
+
         deaths_by_year = {}
         death_count_by_year = {}
-        
+
         for year in np.intersect1d(years, list(deaths_by_year.values())):
             deaths_by_year[year] = {}
             death_count_by_year[year] = 0
-            
+
             for person in full_person_set:
                 if year == death_years_by_person[person]:
                     deaths_by_year[year][person] = 1
                     death_count_by_year[year] += 1
                 else:
                     deaths_by_year[year][person] = 0
-        
-        #for year in death_count_by_year:
+
+        # for year in death_count_by_year:
         #    print(year, death_count_by_year[year], flush=True)
-            
+
         return deaths_by_year
-    
+
 
 ########################################################################################################################
 # Computes/Loads any values that are used in multiple steps to evaluate a single embedding set, such as distance matrices
 def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedding_size=-1):
-    """Load and compute values that are used in multiple steps to evaluate a single embedding set, 
+    """Load and compute values that are used in multiple steps to evaluate a single embedding set,
     such as distance matrices.
 
     Args:
         embedding_set (dict): metadata for embedding files.
         only_embedding (bool): If True, only embedding data are loaded.
-        sample_size (int, optional): If positive, only load a random sample of embeddings of as many people. 
+        sample_size (int, optional): If positive, only load a random sample of embeddings of as many people.
         Currently, changing this option only affects LLM embeddings that are stored as hdf5.
-        Defaults to -1, in which case all persons are loaded.    
+        Defaults to -1, in which case all persons are loaded.
         embedding_size (int, optional): IF positive, restrict the maximum embedding size to this number.
         Currently only affects LLM embeddings that are stored as hdf5.
         Defaults to -1, in which case full embeddings are loaded.
@@ -176,9 +182,9 @@ def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedd
     embedding_dict = {}
 
     if emb_type == 'NET':
-    
+
         mapping_url = root + embedding_set['mapping']
-    
+
         # First get mappings
         with open(mapping_url, 'rb') as pkl_file:
             mappings = dict(pickle.load(pkl_file))
@@ -202,36 +208,37 @@ def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedd
         if "json" in emb_url:
             with open(emb_url, 'r') as json_file:
                 embedding_dict = dict(json.load(json_file))
-                
+
             # Need to typecast into int
-            embedding_dict = {int(key):value for key, value in embedding_dict.items()}
+            embedding_dict = {int(key): value for key, value in embedding_dict.items()}
         else:
             embedding_type = embedding_set["emb_type"]
             embedding_dict = load_embeddings_from_hdf5(
-                emb_url=emb_url, 
+                emb_url=emb_url,
                 embedding_type=embedding_type,
                 sample_size=sample_size,
                 embedding_size=embedding_size,
                 person_key="sequence_id",
                 replace_bad_values=True
-                )
-
+            )
 
     if only_embedding:
         return embedding_dict
 
     ############################################################################################
     # Step 2: Load hops from pkl file
-    
+
     # Overwrite root, hops and ground truth all live here
-    hops_url = "/gpfs/ostor/ossc9424/homedir/Dakota_network/ground_truth_hops/" + truth_type + "_" + str(year) + '_hops.pkl'
+    hops_url = "/gpfs/ostor/ossc9424/homedir/Dakota_network/ground_truth_hops/" + truth_type + "_" + str(
+        year) + '_hops.pkl'
     with open(hops_url, 'rb') as pkl_file:
         network_hops = dict(pickle.load(pkl_file))
 
     ############################################################################################
     # Step 3: Load binary connection ground truth
-    truth_url = '/gpfs/ostor/ossc9424/homedir/Dakota_network/ground_truth_adjacency/' + truth_type + '_' + str(year) + '_adjacency.pkl' 
-    
+    truth_url = '/gpfs/ostor/ossc9424/homedir/Dakota_network/ground_truth_adjacency/' + truth_type + '_' + str(
+        year) + '_adjacency.pkl'
+
     with open(truth_url, 'rb') as pkl_file:
         ground_truth_dict = dict(pickle.load(pkl_file))
 
@@ -249,8 +256,7 @@ def draw_sample(input_list, size):
     return draws
 
 
-
-def load_hdf5(emb_url, id_key, value_key , sample_size=-1, embedding_size=-1):
+def load_hdf5(emb_url, id_key, value_key, sample_size=-1, embedding_size=-1):
     """Load (a subset of) data from an HDF5 file.
 
     Args:
@@ -258,7 +264,7 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1, embedding_size=-1):
         id_key (str): The key in the HDF5 file for the IDs dataset.
         value_key (str): The key in the HDF5 file for the embeddings dataset.
         sample_size (int, optional): The number of samples to load.
-          If -1 (the deafault), load all data. If non-negative, the records in the 
+          If -1 (the deafault), load all data. If non-negative, the records in the
           first indices until `sample_size` are read.
         embedding_size (int, optional): The maximum embedding dimension to load. For dry runs.
 
@@ -287,7 +293,7 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1, embedding_size=-1):
             nobs = f[id_key].shape[0]
             sample_size = min(nobs, sample_size)
             universe = np.arange(nobs)
-            
+
             ids = f[id_key][:sample_size]
             emb_dim = f[value_key].shape[1]
             if embedding_size > 0:
@@ -299,20 +305,19 @@ def load_hdf5(emb_url, id_key, value_key , sample_size=-1, embedding_size=-1):
     return ids, values
 
 
-
 def load_embeddings_from_hdf5(
-        emb_url, 
-        embedding_type, 
+        emb_url,
+        embedding_type,
         sample_size=-1,
         embedding_size=-1,
-        person_key="sequence_id", 
+        person_key="sequence_id",
         replace_bad_values=True
-        ):
+):
     """Load embeddings from an hdf5 file that has the following key-values:
         - "person_key": the unique person identifier
         - "embedding type 0": name of embedding, for instance "cls_emb"
         - "embedding type 1": name of alternative embeddings, ie "mean_emb"
-    
+
     Args:
         emb_url (str): full url to the hdf5 file.
         embedding_type (str): name of one of the embedding types to retrieve. Must be a key in the hdf5f file.
@@ -325,17 +330,17 @@ def load_embeddings_from_hdf5(
         dict: key-value pairs of person_key and embedding (where embedding is a list of floats)
 
     Raises:
-        - AssertionError if any of the embeddings are either infinite or NaNs. Will never raise if `replace_bad_values`=`True`. 
+        - AssertionError if any of the embeddings are either infinite or NaNs. Will never raise if `replace_bad_values`=`True`.
         - AssertionError if the embedding lengths are not the same for all `person_key`s
     """
 
     person_keys, embeddings = load_hdf5(
-        emb_url=emb_url, 
-        id_key=person_key, 
-        value_key=embedding_type, 
+        emb_url=emb_url,
+        id_key=person_key,
+        value_key=embedding_type,
         sample_size=sample_size,
         embedding_size=embedding_size)
-    
+
     embeddings = embeddings.astype(np.float32)
 
     if replace_bad_values:
@@ -351,7 +356,7 @@ def load_embeddings_from_hdf5(
     embedding_lengths = [len(x) for x in embedding_dict.values()]
     min_len, max_len = np.min(embedding_lengths), np.max(embedding_lengths)
     assert min_len == max_len, "embedding lengths differ!"
-    
+
     return embedding_dict
 
 
@@ -371,7 +376,7 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
     # Initialize the distance list for each length of hops
     for i in range(num_hops):
         distances[i + 1] = []
-        
+
     # Subsample the person list to only 100 thousand, no fucking way we can run all of these
     person_list = draw_sample(list(embedding_dict.keys()), 100000)
     # person_list = random.sample(list(embedding_dict.keys()), 100000)
@@ -407,10 +412,10 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
 
                 if distance == None:
                     other_embedding = embedding_dict[connection]
-                
+
                     person_tensor = Tensor(np.array(person_embedding))
                     other_tensor = Tensor(np.array(other_embedding))
-                    
+
                     distance = util.cos_sim(person_tensor, other_tensor).numpy()[0][0]
 
                     # Add to lookup table so we don't waste time computing this again
@@ -418,7 +423,7 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
                         distance_matrix[person] = {}
 
                     distance_matrix[person][connection] = distance
-                    
+
                 distances[i].append(distance)
 
         # Get random samples for person
@@ -437,20 +442,20 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
 
             if distance == None:
                 other_embedding = embedding_dict[connection]
-                
+
                 person_tensor = Tensor(np.array(person_embedding))
                 other_tensor = Tensor(np.array(other_embedding))
-                
+
                 distance = util.cos_sim(person_tensor, other_tensor).numpy()[0][0]
 
                 # Add to lookup table so we don't waste time computing this again
                 if person not in distance_matrix:
                     distance_matrix[person] = {}
-                #if connection not in distance_matrix:
-                    #distance_matrix[connection] = {}
+                # if connection not in distance_matrix:
+                # distance_matrix[connection] = {}
 
                 distance_matrix[person][connection] = distance
-                #distance_matrix[connection][person] = distance
+                # distance_matrix[connection][person] = distance
 
             random_distances.append(distance)
 
@@ -469,59 +474,60 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
         counts, bins = np.histogram(distances[i], bins=100, weights=np.ones_like(distances[i]) / len(distances[i]))
         clean_counts = []
         clean_bins = []
-    
+
         bad_hop_count = 0
-    
+
         for j in range(len(bins)):
             if j == len(counts):
                 clean_bins.append(bins[j])
-                break            
-            
-            if (counts[j]*len(distances[i])) > 10:
+                break
+
+            if (counts[j] * len(distances[i])) > 10:
                 clean_counts.append(counts[j])
                 clean_bins.append(bins[j])
             else:
                 bad_hop_count += 1
-                
+
         print("Excluded", str(bad_hop_count), "hops of distance", str(i), flush=True)
 
         clean_bins = np.array(clean_bins)
-        bin_centers = 0.5*(clean_bins[1:] + clean_bins[:-1])
-    
-        plt.plot(bin_centers, clean_counts, color=colors[i-1], label=str(i) + " hops away", alpha=0.8)
-        #plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color=colors[i-1], label=str(i) + " hops away", alpha=0.4)
-        #plt.stairs(clean_counts, clean_bins, color=colors[i-1], label=str(i) + " hops away", alpha=0.4)
-        #plt.hist(distances[i], bins=100, weights=np.ones_like(distances[i]) / len(distances[i]),
-        #plt.hist(distances[i], bins=100, density=True,
+        bin_centers = 0.5 * (clean_bins[1:] + clean_bins[:-1])
+
+        plt.plot(bin_centers, clean_counts, color=colors[i - 1], label=str(i) + " hops away", alpha=0.8)
+        # plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color=colors[i-1], label=str(i) + " hops away", alpha=0.4)
+        # plt.stairs(clean_counts, clean_bins, color=colors[i-1], label=str(i) + " hops away", alpha=0.4)
+        # plt.hist(distances[i], bins=100, weights=np.ones_like(distances[i]) / len(distances[i]),
+        # plt.hist(distances[i], bins=100, density=True,
         #         color=colors[i - 1], label=str(i) + " hops away", alpha=0.4)
 
-    counts, bins = np.histogram(random_distances, bins=100, weights=np.ones_like(random_distances) / len(random_distances))
+    counts, bins = np.histogram(random_distances, bins=100,
+                                weights=np.ones_like(random_distances) / len(random_distances))
     clean_counts = []
     clean_bins = []
-    
+
     bad_fake_count = 0
-    
+
     for i in range(len(bins)):
         if i == len(counts):
             clean_bins.append(bins[i])
             break
-            
-        if (counts[i]*len(random_distances)) > 10:
+
+        if (counts[i] * len(random_distances)) > 10:
             clean_counts.append(counts[i])
             clean_bins.append(bins[i])
         else:
             bad_fake_count += 1
-            
+
     print("Excluded", str(bad_fake_count), "random connections", str(i), flush=True)
-    
+
     clean_bins = np.array(clean_bins)
-    bin_centers = 0.5*(clean_bins[1:] + clean_bins[:-1])
-    
+    bin_centers = 0.5 * (clean_bins[1:] + clean_bins[:-1])
+
     plt.plot(bin_centers, clean_counts, color=colors[-1], label='random other', alpha=0.8)
-    #plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color=colors[-1], label='random other', alpha=0.4)
-    #plt.stairs(clean_counts, clean_bins, color=colors[-1], label='random other', alpha=0.4)
-    #plt.hist(random_distances, bins=100, weights=np.ones_like(random_distances) / len(random_distances),
-    #plt.hist(random_distances, bins=100, density=True,
+    # plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color=colors[-1], label='random other', alpha=0.4)
+    # plt.stairs(clean_counts, clean_bins, color=colors[-1], label='random other', alpha=0.4)
+    # plt.hist(random_distances, bins=100, weights=np.ones_like(random_distances) / len(random_distances),
+    # plt.hist(random_distances, bins=100, density=True,
     #         color=colors[-1], label="random other", alpha=0.4)
 
     plt.xlabel("Cosine Similarity")
@@ -536,6 +542,7 @@ def plot_embedding_distances(embedding_dict, hop_dict, distance_matrix, num_samp
     else:
         plt.clf()
 
+
 ########################################################################################################################
 # Produces histograms for 2 distance distributions, with cohorts by real / fake connections as provided by the ground truth
 # ground truth = dict containing real connection lists
@@ -547,7 +554,7 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
                                   show=True):
     real_distances = []
     fake_distances = []
-    
+
     all_users = list(embedding_dict.keys())
     reduced_users = draw_sample(all_users, 100000)
     # reduced_users = random.sample(all_users, 100000)
@@ -579,10 +586,10 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
 
             if distance == None:
                 other_embedding = embedding_dict[connection]
-                
+
                 person_tensor = Tensor(np.array(person_embedding))
                 other_tensor = Tensor(np.array(other_embedding))
-                
+
                 distance = util.cos_sim(person_tensor, other_tensor).numpy()[0][0]
 
                 if person not in distance_matrix:
@@ -596,7 +603,7 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
             distance = None
 
             fake_other = random.choice(reduced_users)
-            #while fake_other in real_connections:
+            # while fake_other in real_connections:
             #    fake_other = random.choice(list(embedding_dict.keys()))
 
             if person in distance_matrix:
@@ -609,17 +616,17 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
 
             if distance == None:
                 other_embedding = embedding_dict[fake_other]
-                
+
                 person_tensor = Tensor(np.array(person_embedding))
                 other_tensor = Tensor(np.array(other_embedding))
-                
+
                 distance = util.cos_sim(person_tensor, other_tensor).numpy()[0][0]
 
                 if person not in distance_matrix:
                     distance_matrix[person] = {}
-                    
+
                 distance_matrix[person][connection] = distance
-                
+
             fake_distances.append(distance)
 
     # Plot the distributions
@@ -631,56 +638,56 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
     counts, bins = np.histogram(real_distances, bins=100, weights=np.ones_like(real_distances) / len(real_distances))
     clean_counts = []
     clean_bins = []
-    
+
     bad_real_count = 0
-    
+
     for i in range(len(bins)):
         if i == len(counts):
             clean_bins.append(bins[i])
             break
-            
-        if (counts[i]*len(real_distances)) > 10:
+
+        if (counts[i] * len(real_distances)) > 10:
             clean_counts.append(counts[i])
             clean_bins.append(bins[i])
         else:
             bad_real_count += 1
 
     clean_bins = np.array(clean_bins)
-    bin_centers = 0.5*(clean_bins[1:] + clean_bins[:-1])
-    
+    bin_centers = 0.5 * (clean_bins[1:] + clean_bins[:-1])
+
     plt.plot(bin_centers, clean_counts, color='lime', label='Real Connections', alpha=0.8)
-    #plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color='blue', label='Real Connections', alpha=0.4)
-    #plt.stairs(clean_counts, clean_bins, color='blue', label='Real Connections', alpha=0.4)
-    #plt.hist(real_distances, bins=100, weights=np.ones_like(real_distances) / len(real_distances),
-    #plt.hist(real_distances, bins=100, density=True,
+    # plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color='blue', label='Real Connections', alpha=0.4)
+    # plt.stairs(clean_counts, clean_bins, color='blue', label='Real Connections', alpha=0.4)
+    # plt.hist(real_distances, bins=100, weights=np.ones_like(real_distances) / len(real_distances),
+    # plt.hist(real_distances, bins=100, density=True,
     #         color='blue', label='Real Connections', alpha=0.4)
 
     counts, bins = np.histogram(fake_distances, bins=100, weights=np.ones_like(fake_distances) / len(fake_distances))
     clean_counts = []
     clean_bins = []
-    
+
     bad_fake_count = 0
-    
+
     for i in range(len(bins)):
         if i == len(counts):
             clean_bins.append(bins[i])
             break
-            
-        if (counts[i]*len(fake_distances)) > 10:
+
+        if (counts[i] * len(fake_distances)) > 10:
             clean_counts.append(counts[i])
             clean_bins.append(bins[i])
         else:
             bad_fake_count += 1
 
     clean_bins = np.array(clean_bins)
-    bin_centers = 0.5*(clean_bins[1:] + clean_bins[:-1])
-    
-    plt.plot(bin_centers, clean_counts, color='red', label='Fake Connections', alpha=0.8)
-    #plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color='red', label='Fake Connections', alpha=0.4)
-    #plt.stairs(clean_counts, clean_bins, color='red', label='Fake Connections', alpha=0.4) 
+    bin_centers = 0.5 * (clean_bins[1:] + clean_bins[:-1])
 
-    #plt.hist(fake_distances, bins=100, weights=np.ones_like(fake_distances) / len(fake_distances),
-    #plt.hist(fake_distances, bins=100, density=True,
+    plt.plot(bin_centers, clean_counts, color='red', label='Fake Connections', alpha=0.8)
+    # plt.hist(clean_bins[:-1], clean_bins, weights=clean_counts, color='red', label='Fake Connections', alpha=0.4)
+    # plt.stairs(clean_counts, clean_bins, color='red', label='Fake Connections', alpha=0.4)
+
+    # plt.hist(fake_distances, bins=100, weights=np.ones_like(fake_distances) / len(fake_distances),
+    # plt.hist(fake_distances, bins=100, density=True,
     #         color='red', label='Fake Connections', alpha=0.4)
 
     plt.xlabel("Cosine Similarity")
@@ -694,13 +701,12 @@ def plot_distance_vs_ground_truth(embedding_dict, ground_truth, distance_matrix,
         plt.show()
     else:
         plt.clf()
-        
+
     print("Excluded", str(bad_real_count), "real connections,", str(bad_fake_count), "fake connections", flush=True)
+
 
 ########################################################################################################################
 def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="single", baseline=None):
-
-
     logging.debug("dtype is %s", dtype)
     logging.debug("baseline is None is %s", baseline is None)
     return_dict = {}
@@ -710,7 +716,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
     baseline_by_year = {}
     labels_by_year = {}
     test_counts_by_year = {}
-    
+
     full_baseline_list = []
     full_embedding_list = []
     full_label_list = []
@@ -718,7 +724,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
     test_counts_overall = 0
 
     for year in years:
-    
+
         logging.debug("year is: %s", year)
         test_counts_by_year[year] = 0
 
@@ -726,26 +732,26 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
             embeddings_by_year[year] = []
             labels_by_year[year] = []
             baseline_by_year[year] = []
-        
+
         if dtype == "single":
-        
+
             model = LinearRegression()
-            
+
             for person in variable_dict[year]:
-            # Get the players with a valid variable for this year
+                # Get the players with a valid variable for this year
                 if person not in embedding_dict:
                     continue
-                    
+
                 if baseline is not None and person not in baseline:
                     continue
 
                 embedding = embedding_dict[person]
                 value = variable_dict[year][person]
-            
+
                 # If called with a baseline dict, append the values to the end of the embedding
                 if baseline is not None:
                     baseline_values = baseline[person]
-                    extended_embedding = embedding + baseline_values   
+                    extended_embedding = embedding + baseline_values
 
                     baseline_by_year[year].append(baseline_values)
                     full_baseline_list.append(baseline_values)
@@ -758,7 +764,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
 
                 labels_by_year[year].append(value)
                 full_label_list.append(value)
-                
+
         if dtype == 'pair':
 
             model = LogisticRegression(max_iter=10000)
@@ -766,75 +772,75 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
             for pair in variable_dict[year]:
                 person = pair[0]
                 partner = pair[1]
-                
+
                 if person not in embedding_dict or partner not in embedding_dict:
                     continue
-                    
+
                 if baseline is not None:
                     if person not in baseline or partner not in baseline:
                         continue
-                
+
                 embedding_1 = embedding_dict[person]
                 embedding_2 = embedding_dict[partner]
-                
+
                 if baseline is not None:
                     baseline_values_1 = baseline[person]
                     baseline_values_2 = baseline[partner]
                     assert len(baseline_values_1) == len(baseline_values_2)
-                    
+
                     extended_embedding_1 = embedding_1 + baseline_values_1
                     extended_embedding_2 = embedding_2 + baseline_values_2
                     assert len(extended_embedding_1) == len(extended_embedding_2)
-                    
+
                     baseline_by_year[year].append(baseline_values_1 + baseline_values_2)
                     full_baseline_list.append(baseline_values_1 + baseline_values_2)
                     embedding = np.concatenate((extended_embedding_1, extended_embedding_2), axis=0)
-                else:                
+                else:
                     embedding = np.concatenate((embedding_1, embedding_2), axis=0)
-                
+
                 label = variable_dict[year][pair]
-                
+
                 embeddings_by_year[year].append(embedding)
                 labels_by_year[year].append(label)
-                
+
                 full_embedding_list.append(embedding)
                 full_label_list.append(label)
-    
+
     if len(full_embedding_list) < 5 or len(full_label_list) < 5 or len(set(full_label_list)) < 2:
         print("Not enough samples or classes! Aborting", flush=True)
         return None, None, None
-        
+
     scores = cross_val_score(model, full_embedding_list, full_label_list, cv=5, n_jobs=1)
     overall_r2 = scores.mean()
     return_dict['OVERALL'] = overall_r2
-    
+
     if baseline is not None:
         if dtype == 'single':
             baseline_model = LinearRegression()
         elif dtype == 'pair':
             baseline_model = LogisticRegression(max_iter=10000)
-            
+
         scores = cross_val_score(baseline_model, full_baseline_list, full_label_list, cv=5, n_jobs=1)
         baseline_overall = scores.mean()
         baseline_return_dict['OVERALL'] = baseline_overall
-    
+
     # Now do cross validation for each year
     scores_by_year = {}
     baseline_scores_by_year = {}
     for year in years:
         scores_by_year[year] = []
         baseline_scores_by_year[year] = []
-    
+
     for i in range(5):
-    
+
         full_embedding_list = []
         full_label_list = []
         full_baseline_list = []
-        
+
         test_embeddings_by_year = {}
         test_labels_by_year = {}
         test_baseline_by_year = {}
-        
+
         for year in years:
             embeddings = embeddings_by_year[year]
             labels = labels_by_year[year]
@@ -849,56 +855,56 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
                 combined = list(zip(embeddings, labels))
                 random.shuffle(combined)
                 embeddings, labels = zip(*combined)
-            
+
             embeddings = list(embeddings)
             labels = list(labels)
             baselines = list(baselines)
-            
+
             split_point = int(len(embeddings) * 0.8)
-            
+
             train_embeddings = embeddings[:split_point]
             test_embeddings = embeddings[split_point:]
-            
+
             train_labels = labels[:split_point]
             test_labels = labels[split_point:]
-            
+
             train_baseline = baselines[:split_point]
             test_baseline = baselines[split_point:]
-            
+
             full_embedding_list += train_embeddings
             full_label_list += train_labels
             full_baseline_list += train_baseline
-            
+
             test_embeddings_by_year[year] = test_embeddings
             test_labels_by_year[year] = test_labels
             test_baseline_by_year[year] = test_baseline
-            
+
             test_counts_by_year[year] = len(test_labels)
-            
+
             # Get the test counts for the last fold
-            if i==4:
+            if i == 4:
                 test_counts_overall += len(test_labels)
-            
+
         if dtype == 'single':
             model = LinearRegression()
             model.fit(full_embedding_list, full_label_list)
         elif dtype == 'pair':
             model = LogisticRegression(max_iter=10000)
             model.fit(full_embedding_list, full_label_list)
-        
+
         if baseline is not None:
-        
+
             if dtype == 'single':
                 baseline_model = LinearRegression()
                 baseline_model.fit(full_baseline_list, full_label_list)
             if dtype == 'pair':
                 baseline_model = LogisticRegression(max_iter=10000)
                 baseline_model.fit(full_baseline_list, full_label_list)
-        
+
         for year in years:
             score = model.score(test_embeddings_by_year[year], test_labels_by_year[year])
             scores_by_year[year].append(score)
-            
+
             if baseline is not None:
                 score = baseline_model.score(test_baseline_by_year[year], test_labels_by_year[year])
                 baseline_scores_by_year[year].append(score)
@@ -906,18 +912,240 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
     for year in years:
         r2 = np.mean(scores_by_year[year])
         return_dict[year] = r2
-        
+
         if baseline is not None:
             r2 = np.mean(baseline_scores_by_year[year])
             baseline_return_dict[year] = r2
-        
+
     test_counts_by_year['OVERALL'] = test_counts_overall
-    
+
     # Return more if baseline was provided
     if baseline is not None:
         return return_dict, test_counts_by_year, baseline_return_dict
     else:
         return return_dict, test_counts_by_year
+
+########################################################################################################################
+def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single", baseline=None):
+    logging.debug("dtype is %s", dtype)
+    logging.debug("baseline is None is %s", baseline is None)
+    return_dict = {}
+    baseline_return_dict = {}
+
+    embeddings_by_year = {}
+    baseline_by_year = {}
+    labels_by_year = {}
+    test_counts_by_year = {}
+
+    full_baseline_list = []
+    full_embedding_list = []
+    full_label_list = []
+
+    test_counts_overall = 0
+
+    for year in years:
+
+        logging.debug("year is: %s", year)
+        test_counts_by_year[year] = 0
+
+        if year not in embeddings_by_year:
+            embeddings_by_year[year] = []
+            labels_by_year[year] = []
+            baseline_by_year[year] = []
+
+        if dtype == "single":
+
+            model = DecisionTreeRegressor(max_depth=max_depth)
+
+            for person in variable_dict[year]:
+                # Get the players with a valid variable for this year
+                if person not in embedding_dict:
+                    continue
+
+                if baseline is not None and person not in baseline:
+                    continue
+
+                embedding = embedding_dict[person]
+                value = variable_dict[year][person]
+
+                # If called with a baseline dict, append the values to the end of the embedding
+                if baseline is not None:
+                    baseline_values = baseline[person]
+                    extended_embedding = embedding + baseline_values
+
+                    baseline_by_year[year].append(baseline_values)
+                    full_baseline_list.append(baseline_values)
+
+                    embeddings_by_year[year].append(extended_embedding)
+                    full_embedding_list.append(extended_embedding)
+                else:
+                    embeddings_by_year[year].append(embedding)
+                    full_embedding_list.append(embedding)
+
+                labels_by_year[year].append(value)
+                full_label_list.append(value)
+
+        if dtype == 'pair':
+
+            model = DecisionTreeClassifier(max_depth=max_depth)
+
+            for pair in variable_dict[year]:
+                person = pair[0]
+                partner = pair[1]
+
+                if person not in embedding_dict or partner not in embedding_dict:
+                    continue
+
+                if baseline is not None:
+                    if person not in baseline or partner not in baseline:
+                        continue
+
+                embedding_1 = embedding_dict[person]
+                embedding_2 = embedding_dict[partner]
+
+                if baseline is not None:
+                    baseline_values_1 = baseline[person]
+                    baseline_values_2 = baseline[partner]
+                    assert len(baseline_values_1) == len(baseline_values_2)
+
+                    extended_embedding_1 = embedding_1 + baseline_values_1
+                    extended_embedding_2 = embedding_2 + baseline_values_2
+                    assert len(extended_embedding_1) == len(extended_embedding_2)
+
+                    baseline_by_year[year].append(baseline_values_1 + baseline_values_2)
+                    full_baseline_list.append(baseline_values_1 + baseline_values_2)
+                    embedding = np.concatenate((extended_embedding_1, extended_embedding_2), axis=0)
+                else:
+                    embedding = np.concatenate((embedding_1, embedding_2), axis=0)
+
+                label = variable_dict[year][pair]
+
+                embeddings_by_year[year].append(embedding)
+                labels_by_year[year].append(label)
+
+                full_embedding_list.append(embedding)
+                full_label_list.append(label)
+
+    if len(full_embedding_list) < 5 or len(full_label_list) < 5 or len(set(full_label_list)) < 2:
+        print("Not enough samples or classes! Aborting", flush=True)
+        return None, None, None
+
+    scores = cross_val_score(model, full_embedding_list, full_label_list, cv=5, n_jobs=1)
+    overall_r2 = scores.mean()
+    return_dict['OVERALL'] = overall_r2
+
+    if baseline is not None:
+        if dtype == 'single':
+            baseline_model = DecisionTreeRegressor(max_depth=max_depth)
+        elif dtype == 'pair':
+            baseline_model = DecisionTreeClassifier(max_depth=max_depth)
+
+        scores = cross_val_score(baseline_model, full_baseline_list, full_label_list, cv=5, n_jobs=1)
+        baseline_overall = scores.mean()
+        baseline_return_dict['OVERALL'] = baseline_overall
+
+    # Now do cross validation for each year
+    scores_by_year = {}
+    baseline_scores_by_year = {}
+    for year in years:
+        scores_by_year[year] = []
+        baseline_scores_by_year[year] = []
+
+    for i in range(5):
+
+        full_embedding_list = []
+        full_label_list = []
+        full_baseline_list = []
+
+        test_embeddings_by_year = {}
+        test_labels_by_year = {}
+        test_baseline_by_year = {}
+
+        for year in years:
+            embeddings = embeddings_by_year[year]
+            labels = labels_by_year[year]
+            baselines = baseline_by_year[year]
+
+            if baseline is not None:
+                combined = list(zip(embeddings, labels, baselines))
+                random.shuffle(combined)
+                embeddings, labels, baselines = zip(*combined)
+
+            else:
+                combined = list(zip(embeddings, labels))
+                random.shuffle(combined)
+                embeddings, labels = zip(*combined)
+
+            embeddings = list(embeddings)
+            labels = list(labels)
+            baselines = list(baselines)
+
+            split_point = int(len(embeddings) * 0.8)
+
+            train_embeddings = embeddings[:split_point]
+            test_embeddings = embeddings[split_point:]
+
+            train_labels = labels[:split_point]
+            test_labels = labels[split_point:]
+
+            train_baseline = baselines[:split_point]
+            test_baseline = baselines[split_point:]
+
+            full_embedding_list += train_embeddings
+            full_label_list += train_labels
+            full_baseline_list += train_baseline
+
+            test_embeddings_by_year[year] = test_embeddings
+            test_labels_by_year[year] = test_labels
+            test_baseline_by_year[year] = test_baseline
+
+            test_counts_by_year[year] = len(test_labels)
+
+            # Get the test counts for the last fold
+            if i == 4:
+                test_counts_overall += len(test_labels)
+
+        if dtype == 'single':
+            model = LinearRegression()
+            model.fit(full_embedding_list, full_label_list)
+        elif dtype == 'pair':
+            model = LogisticRegression(max_iter=10000)
+            model.fit(full_embedding_list, full_label_list)
+
+        if baseline is not None:
+
+            if dtype == 'single':
+                baseline_model = DecisionTreeRegressor(max_depth=max_depth)
+                baseline_model.fit(full_baseline_list, full_label_list)
+            if dtype == 'pair':
+                baseline_model = DecisionTreeClassifier(max_depth=max_depth)
+                baseline_model.fit(full_baseline_list, full_label_list)
+
+        for year in years:
+            score = model.score(test_embeddings_by_year[year], test_labels_by_year[year])
+            scores_by_year[year].append(score)
+
+            if baseline is not None:
+                score = baseline_model.score(test_baseline_by_year[year], test_labels_by_year[year])
+                baseline_scores_by_year[year].append(score)
+
+    for year in years:
+        r2 = np.mean(scores_by_year[year])
+        return_dict[year] = r2
+
+        if baseline is not None:
+            r2 = np.mean(baseline_scores_by_year[year])
+            baseline_return_dict[year] = r2
+
+    test_counts_by_year['OVERALL'] = test_counts_overall
+
+    # Return more if baseline was provided
+    if baseline is not None:
+        return return_dict, test_counts_by_year, baseline_return_dict
+    else:
+        return return_dict, test_counts_by_year
+
+
 
 ########################################################################################################################
 def weighted_footrule(list1, list2):
@@ -1029,6 +1257,7 @@ def embedding_rank_comparison(embedding_dict_1, embedding_dict_2, top_k=50, meth
 
     return results
 
+
 ########################################################################################################################
 
 def get_distance(person, partner, distance_matrix, embedding_dict, person_embedding):
@@ -1036,129 +1265,129 @@ def get_distance(person, partner, distance_matrix, embedding_dict, person_embedd
     if person in distance_matrix:
         if partner in distance_matrix[person]:
             distance = distance_matrix[person][partner]
-            
+
     if partner in distance_matrix:
         if person in distance_matrix[partner]:
             distance = distance_matrix[partner][person]
-            
+
     if distance is None:
         partner_embedding = embedding_dict[partner]
         distance = util.cos_sim(person_embedding, partner_embedding).numpy()[0][0]
         if person not in distance_matrix:
             distance_matrix[person] = {}
         distance_matrix[person][partner] = distance
-            
+
     return distance
-    
-    #--------------------------------------------------------------------------------------------------------#
+
+    # --------------------------------------------------------------------------------------------------------#
+
 
 def get_marriage_rank_by_year(embedding_dict, distance_matrix, dtype="marriage"):
-
     if dtype == 'marriage':
         with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
             marriage_data = dict(pickle.load(pkl_file))
-            
+
     elif dtype == 'partnership':
         with open("data/processed/partnerships_by_year.pkl", "rb") as pkl_file:
             marriage_data = dict(pickle.load(pkl_file))
 
     full_user_set = set(embedding_dict.keys())
-    #reduced_user_set = set(random.sample(list(embedding_dict.keys()), 1000000))
-        
+    # reduced_user_set = set(random.sample(list(embedding_dict.keys()), 1000000))
+
     with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
         gender_map = dict(pickle.load(pkl_file))
-        
+
     with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
         full_male_list = list(pickle.load(pkl_file))
-        
+
     # Reduce the male list to only those we have embeddings for
     reduced_male_set = set(full_male_list).intersection(full_user_set)
     reduced_male_list = list(reduced_male_set)
     assert len(reduced_male_list) > 0
-        
+
     with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
         full_female_list = list(pickle.load(pkl_file))
-        
+
     # Reduce the female list to only those we have embeddings for
     reduced_female_set = set(full_female_list).intersection(full_user_set)
     reduced_female_list = list(reduced_female_set)
     assert len(reduced_female_list) > 0
-    
+
     yearly_rank_averages = {}
     yearly_test_counts = {}
     overall_ranks = []
-    
+
     # Object for randomly sampling
     rng = np.random.default_rng()
-    
+
     years = len(marriage_data)
     max_marriages_per_year = np.max([len(marriage_data[year]) for year in marriage_data])
-    
+
     male_sample = rng.choice(reduced_male_list, size=(years, max_marriages_per_year, 101), replace=True)
     female_sample = rng.choice(reduced_female_list, size=(years, max_marriages_per_year, 101), replace=True)
-    
+
     for year_idx, year in enumerate(marriage_data):
-        
+
         partner_ranks = []
-        
+
         yearly_data = marriage_data[year]
         yearly_test_counts[int(year)] = 0
-        
+
         for person_idx, person in enumerate(yearly_data):
-        
+
             if person not in full_user_set:
                 continue
-                
+
             # For each person take their real partner and 100 unique randos of the same gender
             partner = yearly_data[person]
-            
+
             if partner not in full_user_set:
                 continue
-                
+
             person_embedding = embedding_dict[person]
             distance = get_distance(person, partner, distance_matrix, embedding_dict, person_embedding)
-            
+
             partner_distance = distance
             partner_rank = 1
-            
+
             gender = gender_map[partner]
-            
+
             if gender == 1:
                 sample = list(male_sample[year_idx][person_idx])
             if gender == 2:
                 sample = list(female_sample[year_idx][person_idx])
-                
+
             if person in sample:
                 sample.remove(person)
             else:
                 sample.pop()
-                
+
             for other in sample:
                 distance = get_distance(person, other, distance_matrix, embedding_dict, person_embedding)
                 if distance > partner_distance:
                     partner_rank += 1
-            
+
             yearly_test_counts[int(year)] += 1
             partner_ranks.append(partner_rank)
             overall_ranks.append(partner_rank)
-            
-        #print(partner_ranks, flush=True)
+
+        # print(partner_ranks, flush=True)
         yearly_rank_averages[int(year)] = np.mean(partner_ranks)
-     
+
     yearly_rank_averages['OVERALL'] = np.mean(overall_ranks)
     yearly_test_counts['OVERALL'] = np.sum(list(yearly_test_counts.values()))
-    
+
     return yearly_rank_averages, yearly_test_counts
-    
+
+
 ########################################################################################################################################################################################
 
 def yearly_probability_prediction(embedding_dict, variable_dict, years, baseline=None, baseline_descriptor=None):
-
     return_dict = {}
 
     embeddings_by_year = {}
     labels_by_year = {}
-    
+
     full_embedding_list = []
     full_label_list = []
 
@@ -1166,110 +1395,110 @@ def yearly_probability_prediction(embedding_dict, variable_dict, years, baseline
 
     max_year = max(years)
     min_year = min(years)
-    
+
     max_difference = np.abs(max_year - min_year)
 
     for year in years:
 
         if year not in embeddings_by_year:
-        
+
             embeddings_by_year[year] = []
             labels_by_year[year] = []
-        
+
             for person in variable_dict[year]:
-            # Get the players with a valid variable for this year
+                # Get the players with a valid variable for this year
                 if person not in embedding_dict:
                     continue
 
                 embedding = embedding_dict[person]
                 value = variable_dict[year][person]
-                
+
                 yearly_difference = np.abs(year - min_year)
                 normal_year = yearly_difference / max_difference
                 embedding.append(normal_year)
-            
+
                 embeddings_by_year[year].append(embedding)
                 labels_by_year[year].append(value)
-                
+
                 full_embedding_list.append(embedding)
                 full_label_list.append(value)
-    
+
     combined = list(zip(full_embedding_list, full_label_list))
     random.shuffle(combined)
     full_embedding_list, full_label_list = zip(*combined)
     full_embedding_list = list(full_embedding_list)
     full_label_list = list(full_label_list)
-    
+
     split_point = int(len(full_label_list) * 0.8)
-    
+
     training_embeddings = full_embedding_list[:split_point]
     test_embeddings = full_embedding_list[split_point:]
-    
+
     training_labels = full_label_list[:split_point]
     test_labels = full_label_list[split_point:]
-    
+
     model.fit(training_embeddings, training_labels)
-    
+
     predictions = model.predict(test_embeddings)
-    
+
     dead_probabilities = []
     alive_probabilities = []
-    
+
     for i in range(len(test_labels)):
         if test_labels[i] == 1:
             alive_probabilities.append(predictions[i])
         elif test_labels[i] == 0:
             dead_probabilities.append(predictions[i])
-            
+
     difference = np.mean(dead_probabilities) - np.mean(alive_probabilities)
     return_dict['OVERALL'] = difference
-    
+
     # Now do separate tests for each year
     full_embedding_list = []
     full_label_list = []
-    
+
     test_embeddings_per_year = {}
     test_labels_per_year = {}
-    
+
     for year in years:
-        #print(year, len(embeddings_by_year[year]), flush=True)
+        # print(year, len(embeddings_by_year[year]), flush=True)
         embeddings = embeddings_by_year[year]
         labels = labels_by_year[year]
-        
+
         combined = list(zip(embeddings, labels))
         random.shuffle(combined)
         embeddings, labels = zip(*combined)
-        
+
         embeddings = list(embeddings)
         labels = list(labels)
-        
+
         split_point = int(len(embeddings) * 0.8)
-        
+
         train_embeddings = embeddings[:split_point]
         test_embeddings = embeddings[split_point:]
-        
+
         train_labels = labels[:split_point]
         test_labels = labels[split_point:]
-        
+
         full_embedding_list += train_embeddings
         full_label_list += train_labels
-        
+
         test_embeddings_per_year[year] = test_embeddings
         test_labels_per_year[year] = test_labels
-        #print(year, len(test_embeddings_per_year[year]), flush=True)
-        
+        # print(year, len(test_embeddings_per_year[year]), flush=True)
+
     model = LinearRegression()
     model.fit(full_embedding_list, full_label_list)
-    
+
     for year in years:
         test_embeddings = test_embeddings_per_year[year]
         test_labels = test_labels_per_year[year]
-    
+
         predictions = model.predict(test_embeddings)
-    
+
         dead_probabilities = []
         alive_probabilities = []
-    
+
         for i in range(len(test_labels)):
             if test_labels[i] == 1:
                 dead_probabilities.append(predictions[i])
@@ -1277,10 +1506,10 @@ def yearly_probability_prediction(embedding_dict, variable_dict, years, baseline
                 alive_probabilities.append(predictions[i])
             else:
                 assert test_labels[i] in {0, 1}
-            
-        #print(year, len(dead_probabilities), len(alive_probabilities), flush=True)
-        #print(alive_probabilities, flush=True)
-        
+
+        # print(year, len(dead_probabilities), len(alive_probabilities), flush=True)
+        # print(alive_probabilities, flush=True)
+
         if len(dead_probabilities) == 0:
             difference = 'NO'
         else:
@@ -1289,10 +1518,10 @@ def yearly_probability_prediction(embedding_dict, variable_dict, years, baseline
 
     return return_dict
 
+
 ########################################################################################################################
 
 def print_output_table(pdf, years, results, highlight=True, reverse=False):
-
     x_offset = 10
     y_offset = 10
 
@@ -1316,16 +1545,15 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
 
         max_value = 0.0
         max_index = None
-        
+
         min_value = np.inf
         min_index = None
-        
+
         row = [year]
 
         for j, emb_type in enumerate(results):
 
             value = results[emb_type][year]
-            
 
             if not isinstance(value, str):
 
@@ -1334,11 +1562,11 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
                 if value > max_value:
                     max_value = value
                     max_index = j + 1
-                    
+
                 if value < min_value:
                     min_value = value
                     min_index = j + 1
-                    
+
             else:
                 row.append(value)
 
@@ -1369,7 +1597,7 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
 
     # Print other rows
     for i, row in enumerate(data):
-        #print(row, flush=True)
+        # print(row, flush=True)
 
         for j, datum in enumerate(row):
             if j == 0:
@@ -1383,8 +1611,7 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
             pdf.cell(w=col_width, h=line_height, txt=str(datum), border=1, align='C')
 
         pdf.ln(line_height)
-        
+
     return pdf
-   
+
 #########################################################################################################################################################
-   
