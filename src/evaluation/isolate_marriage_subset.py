@@ -48,7 +48,7 @@ for year in marriage_data:
         yearly_people.add(fake_partner)
 
     # Grab 5000 people from each year
-    isolated_group = list(random.sample(yearly_people, 5000))
+    isolated_group = list(random.sample(list(yearly_people), 5000))
 
     # 4000 for model training
     model_group = isolated_group[:4000]

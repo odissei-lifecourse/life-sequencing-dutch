@@ -15,7 +15,7 @@ for year in data:
     for person in yearly_income:
         person_set.add(person)
 
-isolated_group = list(random.sample(person_set, 60000))
+isolated_group = list(random.sample(list(person_set), 60000))
 
 income_model_set = set(isolated_group[:50000])
 income_eval_set = set(isolated_group[50000:])
