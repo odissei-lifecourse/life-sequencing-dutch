@@ -2,6 +2,7 @@ import os
 import sys
 import sqlite3
 import pickle
+import random
 
 # Open a connection to the output database
 output_filename = "data/processed/background_db.sqlite"
