@@ -114,7 +114,7 @@ for year in marriage_data:
 
 table_name = "person_marriages"
 output_c.execute("""CREATE TABLE """ + table_name +
-    """ (rinpersoon NOT NULL PRIMARY KEY, partner NOT NULL, year NOT NULL, fake_partner, is_eval)""")
+    """ (rinpersoon NOT NULL, partner NOT NULL, year NOT NULL, fake_partner, is_eval)""")
 
 # Execute an insert statement with the values for this run.
 insert_setup = """INSERT INTO person_marriages VALUES (?,?,?,?,?)"""
