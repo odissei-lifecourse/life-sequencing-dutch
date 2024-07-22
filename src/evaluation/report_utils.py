@@ -6,6 +6,7 @@ from sklearn.base import clone
 from torch import Tensor
 from sentence_transformers import util
 import matplotlib.pyplot as plt
+import sqlite3
 import pickle
 import pandas as pd
 import numpy as np
