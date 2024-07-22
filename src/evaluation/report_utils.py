@@ -2,6 +2,7 @@ from scipy.spatial import distance as dst
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
+from sklearn.base import clone
 from torch import Tensor
 from sentence_transformers import util
 import matplotlib.pyplot as plt
@@ -15,12 +16,8 @@ import h5py
 import logging
 from nearest_neighbor import build_index, get_nearest_neighbor_e2e
 
-# Tree Parameters
-max_depth = 100
-
-
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
-def precompute_global(var_type, years):
+def precompute_global(var_type, years, is_eval=False):
     """
     Load data necessary to evaluate all embedding sets.
 
@@ -32,98 +29,102 @@ def precompute_global(var_type, years):
     A single or a tuple of data objects, depending on the `var_type`.
     """
 
+    input_conn = sqlite3.connect("data/processed/background_db.sqlite")
+    input_c = input_conn.cursor()
+
+    if var_type == 'background':
+
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_background WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_background')
+
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            gender = row[1]
+            birth_year = row[2]
+            birth_city = row[3]
+
+            data[rinpersoon] = [gender, birth_year, birth_city]
+
+        return data
+
+    #------------------------------------------------------------------------------------------------------------------#
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
     if var_type == 'income':
-        with open("data/processed/income_baseline_dict_by_year.pkl", 'rb') as pkl_file:
-            data = dict(pickle.load(pkl_file))
+        
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_income WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_income')
+        
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            year = row[1]
+            income = row[2]
+            
+            if year not in data:
+                data[year] = {}
+
+            data[year][rinpersoon] = income
 
         return data
 
     # -----------------------------------------------------------------------------------------------------------------#
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'marriage':
-        with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
-            marriage_data = dict(pickle.load(pkl_file))
 
-        with open("data/processed/partnerships_by_year.pkl", "rb") as pkl_file:
-            partnership_data = dict(pickle.load(pkl_file))
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_marriages WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_marriages')
 
-        with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
-            gender_map = dict(pickle.load(pkl_file))
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            partner = row[1]
+            year = row[2]
+            fake_partner = row[3]
 
-        with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
-            full_male_list = list(pickle.load(pkl_file))
+            if year not in data:
+                data[year] = {}
 
-        with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
-            full_female_list = list(pickle.load(pkl_file))
+            real_pair = (rinpersoon, partner)
+            fake_pair = (rinpersoon, fake_partner)
 
-        marriage_data_by_year = {}
-        partnership_data_by_year = {}
+            data[year][real_pair] = 1
+            data[year][fake_pair] = 0
 
-        seen_marriages = set()
-        seen_partnerships = set()
+        return data
 
-        marriage_years = [int(x) for x in list(marriage_data.keys())]
-        marriage_years = [str(x) for x in np.intersect1d(marriage_years, years)]
+    # -----------------------------------------------------------------------------------------------------------------#
+    # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
+    if var_type == 'partnership':
 
-        for year in marriage_years:
-            marriage_data_by_year[int(year)] = {}
-            partnership_data_by_year[int(year)] = {}
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_partnerships WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_partnerships')
 
-            relevant_marriages = marriage_data[year]
-            relevant_partnerships = partnership_data[year]
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            partner = row[1]
+            year = row[2]
+            fake_partner = row[3]
 
-            for person in relevant_marriages:
-                partner = relevant_marriages[person]
+            if year not in data:
+                data[year] = {}
 
-                if person in seen_marriages or partner in seen_marriages:
-                    continue
+            real_pair = (rinpersoon, partner)
+            fake_pair = (rinpersoon, fake_partner)
 
-                seen_marriages.add(person)
-                seen_marriages.add(partner)
+            data[year][real_pair] = 1
+            data[year][fake_pair] = 0
 
-                real_pair = (person, partner)
-
-                partner_gender = gender_map[partner]
-
-                if partner_gender == 1:
-                    partner_list = full_male_list
-                else:
-                    partner_list = full_female_list
-
-                fake_partner = random.choice(partner_list)
-
-                fake_pair = (person, fake_partner)
-
-                marriage_data_by_year[int(year)][real_pair] = 1
-                marriage_data_by_year[int(year)][fake_pair] = 0
-
-            for person in relevant_partnerships:
-                partner = relevant_partnerships[person]
-
-                if person in seen_partnerships or partner in seen_partnerships:
-                    continue
-
-                seen_partnerships.add(person)
-                seen_partnerships.add(partner)
-
-                real_pair = (person, partner)
-
-                partner_gender = gender_map[partner]
-
-                if partner_gender == 1:
-                    partner_list = full_male_list
-                else:
-                    partner_list = full_female_list
-
-                fake_partner = random.choice(partner_list)
-
-                fake_pair = (person, fake_partner)
-
-                partnership_data_by_year[int(year)][real_pair] = 1
-                partnership_data_by_year[int(year)][fake_pair] = 0
-
-        return marriage_data_by_year, partnership_data_by_year
+        return data
 
     # ------------------------------------------------------------------------------------------------------------------#
     if var_type == 'death':
@@ -931,7 +932,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
         return return_dict, test_counts_by_year
 
 ########################################################################################################################
-def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single", baseline=None):
+def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict, years, dtype="single", baseline=None):
     logging.debug("dtype is %s", dtype)
     logging.debug("baseline is None is %s", baseline is None)
     return_dict = {}
@@ -942,11 +943,8 @@ def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single
     labels_by_year = {}
     test_counts_by_year = {}
 
-    full_baseline_list = []
-    full_embedding_list = []
-    full_label_list = []
-
-    test_counts_overall = 0
+    scores_by_year = {}
+    baseline_scores_by_year = {}
 
     for year in years:
 
@@ -958,9 +956,10 @@ def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single
             labels_by_year[year] = []
             baseline_by_year[year] = []
 
-        if dtype == "single":
+        scores_by_year[year] = []
+        baseline_scores_by_year[year] = []
 
-            model = DecisionTreeRegressor(max_depth=max_depth)
+        if dtype == "single":
 
             for person in variable_dict[year]:
                 # Get the players with a valid variable for this year
@@ -979,20 +978,14 @@ def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single
                     extended_embedding = embedding + baseline_values
 
                     baseline_by_year[year].append(baseline_values)
-                    full_baseline_list.append(baseline_values)
 
                     embeddings_by_year[year].append(extended_embedding)
-                    full_embedding_list.append(extended_embedding)
                 else:
                     embeddings_by_year[year].append(embedding)
-                    full_embedding_list.append(embedding)
 
                 labels_by_year[year].append(value)
-                full_label_list.append(value)
 
         if dtype == 'pair':
-
-            model = DecisionTreeClassifier(max_depth=max_depth)
 
             for pair in variable_dict[year]:
                 person = pair[0]
@@ -1018,7 +1011,6 @@ def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single
                     assert len(extended_embedding_1) == len(extended_embedding_2)
 
                     baseline_by_year[year].append(baseline_values_1 + baseline_values_2)
-                    full_baseline_list.append(baseline_values_1 + baseline_values_2)
                     embedding = np.concatenate((extended_embedding_1, extended_embedding_2), axis=0)
                 else:
                     embedding = np.concatenate((embedding_1, embedding_2), axis=0)
@@ -1028,129 +1020,27 @@ def tree_variable_prediction(embedding_dict, variable_dict, years, dtype="single
                 embeddings_by_year[year].append(embedding)
                 labels_by_year[year].append(label)
 
-                full_embedding_list.append(embedding)
-                full_label_list.append(label)
+        # Clone a new model for this year
+        yearly_model = clone(model)
 
-    if len(full_embedding_list) < 5 or len(full_label_list) < 5 or len(set(full_label_list)) < 2:
-        print("Not enough samples or classes! Aborting", flush=True)
-        return None, None, None
-
-    scores = cross_val_score(model, full_embedding_list, full_label_list, cv=5, n_jobs=1)
-    overall_r2 = scores.mean()
-    return_dict['OVERALL'] = overall_r2
-
-    if baseline is not None:
-        if dtype == 'single':
-            baseline_model = DecisionTreeRegressor(max_depth=max_depth)
-        elif dtype == 'pair':
-            baseline_model = DecisionTreeClassifier(max_depth=max_depth)
-
-        scores = cross_val_score(baseline_model, full_baseline_list, full_label_list, cv=5, n_jobs=1)
-        baseline_overall = scores.mean()
-        baseline_return_dict['OVERALL'] = baseline_overall
-
-    # Now do cross validation for each year
-    scores_by_year = {}
-    baseline_scores_by_year = {}
-    for year in years:
-        scores_by_year[year] = []
-        baseline_scores_by_year[year] = []
-
-    for i in range(5):
-
-        full_embedding_list = []
-        full_label_list = []
-        full_baseline_list = []
-
-        test_embeddings_by_year = {}
-        test_labels_by_year = {}
-        test_baseline_by_year = {}
-
-        for year in years:
-            embeddings = embeddings_by_year[year]
-            labels = labels_by_year[year]
-            baselines = baseline_by_year[year]
-
-            if baseline is not None:
-                combined = list(zip(embeddings, labels, baselines))
-                random.shuffle(combined)
-                embeddings, labels, baselines = zip(*combined)
-
-            else:
-                combined = list(zip(embeddings, labels))
-                random.shuffle(combined)
-                embeddings, labels = zip(*combined)
-
-            embeddings = list(embeddings)
-            labels = list(labels)
-            baselines = list(baselines)
-
-            split_point = int(len(embeddings) * 0.8)
-
-            train_embeddings = embeddings[:split_point]
-            test_embeddings = embeddings[split_point:]
-
-            train_labels = labels[:split_point]
-            test_labels = labels[split_point:]
-
-            train_baseline = baselines[:split_point]
-            test_baseline = baselines[split_point:]
-
-            full_embedding_list += train_embeddings
-            full_label_list += train_labels
-            full_baseline_list += train_baseline
-
-            test_embeddings_by_year[year] = test_embeddings
-            test_labels_by_year[year] = test_labels
-            test_baseline_by_year[year] = test_baseline
-
-            test_counts_by_year[year] = len(test_labels)
-
-            # Get the test counts for the last fold
-            if i == 4:
-                test_counts_overall += len(test_labels)
-
-        if dtype == 'single':
-            model = LinearRegression()
-            model.fit(full_embedding_list, full_label_list)
-        elif dtype == 'pair':
-            model = LogisticRegression(max_iter=10000)
-            model.fit(full_embedding_list, full_label_list)
+        scores = cross_val_score(yearly_model, embeddings_by_year[year], labels_by_year[year], cv=5, n_jobs=1)
+        yearly_score = scores.mean()
+        return_dict[year] = yearly_score
 
         if baseline is not None:
 
-            if dtype == 'single':
-                baseline_model = DecisionTreeRegressor(max_depth=max_depth)
-                baseline_model.fit(full_baseline_list, full_label_list)
-            if dtype == 'pair':
-                baseline_model = DecisionTreeClassifier(max_depth=max_depth)
-                baseline_model.fit(full_baseline_list, full_label_list)
+            # Clone a new baseline model for this year
+            baseline_model = clone(model)
 
-        for year in years:
-            score = model.score(test_embeddings_by_year[year], test_labels_by_year[year])
-            scores_by_year[year].append(score)
-
-            if baseline is not None:
-                score = baseline_model.score(test_baseline_by_year[year], test_labels_by_year[year])
-                baseline_scores_by_year[year].append(score)
-
-    for year in years:
-        r2 = np.mean(scores_by_year[year])
-        return_dict[year] = r2
-
-        if baseline is not None:
-            r2 = np.mean(baseline_scores_by_year[year])
-            baseline_return_dict[year] = r2
-
-    test_counts_by_year['OVERALL'] = test_counts_overall
+            scores = cross_val_score(baseline_model, baseline_by_year[year], labels_by_year[year], cv=5, n_jobs=1)
+            yearly_baseline_score = scores.mean()
+            baseline_return_dict[year] = yearly_baseline_score
 
     # Return more if baseline was provided
     if baseline is not None:
         return return_dict, test_counts_by_year, baseline_return_dict
     else:
         return return_dict, test_counts_by_year
-
-
 
 ########################################################################################################################
 def weighted_footrule(list1, list2):
@@ -1618,5 +1508,3 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
         pdf.ln(line_height)
 
     return pdf
-
-#########################################################################################################################################################
