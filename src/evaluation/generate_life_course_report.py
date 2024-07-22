@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
         # Get the relevant prediction years from the embedding metadata
         target_year = int(emb['year']) + 1
-        years = years[years.index(target_year):]
+        relevant_years = years[years.index(target_year):]
 
         current_embedding_dict = embeddings_per_task[REFERENCE_TASK]
         summary_dict[name]['n_samples'] = str(len(current_embedding_dict))
@@ -197,7 +197,8 @@ if __name__ == '__main__':
                     nested_query_keys=embedding_map[REFERENCE_TASK],
                     only_embedding=True, 
                     sample_size=args.sample, 
-                    embedding_size=args.embedding_size
+                    embedding_size=args.embedding_size)
+
                 name_2 = emb_2['name']
 
                 results_10 = report_utils.embedding_rank_comparison(embedding_dict, embedding_dict_2, top_k=10,
@@ -263,12 +264,11 @@ if __name__ == '__main__':
             section_start = time.time()
             embeding_dict = embeddings_per_task["income"]
                   
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, income_by_year,
-                                                                                       years,
-                                                                                       dtype='single')
+            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+                embedding_dict, income_by_year, relevant_years, dtype='single')
 
             result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, income_by_year, years, dtype='single', baseline=baseline_dict)
+                embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
 
             if result_with_baseline is not None:
 
@@ -304,13 +304,11 @@ if __name__ == '__main__':
             section_start = time.time()
             embeding_dict = embeddings_per_task["marriage"]
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict,
-                                                                                       marriages_by_year,
-                                                                                       years,
-                                                                                       dtype='pair')
+            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+                embedding_dict, marriages_by_year, relevant_years, dtype='pair')
 
             result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, marriages_by_year, years, dtype='pair', baseline=baseline_dict)
+                embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
             if result_with_baseline is not None:
 
                 marriage_results['Baseline'] = only_baseline
@@ -355,7 +353,7 @@ if __name__ == '__main__':
 
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, partnerships_by_year,years, dtype='pair')
             result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, partnerships_by_year, years, dtype='pair',
+                embedding_dict, partnerships_by_year, relevant_years, dtype='pair',
                 baseline=baseline_dict)
 
             if result_with_baseline is not None:
@@ -605,10 +603,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, income_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, income_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, years, income_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, relevant_years, income_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -657,10 +655,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, marriage_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, years, marriage_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -689,10 +687,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, marriage_rank_results, highlight=True, reverse=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_rank_results, highlight=True, reverse=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, years, marriage_rank_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_rank_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -721,10 +719,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, partnership_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, years, partnership_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -753,10 +751,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, partnership_rank_results, highlight=True, reverse=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_rank_results, highlight=True, reverse=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, years, partnership_rank_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_rank_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -790,7 +788,7 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, years, death_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, relevant_years, death_results, highlight=True)
 
         section_end = time.time()
         delta = section_end - section_start
