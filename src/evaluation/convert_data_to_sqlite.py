@@ -88,8 +88,6 @@ for year in marriage_data:
     for person in relevant_marriages:
         partner = relevant_marriages[person]
 
-        real_pair = (person, partner)
-
         partner_gender = gender_map[partner]
 
         if partner_gender == 1:
@@ -168,7 +166,7 @@ output_c.execute("""CREATE TABLE """ + table_name +
     """ (rinpersoon NOT NULL PRIMARY KEY, gender NOT NULL, birth_year NOT NULL, birth_city NOT NULL, is_eval)""")
 
 # Execute an insert statement with the values for this run.
-insert_setup = """INSERT INTO person_background VALUES (?,?,?,?)"""
+insert_setup = """INSERT INTO person_background VALUES (?,?,?,?,?)"""
 output_conn.executemany(insert_setup, records_to_insert)
 
 index_command = ("CREATE INDEX idx_background_person ON person_background (rinpersoon)")
