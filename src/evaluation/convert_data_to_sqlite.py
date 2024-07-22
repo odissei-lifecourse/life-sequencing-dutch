@@ -5,10 +5,11 @@ import pickle
 
 # Open a connection to the output database
 output_filename = "data/processed/background_db.sqlite"
+
 # If output file already exists, then print an error.
-if os.path.isfile(output_filename):
-    print("Output file already exists: " + output_filename)
-    sys.exit(1)
+# if os.path.isfile(output_filename):
+#     print("Output file already exists: " + output_filename)
+#     sys.exit(1)
 
 output_conn = sqlite3.connect(output_filename)
 output_c = output_conn.cursor()
@@ -48,7 +49,7 @@ output_c.execute("""CREATE TABLE """ + table_name +
 
 # Execute an insert statement with the values for this run.
 insert_setup = """INSERT INTO person_income VALUES (?,?,?,?)"""
-output_conn.executemany(insert_setup, recordsToInsert)
+output_conn.executemany(insert_setup, records_to_insert)
 
 index_command = ("CREATE INDEX idx_income_personyear ON person_income (rinpersoon, year)")
 output_c.execute(index_command)
@@ -116,7 +117,7 @@ output_c.execute("""CREATE TABLE """ + table_name +
 
 # Execute an insert statement with the values for this run.
 insert_setup = """INSERT INTO person_income VALUES (?,?,?,?,?)"""
-output_conn.executemany(insert_setup, recordsToInsert)
+output_conn.executemany(insert_setup, records_to_insert)
 
 index_command = ("CREATE INDEX idx_marriage_pair ON person_marriages (rinpersoon, partner)")
 output_c.execute(index_command)
@@ -167,7 +168,7 @@ output_c.execute("""CREATE TABLE """ + table_name +
 
 # Execute an insert statement with the values for this run.
 insert_setup = """INSERT INTO person_background VALUES (?,?,?,?)"""
-output_conn.executemany(insert_setup, recordsToInsert)
+output_conn.executemany(insert_setup, records_to_insert)
 
 index_command = ("CREATE INDEX idx_background_person ON person_background (rinpersoon)")
 output_c.execute(index_command)
