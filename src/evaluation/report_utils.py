@@ -156,12 +156,13 @@ def precompute_global(var_type, years):
 
 ########################################################################################################################
 # Computes/Loads any values that are used in multiple steps to evaluate a single embedding set, such as distance matrices
-def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedding_size=-1):
+def precompute_local(embedding_set, nested_query_keys=None, only_embedding=False, sample_size=-1, embedding_size=-1):
     """Load and compute values that are used in multiple steps to evaluate a single embedding set,
     such as distance matrices.
 
     Args:
         embedding_set (dict): metadata for embedding files.
+        nested_query_keys (list, optional): keys to find the relevant embedding arrays in a nested hdf5 file.
         only_embedding (bool): If True, only embedding data are loaded.
         sample_size (int, optional): If positive, only load a random sample of embeddings of as many people.
         Currently, changing this option only affects LLM embeddings that are stored as hdf5.
@@ -219,6 +220,7 @@ def precompute_local(embedding_set, only_embedding=False, sample_size=-1, embedd
                 sample_size=sample_size,
                 embedding_size=embedding_size,
                 person_key="sequence_id",
+                nested_query_keys=nested_query_keys,
                 replace_bad_values=True
             )
 
