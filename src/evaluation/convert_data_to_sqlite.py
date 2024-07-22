@@ -18,7 +18,7 @@ output_c = output_conn.cursor()
 records_to_insert = []
 input_file = "data/processed/income_by_year.pkl"
 
-with open("data/processed/income_eval_subset.pkl", 'wb') as pkl_file:
+with open("data/processed/income_eval_subset.pkl", 'rb') as pkl_file:
     income_eval_set = set(pickle.load(pkl_file))
 
 with open(input_file, 'rb') as pkl_file:
@@ -70,10 +70,10 @@ with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
 with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
     full_female_list = list(pickle.load(pkl_file))
 
-with open("data/processed/marriage_eval_subset.pkl", "wb") as pkl_file:
+with open("data/processed/marriage_eval_subset.pkl", "rb") as pkl_file:
     marriage_eval_set = set(pickle.load(pkl_file))
 
-with open("data/processed/marriage_rank_subset.pkl", "wb") as pkl_file:
+with open("data/processed/marriage_rank_subset.pkl", "rb") as pkl_file:
     marriage_rank_set = set(pickle.load(pkl_file))
 
 # We batch all the inserts and write everything at once at the end of the loop.
