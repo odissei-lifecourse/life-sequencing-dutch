@@ -256,13 +256,30 @@ def draw_sample(input_list, size):
     return draws
 
 
-def load_hdf5(emb_url, id_key, value_key, sample_size=-1, embedding_size=-1):
+def nested_query(hdf5_file, query_keys):
+    """Extract arrays from a nested hdf5 file.
+    
+    Args:
+    hdf5_file (h5py.File): file connection
+    query_keys (list): keys of the hdf5 file to be accessed in a nested manner. 
+    """
+    current_level = hdf5_file
+    for key in query_keys:
+        current_level = current_level[key]
+
+    return current_level
+
+
+def load_hdf5(emb_url, id_key, value_key, nested_query_keys=None, sample_size=-1, embedding_size=-1):
     """Load (a subset of) data from an HDF5 file.
 
     Args:
         emb_url (str): The URL or path to the HDF5 file.
         id_key (str): The key in the HDF5 file for the IDs dataset.
         value_key (str): The key in the HDF5 file for the embeddings dataset.
+        nested_query_keys (list, optional): For querying arrays in a nested hdf5 file, provide
+          a list of keys with which nested arrays are recursively accessed. For non-nested files,
+          provide `None`.
         sample_size (int, optional): The number of samples to load.
           If -1 (the deafault), load all data. If non-negative, the records in the
           first indices until `sample_size` are read.
@@ -281,26 +298,33 @@ def load_hdf5(emb_url, id_key, value_key, sample_size=-1, embedding_size=-1):
 
     if sample_size == -1:
         with h5py.File(emb_url, "r") as f:
-            ids = f[id_key][:]
-            emb_dim = f[value_key].shape[1]
+            arrays = f 
+            if nested_query_keys is not None:
+                arrays = nested_query(f, nested_query_keys)
+            ids = arrays[id_key][:]
+            emb_dim = arrays[value_key].shape[1]
             if embedding_size > 0:
                 embedding_size = min(emb_dim, embedding_size)
-                values = f[value_key][:, :embedding_size]
+                values = arrays[value_key][:, :embedding_size]
             else:
-                values = f[value_key][:, :]
+                values = arrays[value_key][:, :]
     else:
         with h5py.File(emb_url, "r") as f:
-            nobs = f[id_key].shape[0]
-            sample_size = min(nobs, sample_size)
-            universe = np.arange(nobs)
+            arrays = f 
+            if nested_query_keys is not None:
+                arrays = nested_query(f, nested_query_keys)
 
-            ids = f[id_key][:sample_size]
-            emb_dim = f[value_key].shape[1]
+
+            nobs = arrays[id_key].shape[0]
+            sample_size = min(nobs, sample_size)
+
+            ids = arrays[id_key][:sample_size]
+            emb_dim = arrays[value_key].shape[1]
             if embedding_size > 0:
                 embedding_size = min(emb_dim, embedding_size)
-                values = f[value_key][:sample_size, :embedding_size]
+                values = arrays[value_key][:sample_size, :embedding_size]
             else:
-                values = f[value_key][:sample_size, :]
+                values = arrays[value_key][:sample_size, :]
 
     return ids, values
 
@@ -311,6 +335,7 @@ def load_embeddings_from_hdf5(
         sample_size=-1,
         embedding_size=-1,
         person_key="sequence_id",
+        nested_query_keys=None,
         replace_bad_values=True
 ):
     """Load embeddings from an hdf5 file that has the following key-values:
@@ -324,6 +349,7 @@ def load_embeddings_from_hdf5(
         sample_size (int, optional): The number of samples to load. If -1, load all data (default: -1).
         embedding_size (int, optional): maximum embedding size to load. For dry runs.
         person_key (str, optional): unique person identifier. Must be a key in the hdf5 file.
+        nested_query_keys (list, optional): the keys leading to the lowest set of arrays in a nested hdf5 file.
         replace_bad_values (bool, optional): If true, replaces embeddings with NaNs and inifite embedding values with 0.
 
     Returns:
@@ -339,6 +365,7 @@ def load_embeddings_from_hdf5(
         id_key=person_key,
         value_key=embedding_type,
         sample_size=sample_size,
+        nested_query_keys=nested_query_keys,
         embedding_size=embedding_size)
 
     embeddings = embeddings.astype(np.float32)
