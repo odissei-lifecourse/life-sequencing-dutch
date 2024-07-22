@@ -11,6 +11,14 @@ import pickle
 import copy
 import logging
 
+embedding_map = {
+    "income": ["income_eval"],
+    "marriage": ["marriage_eval"],
+    "marriage_rank": ["marriage_rank"]
+}
+
+REFERENCE_TASK = "marriage_rank" # determines which embeddings are used for distance matrix, and for parts 0, 1, 2
+
 if __name__ == '__main__':
 
     # Report Sections
@@ -126,10 +134,26 @@ if __name__ == '__main__':
 
         section_start = time.time()
 
-        embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
-            emb, only_embedding=False, sample_size=args.sample, embedding_size=args.embedding_size)
-        # embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
-        # distance_matrix = {}
+        embeddings_per_task = {}
+        for task, query_keys in embedding_map.items():
+            if task == REFERENCE_TASK:
+                embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
+                    emb,
+                    nested_query_keys=embedding_map[REFERENCE_TASK],
+                    only_embedding=False,
+                    sample_size=args.sample_size,
+                    embedding_size=args.embedding_size
+                )
+            else:
+                embedding_dict = report_utils.precompute_local(
+                    emb,
+                    nested_query_keys=query_keys,
+                    only_embedding=True,
+                    sample_size=args.sample,
+                    embedding_set=args.embedding_size
+                )
+
+            embeddings_per_task[task] = embedding_dict
 
         root = emb['root']
         url = emb['url']
@@ -145,9 +169,10 @@ if __name__ == '__main__':
         target_year = int(emb['year']) + 1
         years = years[years.index(target_year):]
 
-        summary_dict[name]['n_samples'] = str(len(embedding_dict))
-        random_person = random.choice(list(embedding_dict.keys()))
-        summary_dict[name]['dimensions'] = str(len(embedding_dict[random_person]))
+        current_embedding_dict = embeddings_per_task[REFERENCE_TASK]
+        summary_dict[name]['n_samples'] = str(len(current_embedding_dict))
+        random_person = random.choice(list(current_embedding_dict.keys()))
+        summary_dict[name]['dimensions'] = str(len(current_embedding_dict[random_person]))
 
         section_end = time.time()
         delta = section_end - section_start
@@ -162,11 +187,18 @@ if __name__ == '__main__':
         if 0 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embeddings_per_task[REFERENCE_TASK]
 
             for j in range(i + 1, len(embedding_sets)):
                 emb_2 = embedding_sets[j]
                 embedding_dict_2 = report_utils.precompute_local(
-                    emb_2, only_embedding=True, sample_size=args.sample, embedding_size=args.embedding_size)
+                    emb_2,
+                    nested_query_keys=embedding_map[REFERENCE_TASK],
+                    only_embedding=True,
+                    sample_size=args.sample,
+                    embedding_size=args.embedding_size
+                )
+
                 name_2 = emb_2['name']
 
                 results_10 = report_utils.embedding_rank_comparison(embedding_dict, embedding_dict_2, top_k=10,
@@ -190,6 +222,7 @@ if __name__ == '__main__':
         if 1 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embedding_map[REFERENCE_TASK]
 
             plot_savename = '/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/results/' + savename + "_hop_distributions.png"
             distribution_savenames.append(plot_savename)
@@ -209,6 +242,7 @@ if __name__ == '__main__':
         if 2 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embedding_map[REFERENCE_TASK]
 
             plot_savename = '/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/results/' + savename + "_real_vs_random.png"
             binary_savenames.append(plot_savename)
@@ -230,6 +264,7 @@ if __name__ == '__main__':
         if 3 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embedding_map[REFERENCE_TASK]
 
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, income_by_year,
                                                                                        years,
@@ -270,6 +305,7 @@ if __name__ == '__main__':
         if 5.1 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embedding_map[REFERENCE_TASK]
 
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict,
                                                                                        marriages_by_year,
@@ -301,6 +337,7 @@ if __name__ == '__main__':
         ##################################################################################################################################################################################################
         if 5.2 in report_parts:
             section_start = time.time()
+            embedding_dict = embedding_map[REFERENCE_TASK]
 
             marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
                                                                                                  distance_matrix,
@@ -315,7 +352,7 @@ if __name__ == '__main__':
         # 6.1 - Generate Partnership Pair Predictions
         ##################################################################################################################################################################################################
         if 6.1 in report_parts:
-
+            raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, partnerships_by_year,years, dtype='pair')
@@ -345,6 +382,7 @@ if __name__ == '__main__':
         # 6.2 - Generate Partnership Partner Rank Predictions
         ##################################################################################################################################################################################################
         if 6.2 in report_parts:
+            raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
             partnership_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
@@ -360,6 +398,7 @@ if __name__ == '__main__':
         # 7 - Generate Highest Education Level Results
         ##########################################################################################################################################################################################
         if 7 in report_parts:
+            raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
             section_end = time.time()
@@ -369,6 +408,7 @@ if __name__ == '__main__':
         # 8 - Generate Death Predictions
         ######################################################################################################################################################################################
         if 8 in report_parts:
+            raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
             result_dict = report_utils.yearly_probability_prediction(embedding_dict, deaths_by_year,
