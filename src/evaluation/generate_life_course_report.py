@@ -184,7 +184,7 @@ if __name__ == '__main__':
         savename = savename[:-1]
 
         # 0. Compare Embeddings and print results to first section
-        if 0 in report_parts:
+        if 0 in report_parts: 
 
             section_start = time.time()
             embedding_dict = embeddings_per_task[REFERENCE_TASK]
@@ -192,13 +192,12 @@ if __name__ == '__main__':
             for j in range(i + 1, len(embedding_sets)):
                 emb_2 = embedding_sets[j]
                 embedding_dict_2 = report_utils.precompute_local(
-                    emb_2,
-                    nested_query_keys=embedding_map[REFERENCE_TASK],
-                    only_embedding=True,
-                    sample_size=args.sample,
-                    embedding_size=args.embedding_size
-                )
 
+                    emb_2, 
+                    nested_query_keys=embedding_map[REFERENCE_TASK],
+                    only_embedding=True, 
+                    sample_size=args.sample, 
+                    embedding_size=args.embedding_size
                 name_2 = emb_2['name']
 
                 results_10 = report_utils.embedding_rank_comparison(embedding_dict, embedding_dict_2, top_k=10,
@@ -240,7 +239,6 @@ if __name__ == '__main__':
         # 2. Plot Real vs. Fake distance distributions
         #####################################################################################################
         if 2 in report_parts:
-
             section_start = time.time()
             embedding_dict = embedding_map[REFERENCE_TASK]
 
@@ -250,7 +248,6 @@ if __name__ == '__main__':
             if regen_images:
                 subtitle = name + " Embeddings"
                 plot_title = truth.capitalize() + " Network Real vs Random Distances: \n" + subtitle
-
                 report_utils.plot_distance_vs_ground_truth(embedding_dict, ground_truth_dict, distance_matrix, 1,
                                                            plot_title, plot_savename, show=True)
 
@@ -264,8 +261,8 @@ if __name__ == '__main__':
         if 3 in report_parts:
 
             section_start = time.time()
-            embedding_dict = embedding_map[REFERENCE_TASK]
-
+            embeding_dict = embeddings_per_task["income"]
+                  
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, income_by_year,
                                                                                        years,
                                                                                        dtype='single')
@@ -305,7 +302,7 @@ if __name__ == '__main__':
         if 5.1 in report_parts:
 
             section_start = time.time()
-            embedding_dict = embedding_map[REFERENCE_TASK]
+            embeding_dict = embeddings_per_task["marriage"]
 
             result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict,
                                                                                        marriages_by_year,
@@ -337,7 +334,7 @@ if __name__ == '__main__':
         ##################################################################################################################################################################################################
         if 5.2 in report_parts:
             section_start = time.time()
-            embedding_dict = embedding_map[REFERENCE_TASK]
+            embeding_dict = embeddings_per_task["marriage_rank"]
 
             marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
                                                                                                  distance_matrix,
@@ -351,7 +348,8 @@ if __name__ == '__main__':
 
         # 6.1 - Generate Partnership Pair Predictions
         ##################################################################################################################################################################################################
-        if 6.1 in report_parts:
+        if 6.1 in report_parts: 
+
             raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
@@ -381,7 +379,7 @@ if __name__ == '__main__':
 
         # 6.2 - Generate Partnership Partner Rank Predictions
         ##################################################################################################################################################################################################
-        if 6.2 in report_parts:
+        if 6.2 in report_parts:  
             raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
@@ -397,7 +395,8 @@ if __name__ == '__main__':
 
         # 7 - Generate Highest Education Level Results
         ##########################################################################################################################################################################################
-        if 7 in report_parts:
+        if 7 in report_parts:  
+
             raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
@@ -407,7 +406,8 @@ if __name__ == '__main__':
 
         # 8 - Generate Death Predictions
         ######################################################################################################################################################################################
-        if 8 in report_parts:
+        if 8 in report_parts: 
+
             raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
