@@ -4,6 +4,9 @@ import random
 from fpdf import FPDF
 from sentence_transformers import util
 from torch import Tensor
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.svm import SVC, SVR
 import time
 from datetime import date
 import report_utils
@@ -27,6 +30,22 @@ if __name__ == '__main__':
     income_baseline_year = 2016
     report_parts = [1, 2, 3, 5.1, 6.1]
     regen_images = True
+
+    # Regression Models
+    max_iters = 10000
+    single_model = LinearRegression()
+    pair_model = LogisticRegression(max_iter=max_iters)
+
+    # Decision Tree Models
+    #max_depth = 100
+    #single_model = DecisionTreeRegressor(max_depth=max_depth)
+    #pair_model = DecisionTreeClassifier(max_depth=max_depth)
+
+    # Support Vector Machine Models
+    #kernel = 'rbf'
+    #C = 1.0
+    #single_model = SVR(kernel=kernel, C=C)
+    #pair_model = SVC(kernel=kernel, C=C)
 
     parser = argparse.ArgumentParser(description='')
 
@@ -179,7 +198,7 @@ if __name__ == '__main__':
 
         # Get the relevant prediction years from the embedding metadata
         target_year = int(emb['year']) + 1
-        years = years[years.index(target_year):]
+        relevant_years = years[years.index(target_year):]
 
         summary_dict[name]['n_samples'] = str(len(embedding_dict))
         random_person = random.choice(list(embedding_dict.keys()))
@@ -267,12 +286,17 @@ if __name__ == '__main__':
 
             section_start = time.time()
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, income_by_year,
-                                                                                       years,
-                                                                                       dtype='single')
+            # Predict using just embeddings
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, income_by_year, relevant_years, dtype='single')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                single_model, embedding_dict, income_by_year, relevant_years, dtype='single')
 
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, income_by_year, years, dtype='single', baseline=baseline_dict)
+            # Predict using embeddings + baseline
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                single_model, embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
 
             if result_with_baseline is not None:
 
@@ -307,13 +331,18 @@ if __name__ == '__main__':
 
             section_start = time.time()
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict,
-                                                                                       marriages_by_year,
-                                                                                       years,
-                                                                                       dtype='pair')
+            # Predict using just embeddings
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair')
 
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, marriages_by_year, years, dtype='pair', baseline=baseline_dict)
+            # Predict using embeddings + baseline
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+
             if result_with_baseline is not None:
 
                 marriage_results['Baseline'] = only_baseline
@@ -338,9 +367,9 @@ if __name__ == '__main__':
         if 5.2 in report_parts:
             section_start = time.time()
 
-            marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
-                                                                                                 distance_matrix,
-                                                                                                 dtype='marriage')
+            marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(
+                embedding_dict, distance_matrix, dtype='marriage')
+
             marriage_rank_results[name] = marriage_ranks_by_year
             marriage_rank_test_counts_by_year[name] = test_counts_by_year
 
@@ -354,10 +383,16 @@ if __name__ == '__main__':
 
             section_start = time.time()
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, partnerships_by_year,years, dtype='pair')
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, partnerships_by_year, years, dtype='pair',
-                baseline=baseline_dict)
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, partnerships_by_year,years, dtype='pair')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, partnerships_by_year, relevant_years, dtype='pair')
+
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, partnerships_by_year, years, dtype='pair', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, partnerships_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+
 
             if result_with_baseline is not None:
 
