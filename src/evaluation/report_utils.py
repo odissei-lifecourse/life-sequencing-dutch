@@ -17,7 +17,7 @@ import logging
 from nearest_neighbor import build_index, get_nearest_neighbor_e2e
 
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
-def precompute_global(var_type, years):
+def precompute_global(var_type, years, is_eval=False):
     """
     Load data necessary to evaluate all embedding sets.
 
@@ -29,98 +29,102 @@ def precompute_global(var_type, years):
     A single or a tuple of data objects, depending on the `var_type`.
     """
 
+    input_conn = sqlite3.connect("data/processed/background_db.sqlite")
+    input_c = input_conn.cursor()
+
+    if var_type == 'background':
+
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_background WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_background')
+
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            gender = row[1]
+            birth_year = row[2]
+            birth_city = row[3]
+
+            data[rinpersoon] = [gender, birth_year, birth_city]
+
+        return data
+
+    #------------------------------------------------------------------------------------------------------------------#
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
     if var_type == 'income':
-        with open("data/processed/income_baseline_dict_by_year.pkl", 'rb') as pkl_file:
-            data = dict(pickle.load(pkl_file))
+        
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_income WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_income')
+        
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            year = row[1]
+            income = row[2]
+            
+            if year not in data:
+                data[year] = {}
+
+            data[year][rinpersoon] = income
 
         return data
 
     # -----------------------------------------------------------------------------------------------------------------#
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'marriage':
-        with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
-            marriage_data = dict(pickle.load(pkl_file))
 
-        with open("data/processed/partnerships_by_year.pkl", "rb") as pkl_file:
-            partnership_data = dict(pickle.load(pkl_file))
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_marriages WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_marriages')
 
-        with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
-            gender_map = dict(pickle.load(pkl_file))
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            partner = row[1]
+            year = row[2]
+            fake_partner = row[3]
 
-        with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
-            full_male_list = list(pickle.load(pkl_file))
+            if year not in data:
+                data[year] = {}
 
-        with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
-            full_female_list = list(pickle.load(pkl_file))
+            real_pair = (rinpersoon, partner)
+            fake_pair = (rinpersoon, fake_partner)
 
-        marriage_data_by_year = {}
-        partnership_data_by_year = {}
+            data[year][real_pair] = 1
+            data[year][fake_pair] = 0
 
-        seen_marriages = set()
-        seen_partnerships = set()
+        return data
 
-        marriage_years = [int(x) for x in list(marriage_data.keys())]
-        marriage_years = [str(x) for x in np.intersect1d(marriage_years, years)]
+    # -----------------------------------------------------------------------------------------------------------------#
+    # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
+    if var_type == 'partnership':
 
-        for year in marriage_years:
-            marriage_data_by_year[int(year)] = {}
-            partnership_data_by_year[int(year)] = {}
+        if is_eval:
+            results = input_c.execute('SELECT * FROM person_partnerships WHERE is_eval = 1')
+        else:
+            results = input_c.execute('SELECT * FROM person_partnerships')
 
-            relevant_marriages = marriage_data[year]
-            relevant_partnerships = partnership_data[year]
+        data = {}
+        for row in results:
+            rinpersoon = row[0]
+            partner = row[1]
+            year = row[2]
+            fake_partner = row[3]
 
-            for person in relevant_marriages:
-                partner = relevant_marriages[person]
+            if year not in data:
+                data[year] = {}
 
-                if person in seen_marriages or partner in seen_marriages:
-                    continue
+            real_pair = (rinpersoon, partner)
+            fake_pair = (rinpersoon, fake_partner)
 
-                seen_marriages.add(person)
-                seen_marriages.add(partner)
+            data[year][real_pair] = 1
+            data[year][fake_pair] = 0
 
-                real_pair = (person, partner)
-
-                partner_gender = gender_map[partner]
-
-                if partner_gender == 1:
-                    partner_list = full_male_list
-                else:
-                    partner_list = full_female_list
-
-                fake_partner = random.choice(partner_list)
-
-                fake_pair = (person, fake_partner)
-
-                marriage_data_by_year[int(year)][real_pair] = 1
-                marriage_data_by_year[int(year)][fake_pair] = 0
-
-            for person in relevant_partnerships:
-                partner = relevant_partnerships[person]
-
-                if person in seen_partnerships or partner in seen_partnerships:
-                    continue
-
-                seen_partnerships.add(person)
-                seen_partnerships.add(partner)
-
-                real_pair = (person, partner)
-
-                partner_gender = gender_map[partner]
-
-                if partner_gender == 1:
-                    partner_list = full_male_list
-                else:
-                    partner_list = full_female_list
-
-                fake_partner = random.choice(partner_list)
-
-                fake_pair = (person, fake_partner)
-
-                partnership_data_by_year[int(year)][real_pair] = 1
-                partnership_data_by_year[int(year)][fake_pair] = 0
-
-        return marriage_data_by_year, partnership_data_by_year
+        return data
 
     # ------------------------------------------------------------------------------------------------------------------#
     if var_type == 'death':
