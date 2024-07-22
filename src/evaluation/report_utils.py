@@ -182,7 +182,6 @@ def precompute_local(embedding_set, nested_query_keys=None, only_embedding=False
     ##########################################################################################
     # Step 1: Load the embeddings into a dictionary indexed by ID
     embedding_dict = {}
-
     emb_url = root + url
     if "json" in emb_url:
         with open(emb_url, 'r') as json_file:
@@ -237,10 +236,10 @@ def draw_sample(input_list, size):
 
 def nested_query(hdf5_file, query_keys):
     """Extract arrays from a nested hdf5 file.
-    
+
     Args:
     hdf5_file (h5py.File): file connection
-    query_keys (list): keys of the hdf5 file to be accessed in a nested manner. 
+    query_keys (list): keys of the hdf5 file to be accessed in a nested manner.
     """
     current_level = hdf5_file
     for key in query_keys:
@@ -277,7 +276,7 @@ def load_hdf5(emb_url, id_key, value_key, nested_query_keys=None, sample_size=-1
 
     if sample_size == -1:
         with h5py.File(emb_url, "r") as f:
-            arrays = f 
+            arrays = f
             if nested_query_keys is not None:
                 arrays = nested_query(f, nested_query_keys)
             ids = arrays[id_key][:]
@@ -286,10 +285,10 @@ def load_hdf5(emb_url, id_key, value_key, nested_query_keys=None, sample_size=-1
                 embedding_size = min(emb_dim, embedding_size)
                 values = arrays[value_key][:, :embedding_size]
             else:
-                values = arrays[value_key][:, :]
+                values = arrays[value_key][:, :embedding_size]
     else:
         with h5py.File(emb_url, "r") as f:
-            arrays = f 
+            arrays = f
             if nested_query_keys is not None:
                 arrays = nested_query(f, nested_query_keys)
 
@@ -1508,3 +1507,5 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
         pdf.ln(line_height)
 
     return pdf
+
+#########################################################################################################################################################
