@@ -117,7 +117,7 @@ output_c.execute("""CREATE TABLE """ + table_name +
     """ (rinpersoon NOT NULL PRIMARY KEY, partner NOT NULL, year NOT NULL, fake_partner, is_eval)""")
 
 # Execute an insert statement with the values for this run.
-insert_setup = """INSERT INTO person_income VALUES (?,?,?,?,?)"""
+insert_setup = """INSERT INTO person_marriages VALUES (?,?,?,?,?)"""
 output_conn.executemany(insert_setup, records_to_insert)
 
 index_command = ("CREATE INDEX idx_marriage_pair ON person_marriages (rinpersoon, partner)")
