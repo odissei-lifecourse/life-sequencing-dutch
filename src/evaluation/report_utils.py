@@ -173,7 +173,7 @@ def precompute_local(embedding_set, nested_query_keys=None, only_embedding=False
     """
     root = embedding_set['root']
     url = embedding_set['url']
-    emb_type = embedding_set['type']
+    embedding_type = embedding_set["emb_type"]
     truth_type = embedding_set['truth']
 
     year = embedding_set['year']
@@ -182,47 +182,23 @@ def precompute_local(embedding_set, nested_query_keys=None, only_embedding=False
     # Step 1: Load the embeddings into a dictionary indexed by ID
     embedding_dict = {}
 
-    if emb_type == 'NET':
+    emb_url = root + url
+    if "json" in emb_url:
+        with open(emb_url, 'r') as json_file:
+            embedding_dict = dict(json.load(json_file))
 
-        mapping_url = root + embedding_set['mapping']
-
-        # First get mappings
-        with open(mapping_url, 'rb') as pkl_file:
-            mappings = dict(pickle.load(pkl_file))
-
-        inverse_mappings = {}
-        for key, value in mappings.items():
-            inverse_mappings[value] = key
-
-        emb_url = root + url
-        with open(emb_url, 'rb') as pkl_file:
-            data = pickle.load(pkl_file)
-
-        for i in range(len(data)):
-            embedding = data[i]
-            player_id = int(inverse_mappings[i])
-
-            embedding_dict[player_id] = list(embedding)
-
-    if emb_type == 'LLM':
-        emb_url = root + url
-        if "json" in emb_url:
-            with open(emb_url, 'r') as json_file:
-                embedding_dict = dict(json.load(json_file))
-
-            # Need to typecast into int
-            embedding_dict = {int(key): value for key, value in embedding_dict.items()}
-        else:
-            embedding_type = embedding_set["emb_type"]
-            embedding_dict = load_embeddings_from_hdf5(
-                emb_url=emb_url,
-                embedding_type=embedding_type,
-                sample_size=sample_size,
-                embedding_size=embedding_size,
-                person_key="sequence_id",
-                nested_query_keys=nested_query_keys,
-                replace_bad_values=True
-            )
+        # Need to typecast into int
+        embedding_dict = {int(key): value for key, value in embedding_dict.items()}
+    else:
+        embedding_dict = load_embeddings_from_hdf5(
+            emb_url=emb_url,
+            embedding_type=embedding_type,
+            sample_size=sample_size,
+            embedding_size=embedding_size,
+            person_key="sequence_id",
+            nested_query_keys=nested_query_keys,
+            replace_bad_values=True
+        )
 
     if only_embedding:
         return embedding_dict
