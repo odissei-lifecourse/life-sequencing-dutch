@@ -22,6 +22,7 @@ Configuration File:
 Constants:
     SAMPLE_SIZE_DRY_RUN (int): Default sample size for dry run mode.
     RANDOM_SEED (int): Seed for random number generation.
+    OVERRIDE_STATISTICS (dict): Override the stats of these variables with if `if_type` matches
 """
 
 
@@ -39,6 +40,17 @@ from src.llm.src.new_code.utils import read_json
 SAMPLE_SIZE_DRY_RUN = 1_000
 RANDOM_SEED = 935723583
 
+OVERRIDE_STATISTICS = {
+    "age": {
+        "type": "continuous",
+        "stats": {
+            "mean": 45,
+            "std_dev": 15,
+            "min": 10
+        }
+    }
+}
+
 
 def main(cfg, n_observations=None):
     """Generate data
@@ -53,7 +65,7 @@ def main(cfg, n_observations=None):
     rng = np.random.default_rng(seed=RANDOM_SEED)
     src_files = get_unique_source_files(cfg["SUMMARY_STAT_DIR"])
 
-    generator = FakeDataGenerator()
+    generator = FakeDataGenerator(override=OVERRIDE_STATISTICS)
     for src_file in tqdm(src_files):
         url, filename = os.path.split(src_file)
         generator.load_metadata(url=url, filename=filename)

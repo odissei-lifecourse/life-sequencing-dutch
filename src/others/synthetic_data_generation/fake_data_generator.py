@@ -22,9 +22,16 @@ class FakeDataGenerator:
     - For numerical variables with a low interquartile range (IQR), the unique integers from the range are drawn with equal probability.
     """
 
-    def __init__(self):
+    def __init__(self, override=None):
+        """
+        
+        Args:
+          override (dict, optional): if given, overrides the statistics of of the metadata with the provided values.
+          This is experimental and used to fix some issues in our input data.
+        """
         self.meta = None
         self.col_summary = None
+        self.override=override
 
 
     def _path_end(self, path_start):
@@ -80,6 +87,12 @@ class FakeDataGenerator:
         for _, row in self.col_summary.iterrows():
             variable = row["variable_name"]
             results[variable] = detect_variable_type(row)
+
+            if variable in self.override.keys():
+                override = self.override[variable]
+                if override["type"] == results[variable]["type"]:
+                    for feature, value in override["stats"].items():
+                        results[variable][feature] = value
         
         self.generation_inputs = results
 
@@ -109,7 +122,7 @@ class FakeDataGenerator:
         for pc in pii_cols:
             data[pc] = np.arange(size)
 
-        for colname, inputs in self.generation_inputs.items(): 
+        for colname, inputs in self.generation_inputs.items():
             required_dtype = column_dtypes.get(colname)
             implemented_types = ["object", "int64"]
             if required_dtype not in implemented_types:
