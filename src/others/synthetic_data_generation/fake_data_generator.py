@@ -140,7 +140,8 @@ class FakeDataGenerator:
                 if required_dtype == "int64":
                     col_data = np.int64(np.round(col_data))
 
-            col_data = add_nans(rng, col_data, n_nulls)
+            if n_nulls > 0:
+                col_data = add_nans(rng, col_data, n_nulls)
             data[colname] = col_data
 
         return pd.DataFrame(data)
@@ -163,7 +164,14 @@ def generate_continuous_column(rng, mean, std_dev, size, min_value):
 
 
 def add_nans(rng, data, size):
-    "add NaNs to an existing array"
+    """Add NaNs to an existing array
+    
+    Notes:
+        Because numpy cannot store NaNs in a integer array, this changes the types of the output array!
+        See also https://stackoverflow.com/questions/12708807/numpy-integer-nan and 
+        https://numpy.org/doc/stable/glossary.html#term-casting.
+    
+    """
     nulls = np.tile(np.nan, size)
     data = np.concatenate([nulls, data])
     rng.shuffle(data)
