@@ -180,8 +180,8 @@ def encode_documents(docs_with_counter, write_path_prefix, needed_ids, do_mlm, m
     person_document = PersonDocument(
       person_id=person_dict['person_id'],
       sentences=person_dict['sentence'],
-      abspos=[int(x) for x in person_dict['abspos']],
-      age=[int(x) for x in person_dict['age']],
+      abspos=[int(float(x)) for x in person_dict['abspos']],  
+      age=[int(float(x)) for x in person_dict['age']],
       segment=person_dict['segment'],
       background=Background(**person_dict['background']),
     )
