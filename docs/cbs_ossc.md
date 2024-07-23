@@ -16,6 +16,8 @@ This is information from Tom.
     - for the network report, 240G memory works and 120G memory is too little. 
     - for the LLM report with new embeddings stored in hdf5, evaluating the full dataset takes ~800G memory and 5-8 hours (for evaluating embeddings of 3-4 different models). 
         - the `sample` option in `generate_life_course_report` allows to run the report on the first N rows in the embedding data set. For 5Mio persons, this takes ~30minutes and 170GB. For 1Mio persons, it takes ~12minutes and 120GB.
+- The work environment is for small jobs, and has a bit less than 40GB memory. In our experience, it's best to use the work environment also through batch jobs.
+
 
 
 ## Permissions on the OSSC
