@@ -3,9 +3,13 @@ import sys
 import sqlite3
 import pickle
 import random
+import numpy as np 
 
 # Open a connection to the output database
 output_filename = "data/processed/background_db.sqlite"
+
+sqlite3.register_adapter(np.in64, lambda val: int(val))
+sqlite3.register_adapter(np.int32, lambda val: int(val))
 
 # If output file already exists, then print an error.
 # if os.path.isfile(output_filename):
