@@ -101,7 +101,7 @@ def pretrain(cfg):
     accelerator='gpu',
     devices=1,
     logger=logger,
-    precision=16
+    precision="16-mixed"
   )
   val_dataset = CustomIterableDataset(
     mlm_path, 
@@ -120,6 +120,11 @@ def pretrain(cfg):
   trainer.fit(model, train_dataloader, val_dataloader)
   
 if __name__ == "__main__":
+  logging.basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.DEBUG
+  )
   torch.set_float32_matmul_precision("medium")
   CFG_PATH = sys.argv[1]
   print_now(CFG_PATH)
