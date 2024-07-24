@@ -194,7 +194,7 @@ def encode_documents(docs_with_counter, write_path_prefix, needed_ids, do_mlm, m
     update_data_dict(data_dict, output, do_mlm)
     
   convert_to_numpy(data_dict)
-  write_path = f"{write_path_prefix}_{counter}.h5" 
+  write_path = f"{write_path_prefix}.h5" 
   write_to_hdf5(write_path, data_dict)
 
 def init_hdf5_datasets(h5f, data_dict, dtype='i4'):
