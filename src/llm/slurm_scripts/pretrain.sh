@@ -3,12 +3,13 @@
 #SBATCH --job-name=pretrain
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=36
-#SBATCH --mem=180G
+#SBATCH --time=00:10:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --gpus-per-node=1
 #SBATCH -p gpu 
-#SBATCH -e /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/logs/%x.%j.err
-#SBATCH -o /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/logs/%x.%j.out
+#SBATCH -e %x-%j.err 
+#SBATCH -o %x-%j.out 
 
 
 
@@ -38,7 +39,7 @@ initialize() {
 	module purge 
 	module load 2022 
 	module load Python/3.10.4-GCCcore-11.3.0
-       # module load PyTorch/1.12.0-foss-2022a-CUDA-11.7.0
+        #module load PyTorch/1.12.0-foss-2022a-CUDA-11.7.0
 	module load SciPy-bundle/2022.05-foss-2022a
         module load h5py/3.7.0-foss-2022a
 	module load matplotlib/3.5.2-foss-2022a
@@ -54,7 +55,7 @@ initialize() {
 
 main() {
 	date
-	time python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
+	CUDA_LAUNCH_BLOCKING=1 python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
 	
 	echo "job ended"
 }
