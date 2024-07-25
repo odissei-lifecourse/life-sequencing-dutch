@@ -123,7 +123,7 @@ if __name__ == "__main__":
   logging.basicConfig(
     format='%(asctime)s %(name)s %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.DEBUG
+    level=logging.INFO
   )
   torch.set_float32_matmul_precision("medium")
   CFG_PATH = sys.argv[1]
