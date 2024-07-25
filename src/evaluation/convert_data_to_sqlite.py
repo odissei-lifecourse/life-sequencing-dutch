@@ -22,7 +22,7 @@ output_c = output_conn.cursor()
 ########################################################################################################################
 
 records_to_insert = []
-input_file = "data/processed/income_by_year.pkl"
+input_file = "data/processed/income_baseline_by_year.pkl"
 
 with open("data/processed/income_eval_subset.pkl", 'rb') as pkl_file:
     income_eval_set = set(pickle.load(pkl_file))
