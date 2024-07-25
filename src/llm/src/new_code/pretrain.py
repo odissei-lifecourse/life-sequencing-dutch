@@ -16,6 +16,14 @@ import os
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import CSVLogger
 
+# define some constants
+# TODO: make them args/put into config file?
+ACCELERATOR="gpu"
+N_DEVICES=1
+STRATEGY="auto" # strategy for pl.Trainer
+
+
+assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp"]
 
 def is_float(string):
     try:
@@ -90,19 +98,36 @@ def pretrain(cfg):
     model = TransformerEncoder(hparams)
   
   callbacks = get_callbacks(ckpoint_dir, val_check_interval+1)
-  #ddp = DDPStrategy(process_group_backend="mpi")
+  if STRATEGY == "auto":
+    trainer = Trainer(
+      default_root_dir=ckpoint_dir,
+      callbacks=callbacks,
+      max_epochs=cfg['MAX_EPOCHS'],
+      val_check_interval=val_check_interval,
+      accelerator=ACCELERATOR,
+      devices=N_DEVICES,
+      logger=logger,
+      precision="16-mixed"
+    )
+  else:
+      if STRATEGY == "ddp":
+          ddp = DDPStrategy()
+      elif STRATEGY == "ddp_mpi":
+          ddp = DDPStrategy(process_group_backend="mpi")
+      
+      trainer = Trainer(
+        strategy=ddp,
+        default_root_dir=ckpoint_dir,
+        callbacks=callbacks,
+        max_epochs=cfg['MAX_EPOCHS'],
+        val_check_interval=val_check_interval,
+        accelerator=ACCELERATOR,
+        devices=N_DEVICES,
+        logger=logger,
+        precision="16-mixed"
+      )  
+  
   logger = CSVLogger(ckpoint_dir)
-  trainer = Trainer(
-    #strategy=ddp,
-    default_root_dir=ckpoint_dir,
-    callbacks=callbacks,
-    max_epochs=cfg['MAX_EPOCHS'],
-    val_check_interval=val_check_interval,
-    accelerator='gpu',
-    devices=1,
-    logger=logger,
-    precision="16-mixed"
-  )
   val_dataset = CustomIterableDataset(
     mlm_path, 
     validation=True, 
