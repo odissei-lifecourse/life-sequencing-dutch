@@ -1,7 +1,7 @@
 import pickle
 import random
 
-with open("data/processed/income_by_year.pkl", 'rb') as pkl_file:
+with open("data/processed/income_baseline_by_year.pkl", 'rb') as pkl_file:
     data = dict(pickle.load(pkl_file))
 
 income_model_set = set()
