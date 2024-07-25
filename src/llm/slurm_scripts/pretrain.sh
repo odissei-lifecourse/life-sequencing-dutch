@@ -3,7 +3,7 @@
 #SBATCH --job-name=pretrain
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --gpus-per-node=1
@@ -55,8 +55,11 @@ initialize() {
 
 main() {
 	date
-	CUDA_LAUNCH_BLOCKING=1 python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
-	
+	python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
+	# for debugging on GPU
+	#CUDA_LAUNCH_BLOCKING=1 python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
+        # for debugging on CPU 
+	#python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json	
 	echo "job ended"
 }
 
