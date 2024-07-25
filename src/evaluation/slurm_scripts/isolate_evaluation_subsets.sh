@@ -21,7 +21,9 @@ cd /gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/
 date
 echo "Starting scripts"
 time python isolate_income_subset.py
-time python isolate_marriage_subset.py 
+time python isolate_marriage_subset.py
+
+python convert_data_to_sqlite.py
 
 # subset embeddings for different models
 echo "Extracting subset for llm new"
