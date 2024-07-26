@@ -1469,13 +1469,6 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
         max_indices.append(max_index)
         min_indices.append(min_index)
 
-    overall_row = ['OVERALL']
-    for emb_type in results:
-        overall_row.append(np.round(results[emb_type]['OVERALL'], decimals=3))
-
-    data.append(overall_row)
-    max_indices.append(np.argmax(overall_row[1:]) + 1)
-    min_indices.append(np.argmin(overall_row[1:]) + 1)
 
     # 2. Print the table
     line_height = pdf.font_size * 2.5
