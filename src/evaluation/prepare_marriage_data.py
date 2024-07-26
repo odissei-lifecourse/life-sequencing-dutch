@@ -37,7 +37,7 @@ for i, row in df.iterrows():
     gender_1 = row['genderPart1']
     gender_2 = row['genderPart2']
     
-    year = relation_date[:4]
+    year = int(relation_date[:4])
     
     if relation_type == 'P':
     # Add the partnership into the partner data for this year
