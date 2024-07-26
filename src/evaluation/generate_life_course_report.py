@@ -14,6 +14,14 @@ import pickle
 import copy
 import logging
 
+embedding_map = {
+    "income": ["income_eval"],
+    "marriage": ["marriage_eval"],
+    "marriage_rank": ["marriage_rank"]
+}
+
+BASELINE_TASK = "income" # determines which embeddings are used for summary stats
+
 if __name__ == '__main__':
 
     # Report Sections
@@ -28,7 +36,7 @@ if __name__ == '__main__':
     # 8 = Prediction - Death
 
     income_baseline_year = 2016
-    report_parts = [1, 2, 3, 5.1, 6.1]
+    report_parts = [3, 5.1]
     regen_images = True
 
     # Regression Models
@@ -151,7 +159,8 @@ if __name__ == '__main__':
     full_start = time.time()
 
     # income_by_year = report_utils.precompute_global('income', years)
-    marriages_by_year, partnerships_by_year = report_utils.precompute_global('marriage', years)
+    # marriages_by_year, partnerships_by_year = report_utils.precompute_global('marriage', years)
+    marriages_by_year = report_utils.precompute_global('marriage', years)
     deaths_by_year = report_utils.precompute_global('death', years)
 
     distribution_savenames = []
@@ -186,10 +195,21 @@ if __name__ == '__main__':
 
         section_start = time.time()
 
-        embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
-            emb, only_embedding=False, sample_size=args.sample, embedding_size=args.embedding_size)
+        embeddings_per_task = {}
+        for task, query_keys in embedding_map.items():
+            logging.debug("loading embeddings for %s" % task)
+            embedding_dict = report_utils.precompute_local(
+                emb,
+                nested_query_keys=query_keys,
+                only_embedding=True,
+                sample_size=args.sample,
+                embedding_size=args.embedding_size
+            )
+            embeddings_per_task[task] = embedding_dict
+
         # embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
-        # distance_matrix = {}
+        distance_matrix = {}
+        current_embedding_dict = embeddings_per_task[BASELINE_TASK]
 
         root = emb['root']
         url = emb['url']
@@ -205,9 +225,9 @@ if __name__ == '__main__':
         target_year = int(emb['year']) + 1
         relevant_years = years[years.index(target_year):]
 
-        summary_dict[name]['n_samples'] = str(len(embedding_dict))
-        random_person = random.choice(list(embedding_dict.keys()))
-        summary_dict[name]['dimensions'] = str(len(embedding_dict[random_person]))
+        summary_dict[name]['n_samples'] = str(len(current_embedding_dict))
+        random_person = random.choice(list(current_embedding_dict.keys()))
+        summary_dict[name]['dimensions'] = str(len(current_embedding_dict[random_person]))
 
         section_end = time.time()
         delta = section_end - section_start
@@ -290,6 +310,7 @@ if __name__ == '__main__':
         if 3 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embeddings_per_task["income"]
 
             # Predict using just embeddings
             #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
@@ -335,6 +356,7 @@ if __name__ == '__main__':
         if 5.1 in report_parts:
 
             section_start = time.time()
+            embedding_dict = embeddings_per_task["marriage"]
 
             # Predict using just embeddings
             #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
@@ -371,6 +393,7 @@ if __name__ == '__main__':
         ##################################################################################################################################################################################################
         if 5.2 in report_parts:
             section_start = time.time()
+            embedding_dict = embeddings_per_task["marriage_rank"]
 
             marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(
                 embedding_dict, distance_matrix, dtype='marriage')

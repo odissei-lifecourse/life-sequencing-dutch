@@ -731,7 +731,7 @@ def linear_variable_prediction(embedding_dict, variable_dict, years, dtype="sing
 
     for year in years:
 
-        logging.debug("year is: %s", year)
+        #logging.debug("year is: %s", year)
         test_counts_by_year[year] = 0
 
         if year not in embeddings_by_year:
@@ -948,7 +948,7 @@ def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict,
 
     for year in years:
 
-        logging.debug("year is: %s", year)
+        #logging.debug("year is: %s", year)
         test_counts_by_year[year] = 0
 
         if year not in embeddings_by_year:
