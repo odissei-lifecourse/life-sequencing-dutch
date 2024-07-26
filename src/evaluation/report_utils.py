@@ -35,10 +35,11 @@ def precompute_global(var_type, years, is_eval=False):
 
     if var_type == 'background':
 
+        query = 'SELECT * FROM person_background'
         if is_eval:
-            results = input_c.execute('SELECT * FROM person_background WHERE is_eval = 1')
-        else:
-            results = input_c.execute('SELECT * FROM person_background')
+            query += ' WHERE is_eval = 1'
+
+        results = input_c.execute(query)
 
         data = {}
         for row in results:
@@ -54,11 +55,12 @@ def precompute_global(var_type, years, is_eval=False):
     #------------------------------------------------------------------------------------------------------------------#
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
     if var_type == 'income':
-        
+
+        query = 'SELECT * FROM person_income WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            results = input_c.execute('SELECT * FROM person_income WHERE is_eval = 1')
-        else:
-            results = input_c.execute('SELECT * FROM person_income')
+            query += ' AND is_eval = 1'
+
+        results = input_c.execute(query)
         
         data = {}
         for row in results:
@@ -77,10 +79,11 @@ def precompute_global(var_type, years, is_eval=False):
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'marriage':
 
+        query = 'SELECT * FROM person_marriages WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            results = input_c.execute('SELECT * FROM person_marriages WHERE is_eval = 1')
-        else:
-            results = input_c.execute('SELECT * FROM person_marriages')
+            query += ' AND is_eval = 1'
+
+        results = input_c.execute(query)
 
         data = {}
         for row in results:
@@ -104,11 +107,12 @@ def precompute_global(var_type, years, is_eval=False):
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'partnership':
 
+        query = 'SELECT * FROM person_partnerships WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            results = input_c.execute('SELECT * FROM person_partnerships WHERE is_eval = 1')
-        else:
-            results = input_c.execute('SELECT * FROM person_partnerships')
+            query += ' AND is_eval = 1'
 
+        results = input_c.execute(query)
+        
         data = {}
         for row in results:
             rinpersoon = row[0]
