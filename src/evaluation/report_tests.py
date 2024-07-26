@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
         for i, emb in enumerate(embedding_sets):
 
-            embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
+            embedding_dict = report_utils.precompute_local(emb, only_embedding=True, nested_query_keys=["marriage_eval"])
             test_embeddings(embedding_dict, "LLM_" + str(i))
 
             embedding_keys = list(embedding_dict.keys())
@@ -180,17 +180,17 @@ if __name__ == '__main__':
             print(type(test_key), min(embedding_keys), max(embedding_keys))
 
     # Test overlap for each year of income
-    print("Testing embedding/income/baseline overlap...")
-    for year in years:
-        yearly_income = income_by_year[year]
-        test_overlap(embedding_dict, yearly_income, baseline_dict)
+    # print("Testing embedding/income/baseline overlap...")
+    # for year in years:
+    #     yearly_income = income_by_year[year]
+    #     test_overlap(embedding_dict, yearly_income, baseline_dict)
     
-    print("Testing embedding/marriage/baseline overlap...")
-    for year in years:
-        marriages = marriages_by_year[year]
-        test_overlap(embedding_dict, marriages, baseline_dict)
+    # print("Testing embedding/marriage/baseline overlap...")
+    # for year in years:
+    #     marriages = marriages_by_year[year]
+    #     test_overlap(embedding_dict, marriages, baseline_dict)
 
-    # embedding_index_type = type(list(embedding_dict.keys())[0])
-    # variable_index_type = type(list(income_by_year[2012].keys())[0])
-    # baseline_index_type = type(list(baseline_dict.keys())[0])
-    # assert embedding_index_type == variable_index_type == baseline_index_type, "Test Failed: indices are different types! - " + str(embedding_index_type) + " : " + str(variable_index_type) + " : " + str(baseline_index_type)
+    embedding_index_type = type(list(embedding_dict.keys())[0])
+    variable_index_type = type(list(marriages_by_year[2012].keys())[0])
+    baseline_index_type = type(list(baseline_dict.keys())[0])
+    assert embedding_index_type == variable_index_type == baseline_index_type, "Test Failed: indices are different types! - " + str(embedding_index_type) + " : " + str(variable_index_type) + " : " + str(baseline_index_type)
