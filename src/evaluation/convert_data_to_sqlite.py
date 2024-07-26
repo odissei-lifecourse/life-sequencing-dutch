@@ -50,7 +50,12 @@ for year in data:
 
 table_name = "person_income"
 output_c.execute("""CREATE TABLE """ + table_name +
-    """ (rinpersoon NOT NULL PRIMARY KEY, year NOT NULL, income NOT NULL, is_eval)""")
+    """ (rinpersoon NOT NULL
+        , year NOT NULL
+        , income NOT NULL
+        , is_eval
+        , PRIMARY KEY ( rinpersoon, year )
+        )""")
 
 # Execute an insert statement with the values for this run.
 insert_setup = """INSERT INTO person_income VALUES (?,?,?,?)"""
