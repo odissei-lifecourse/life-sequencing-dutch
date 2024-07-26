@@ -115,6 +115,8 @@ def test_baseline(baseline, baseline_name):
 # Run tests
 if __name__ == '__main__':
 
+    years = [x for x in range(2012, 2022)]
+    
     # Load income
     print("Testing income variable...", flush=True)
     income_by_year = report_utils.precompute_global('income', years, is_eval=True)
