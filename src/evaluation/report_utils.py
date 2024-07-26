@@ -949,7 +949,6 @@ def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict,
     for year in years:
 
         #logging.debug("year is: %s", year)
-        test_counts_by_year[year] = 0
 
         if year not in embeddings_by_year:
             embeddings_by_year[year] = []
@@ -1020,6 +1019,8 @@ def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict,
                 embeddings_by_year[year].append(embedding)
                 labels_by_year[year].append(label)
 
+        # Update the test counts
+        test_counts_by_year[year] = len(labels_by_year[year])
         # Clone a new model for this year
         yearly_model = clone(model)
 
