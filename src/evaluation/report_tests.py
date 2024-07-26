@@ -138,30 +138,7 @@ if __name__ == '__main__':
         test_pair_variable(yearly_marriages, "Marriage-" + str(year))
 
     ####################################################################################################################
-    # Load Naive baseline
-    # 1. Birth Year (Age)
-    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_year.pkl",
-              'rb') as pkl_file:
-        person_birth_year = dict(pickle.load(pkl_file))
-
-    # 2. Gender
-    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_gender.pkl", 'rb') as pkl_file:
-        person_gender = dict(pickle.load(pkl_file))
-
-    # 3. Birth City
-    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_municipality.pkl",
-              'rb') as pkl_file:
-        person_birth_city = dict(pickle.load(pkl_file))
-
-    # Combine the baseline parts into a single dict to pass to evaluation functions
-    baseline_dict = {}
-
-    for person in person_birth_year:
-        birth_year = person_birth_year[person]
-        gender = person_gender[person]
-        birth_city = person_birth_city[person]
-
-        baseline_dict[person] = [birth_year, gender, birth_city]
+    baseline_dict = report_utils.precompute_global('background', years)
 
     print("Testing naive baseline...", flush=True)
     test_baseline(baseline_dict, "Naive baseline")
@@ -200,16 +177,16 @@ if __name__ == '__main__':
 
             print(type(test_key), min(embedding_keys), max(embedding_keys))
 
-    # # Test overlap for each year of income
-    # print("Testing embedding/income/baseline overlap...")
-    # for year in years:
-    #     yearly_income = income_by_year[year]
-    #     test_overlap(embedding_dict, yearly_income, baseline_dict)
-    #
-    # print("Testing embedding/marriage/baseline overlap...")
-    # for year in years:
-    #     marriages = marriages_by_year[year]
-    #     test_overlap(embedding_dict, marriages, baseline_dict)
+    # Test overlap for each year of income
+    print("Testing embedding/income/baseline overlap...")
+    for year in years:
+        yearly_income = income_by_year[year]
+        test_overlap(embedding_dict, yearly_income, baseline_dict)
+    
+    print("Testing embedding/marriage/baseline overlap...")
+    for year in years:
+        marriages = marriages_by_year[year]
+        test_overlap(embedding_dict, marriages, baseline_dict)
 
     # embedding_index_type = type(list(embedding_dict.keys())[0])
     # variable_index_type = type(list(income_by_year[2012].keys())[0])
