@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     # Load income
     print("Testing income variable...", flush=True)
-    income_by_year = report_utils.precompute_global('income', [])
+    income_by_year = report_utils.precompute_global('income', years, is_eval=True)
     years = list(income_by_year.keys())
     test_years(years)
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     # Load marriages
     print("Testing marriage variable...", flush=True)
-    marriages_by_year = report_utils.precompute_global('marriage', years)
+    marriages_by_year = report_utils.precompute_global('marriage', years, is_eval=True)
     years = list(marriages_by_year.keys())
     test_years(years)
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
         test_pair_variable(yearly_marriages, "Marriage-" + str(year))
 
     ####################################################################################################################
-    baseline_dict = report_utils.precompute_global('background', years)
+    baseline_dict = report_utils.precompute_global('background', years, is_eval=True)
 
     print("Testing naive baseline...", flush=True)
     test_baseline(baseline_dict, "Naive baseline")
