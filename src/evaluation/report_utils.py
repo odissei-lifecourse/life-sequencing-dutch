@@ -56,11 +56,10 @@ def precompute_global(var_type, years, is_eval=False):
     # Get dict of income at age 30, organized by year and RINPERSOONNUM
     if var_type == 'income':
 
-        query = 'SELECT * FROM person_income WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            query += ' AND is_eval = 1'
-
-        results = input_c.execute(query)
+            results = input_c.execute('SELECT * FROM person_income WHERE is_eval = 1 AND year IN (%s)' % ','.join('?'*len(years)), years)
+        else:
+            results = input_c.execute('SELECT * FROM person_income WHERE year IN (%s)' % ','.join('?'*len(years)), years)
         
         data = {}
         for row in results:
@@ -79,11 +78,10 @@ def precompute_global(var_type, years, is_eval=False):
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'marriage':
 
-        query = 'SELECT * FROM person_marriages WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            query += ' AND is_eval = 1'
-
-        results = input_c.execute(query)
+            results = input_c.execute('SELECT * FROM person_marriages WHERE is_eval = 1 AND year IN (%s)' % ','.join('?'*len(years)), years)
+        else:
+            results = input_c.execute('SELECT * FROM person_marriages WHERE year IN (%s)' % ','.join('?'*len(years)), years)
 
         data = {}
         for row in results:
@@ -107,11 +105,10 @@ def precompute_global(var_type, years, is_eval=False):
     # Get dict of marriage, organized by event year and subindexed by RINPERSOONNUM
     if var_type == 'partnership':
 
-        query = 'SELECT * FROM person_partnerships WHERE year IN (%s)' % ','.join('?'*len(years)), years
         if is_eval:
-            query += ' AND is_eval = 1'
-
-        results = input_c.execute(query)
+            results = input_c.execute('SELECT * FROM person_partnerships WHERE is_eval = 1 AND year IN (%s)' % ','.join('?'*len(years)), years)
+        else:
+            results = input_c.execute('SELECT * FROM person_partnerships WHERE year IN (%s)' % ','.join('?'*len(years)), years)
         
         data = {}
         for row in results:
