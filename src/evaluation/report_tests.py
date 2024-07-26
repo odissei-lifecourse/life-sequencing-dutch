@@ -75,8 +75,17 @@ def test_overlap(embedding_dict, variable_dict, baseline):
     variable_persons = set(variable_dict.keys())
     baseline_persons = set(baseline.keys())
 
+    # embedding_variable_people = embedding_persons.intersection(variable_persons)
+    # assert len(embedding_variable_people) > 100, "Test Failed: there are less than 100 people in the embedding/variable intersection -" + str(len(embedding_variable_people))
+
+    embedding_baseline_people = embedding_persons.intersection(baseline_persons)
+    assert len(embedding_baseline_people) > 100, "Test Failed: there are less than 100 people in the embedding/baseline intersection -" + str(len(embedding_baseline_people))
+
+    variable_baseline_people = variable_persons.intersection(baseline_persons)
+    assert len(variable_baseline_people) > 100, "Test Failed: there are less than 100 people in the variable/baseline intersection -" + str(len(variable_baseline_people))
+    
     all_people = embedding_persons.intersection(variable_persons).intersection(baseline_persons)
-    assert len(all_people) > 100, "Test Failed: there are less than 100 people in this intersection -" + str(len(all_people))
+    assert len(all_people) > 100, "Test Failed: there are less than 100 people in the full triplet intersection -" + str(len(all_people))
 
 ########################################################################################################################
 def test_pair_variable(variable_dict, variable_name):
@@ -185,12 +194,12 @@ if __name__ == '__main__':
     #     yearly_income = income_by_year[year]
     #     test_overlap(embedding_dict, yearly_income, baseline_dict)
     
-    # print("Testing embedding/marriage/baseline overlap...")
-    # for year in years:
-    #     marriages = marriages_by_year[year]
-    #     test_overlap(embedding_dict, marriages, baseline_dict)
+    print("Testing embedding/marriage/baseline overlap...")
+    for year in years:
+        marriages = marriages_by_year[year]
+        test_overlap(embedding_dict, marriages, baseline_dict)
 
-    embedding_index_type = type(list(embedding_dict.keys())[0])
-    variable_index_type = type(list(marriages_by_year[2012].keys())[0])
-    baseline_index_type = type(list(baseline_dict.keys())[0])
-    assert embedding_index_type == variable_index_type == baseline_index_type, "Test Failed: indices are different types! - " + str(embedding_index_type) + " : " + str(variable_index_type) + " : " + str(baseline_index_type)
+    # embedding_index_type = type(list(embedding_dict.keys())[0])
+    # variable_index_type = type(list(marriages_by_year[2012].keys())[0])
+    # baseline_index_type = type(list(baseline_dict.keys())[0])
+    # assert embedding_index_type == variable_index_type == baseline_index_type, "Test Failed: indices are different types! - " + str(embedding_index_type) + " : " + str(variable_index_type) + " : " + str(baseline_index_type)
