@@ -161,13 +161,13 @@ if __name__ == '__main__':
     # Try out the tests with the LLM embeddings
     logging.debug("Testing LLM embeddings...")
     print("Testing LLM embeddings...", flush=True)
-    load_url = 'embedding_meta/llm_embedding_set.pkl'
+    load_url = 'embedding_meta/llm_eval_set.pkl'
     with open(load_url, 'rb') as pkl_file:
         embedding_sets = list(pickle.load(pkl_file))
 
         for i, emb in enumerate(embedding_sets):
 
-            embedding_dict = report_utils.precompute_local(emb, only_embedding=True, sample_size=100)
+            embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
             test_embeddings(embedding_dict, "LLM_" + str(i))
 
             embedding_keys = list(embedding_dict.keys())
