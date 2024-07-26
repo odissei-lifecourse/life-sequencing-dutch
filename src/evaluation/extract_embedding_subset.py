@@ -44,7 +44,12 @@ def load_and_subset_embeddings(
     n_obs = NOBS_DRY_RUN if dry_run else -1
     emb_size = EMB_SIZE_DRY_RUN if dry_run else -1
     for emb_type in embedding_types:
-        ids, embs = load_hdf5(embedding_file_url, RINPERS_ID, emb_type, n_obs, emb_size)
+        ids, embs = load_hdf5(
+            emb_url=embedding_file_url,
+            id_key=RINPERS_ID, 
+            value_key=emb_type, 
+            sample_size=n_obs, 
+            embedding_size=emb_size)
         if RINPERS_ID not in embedding_data.keys():
             embedding_data[RINPERS_ID] = ids.astype(np.int64)
         embedding_data[emb_type] = embs
@@ -122,7 +127,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action=argparse.BooleanOptionalAction)
     parser.add_argument("--model", 
                         choices=["llm_new", "llm_old", "network"],
-                        type="str", 
+                        type=str, 
                         help="Which model embeddings to use")
 
     args = parser.parse_args()
