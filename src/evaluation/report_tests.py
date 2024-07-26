@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     # Load marriages
     print("Testing marriage variable...", flush=True)
-    marriages_by_year, partnerships_by_year = report_utils.precompute_global('marriage', years)
+    marriages_by_year = report_utils.precompute_global('marriage', years)
     years = list(marriages_by_year.keys())
     test_years(years)
 
