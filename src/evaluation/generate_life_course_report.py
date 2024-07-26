@@ -4,20 +4,15 @@ import random
 from fpdf import FPDF
 from sentence_transformers import util
 from torch import Tensor
+from sklearn.linear_model import LinearRegression, LogisticRegression, RidgeClassifier, Ridge, Lasso
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.svm import SVC, SVR
 import time
 from datetime import date
 import report_utils
 import pickle
 import copy
 import logging
-
-embedding_map = {
-    "income": ["income_eval"],
-    "marriage": ["marriage_eval"],
-    "marriage_rank": ["marriage_rank"]
-}
-
-REFERENCE_TASK = "marriage_rank" # determines which embeddings are used for distance matrix, and for parts 0, 1, 2
 
 if __name__ == '__main__':
 
@@ -35,9 +30,27 @@ if __name__ == '__main__':
     income_baseline_year = 2016
     report_parts = [1, 2, 3, 5.1, 6.1]
     regen_images = True
-    
-    # If this flag is set we only load people who are part of the dedicated evaluation set.
-    is_eval = True
+
+    # Regression Models
+    max_iters = 10000
+    single_model = LinearRegression()
+    pair_model = LogisticRegression(max_iter=max_iters)
+
+    # Decision Tree Models
+    #max_depth = 100
+    #single_model = DecisionTreeRegressor(max_depth=max_depth)
+    #pair_model = DecisionTreeClassifier(max_depth=max_depth)
+
+    # Support Vector Machine Models
+    #kernel = 'rbf'
+    #C = 1.0
+    #single_model = SVR(kernel=kernel, C=C)
+    #pair_model = SVC(kernel=kernel, C=C)
+
+    # Alternative regression models
+    #alpha=1.0
+    #single_model = Ridge(alpha=alpha)
+    #pair_model = RidgeClassifier(alpha=alpha)
 
     parser = argparse.ArgumentParser(description='')
 
@@ -81,26 +94,65 @@ if __name__ == '__main__':
     with open(load_url, 'rb') as pkl_file:
         embedding_sets = list(pickle.load(pkl_file))
 
+    # Load the naive baseline in 4 parts
+    # 1. Birth Year (Age)
+    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_year.pkl",
+              'rb') as pkl_file:
+        person_birth_year = dict(pickle.load(pkl_file))
+
+    # 2. Gender
+    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_gender.pkl", 'rb') as pkl_file:
+        person_gender = dict(pickle.load(pkl_file))
+
+    # 3. Birth City
+    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_municipality.pkl",
+              'rb') as pkl_file:
+        person_birth_city = dict(pickle.load(pkl_file))
+
+        # Combine the baseline parts into a single dict to pass to evaluation functions
+    baseline_dict = {}
+
+    # 4. Income in 2011
+    with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/income_baseline_by_year.pkl",
+              'rb') as pkl_file:
+        income_baseline_by_year = dict(pickle.load(pkl_file))
+        income_baseline = income_baseline_by_year[income_baseline_year]
+        # Save this as the income target variable for section 3
+        income_by_year = income_baseline_by_year
+
+    for person in person_birth_year:
+        birth_year = person_birth_year[person]
+        gender = person_gender[person]
+        birth_city = person_birth_city[person]
+
+        baseline_dict[person] = [birth_year, gender, birth_city]
+
+    income_baseline_dict = {}
+    for person in income_baseline:
+
+        if person not in person_birth_year:
+            continue
+        if person not in person_gender:
+            continue
+        if person not in person_birth_city:
+            continue
+
+        birth_year = person_birth_year[person]
+        gender = person_gender[person]
+        birth_city = person_birth_city[person]
+
+        income_baseline_dict[person] = [birth_year, gender, birth_city, income_baseline[person]]
+
     # The full set of years we can try to predict for
     years = [i for i in range(2011, 2022)]
-
-    baseline_dict = report_utils.precompute_global('background', years, is_eval=is_eval)
-    income_by_year = report_utils.precompute_global('income', years, is_eval=is_eval)
-
-    # Build the income baseline by appending a given years' income to the standard baseline    
-    income_baseline_dict = {}
-    relevant_income = income_by_year[income_baseline_year]
-    for person in relevant_income:
-        if person in baseline_dict:
-            income_baseline_dict[person] = baseline_dict[person] + [relevant_income[person]] 
-
-    marriages_by_year = report_utils.precompute_global('marriage', years, is_eval=is_eval)
-    #partnerships_by_year = report_utils.precompute_global('partnership', years, is_eval=is_eval)
-    #deaths_by_year = report_utils.precompute_global('death', years)
 
     logging.info("Beginning report generation for embedding set: %s", args.collection_name)
 
     full_start = time.time()
+
+    # income_by_year = report_utils.precompute_global('income', years)
+    marriages_by_year, partnerships_by_year = report_utils.precompute_global('marriage', years)
+    deaths_by_year = report_utils.precompute_global('death', years)
 
     distribution_savenames = []
     binary_savenames = []
@@ -134,26 +186,10 @@ if __name__ == '__main__':
 
         section_start = time.time()
 
-        embeddings_per_task = {}
-        for task, query_keys in embedding_map.items():
-            if task == REFERENCE_TASK:
-                embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
-                    emb,
-                    nested_query_keys=embedding_map[REFERENCE_TASK],
-                    only_embedding=False,
-                    sample_size=args.sample_size,
-                    embedding_size=args.embedding_size
-                )
-            else:
-                embedding_dict = report_utils.precompute_local(
-                    emb,
-                    nested_query_keys=query_keys,
-                    only_embedding=True,
-                    sample_size=args.sample,
-                    embedding_set=args.embedding_size
-                )
-
-            embeddings_per_task[task] = embedding_dict
+        embedding_dict, hops_network, ground_truth_dict, distance_matrix = report_utils.precompute_local(
+            emb, only_embedding=False, sample_size=args.sample, embedding_size=args.embedding_size)
+        # embedding_dict = report_utils.precompute_local(emb, only_embedding=True)
+        # distance_matrix = {}
 
         root = emb['root']
         url = emb['url']
@@ -169,10 +205,9 @@ if __name__ == '__main__':
         target_year = int(emb['year']) + 1
         relevant_years = years[years.index(target_year):]
 
-        current_embedding_dict = embeddings_per_task[REFERENCE_TASK]
-        summary_dict[name]['n_samples'] = str(len(current_embedding_dict))
-        random_person = random.choice(list(current_embedding_dict.keys()))
-        summary_dict[name]['dimensions'] = str(len(current_embedding_dict[random_person]))
+        summary_dict[name]['n_samples'] = str(len(embedding_dict))
+        random_person = random.choice(list(embedding_dict.keys()))
+        summary_dict[name]['dimensions'] = str(len(embedding_dict[random_person]))
 
         section_end = time.time()
         delta = section_end - section_start
@@ -184,21 +219,14 @@ if __name__ == '__main__':
         savename = savename[:-1]
 
         # 0. Compare Embeddings and print results to first section
-        if 0 in report_parts: 
+        if 0 in report_parts:
 
             section_start = time.time()
-            embedding_dict = embeddings_per_task[REFERENCE_TASK]
 
             for j in range(i + 1, len(embedding_sets)):
                 emb_2 = embedding_sets[j]
                 embedding_dict_2 = report_utils.precompute_local(
-
-                    emb_2, 
-                    nested_query_keys=embedding_map[REFERENCE_TASK],
-                    only_embedding=True, 
-                    sample_size=args.sample, 
-                    embedding_size=args.embedding_size)
-
+                    emb_2, only_embedding=True, sample_size=args.sample, embedding_size=args.embedding_size)
                 name_2 = emb_2['name']
 
                 results_10 = report_utils.embedding_rank_comparison(embedding_dict, embedding_dict_2, top_k=10,
@@ -222,7 +250,6 @@ if __name__ == '__main__':
         if 1 in report_parts:
 
             section_start = time.time()
-            embedding_dict = embedding_map[REFERENCE_TASK]
 
             plot_savename = '/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/results/' + savename + "_hop_distributions.png"
             distribution_savenames.append(plot_savename)
@@ -240,8 +267,8 @@ if __name__ == '__main__':
         # 2. Plot Real vs. Fake distance distributions
         #####################################################################################################
         if 2 in report_parts:
+
             section_start = time.time()
-            embedding_dict = embedding_map[REFERENCE_TASK]
 
             plot_savename = '/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/results/' + savename + "_real_vs_random.png"
             binary_savenames.append(plot_savename)
@@ -249,6 +276,7 @@ if __name__ == '__main__':
             if regen_images:
                 subtitle = name + " Embeddings"
                 plot_title = truth.capitalize() + " Network Real vs Random Distances: \n" + subtitle
+
                 report_utils.plot_distance_vs_ground_truth(embedding_dict, ground_truth_dict, distance_matrix, 1,
                                                            plot_title, plot_savename, show=True)
 
@@ -262,13 +290,18 @@ if __name__ == '__main__':
         if 3 in report_parts:
 
             section_start = time.time()
-            embeding_dict = embeddings_per_task["income"]
-                  
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
-                embedding_dict, income_by_year, relevant_years, dtype='single')
 
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
+            # Predict using just embeddings
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, income_by_year, relevant_years, dtype='single')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                single_model, embedding_dict, income_by_year, relevant_years, dtype='single')
+
+            # Predict using embeddings + baseline
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                single_model, embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
 
             if result_with_baseline is not None:
 
@@ -302,13 +335,19 @@ if __name__ == '__main__':
         if 5.1 in report_parts:
 
             section_start = time.time()
-            embeding_dict = embeddings_per_task["marriage"]
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
-                embedding_dict, marriages_by_year, relevant_years, dtype='pair')
+            # Predict using just embeddings
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair')
 
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+            # Predict using embeddings + baseline
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+
             if result_with_baseline is not None:
 
                 marriage_results['Baseline'] = only_baseline
@@ -332,11 +371,10 @@ if __name__ == '__main__':
         ##################################################################################################################################################################################################
         if 5.2 in report_parts:
             section_start = time.time()
-            embeding_dict = embeddings_per_task["marriage_rank"]
 
-            marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
-                                                                                                 distance_matrix,
-                                                                                                 dtype='marriage')
+            marriage_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(
+                embedding_dict, distance_matrix, dtype='marriage')
+
             marriage_rank_results[name] = marriage_ranks_by_year
             marriage_rank_test_counts_by_year[name] = test_counts_by_year
 
@@ -346,15 +384,20 @@ if __name__ == '__main__':
 
         # 6.1 - Generate Partnership Pair Predictions
         ##################################################################################################################################################################################################
-        if 6.1 in report_parts: 
+        if 6.1 in report_parts:
 
-            raise NotImplementedError("Code not updated to new embedding subsets")
             section_start = time.time()
 
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(embedding_dict, partnerships_by_year,years, dtype='pair')
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-                embedding_dict, partnerships_by_year, relevant_years, dtype='pair',
-                baseline=baseline_dict)
+            #result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, partnerships_by_year,years, dtype='pair')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, partnerships_by_year, relevant_years, dtype='pair')
+
+            #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, partnerships_by_year, years, dtype='pair', baseline=baseline_dict)
+            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, partnerships_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+
 
             if result_with_baseline is not None:
 
@@ -377,8 +420,7 @@ if __name__ == '__main__':
 
         # 6.2 - Generate Partnership Partner Rank Predictions
         ##################################################################################################################################################################################################
-        if 6.2 in report_parts:  
-            raise NotImplementedError("Code not updated to new embedding subsets")
+        if 6.2 in report_parts:
             section_start = time.time()
 
             partnership_ranks_by_year, test_counts_by_year = report_utils.get_marriage_rank_by_year(embedding_dict,
@@ -393,9 +435,7 @@ if __name__ == '__main__':
 
         # 7 - Generate Highest Education Level Results
         ##########################################################################################################################################################################################
-        if 7 in report_parts:  
-
-            raise NotImplementedError("Code not updated to new embedding subsets")
+        if 7 in report_parts:
             section_start = time.time()
 
             section_end = time.time()
@@ -404,9 +444,7 @@ if __name__ == '__main__':
 
         # 8 - Generate Death Predictions
         ######################################################################################################################################################################################
-        if 8 in report_parts: 
-
-            raise NotImplementedError("Code not updated to new embedding subsets")
+        if 8 in report_parts:
             section_start = time.time()
 
             result_dict = report_utils.yearly_probability_prediction(embedding_dict, deaths_by_year,
@@ -603,10 +641,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, income_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, years, income_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, relevant_years, income_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, years, income_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -655,10 +693,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, years, marriage_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, years, marriage_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -687,10 +725,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_rank_results, highlight=True, reverse=True)
+        pdf = report_utils.print_output_table(pdf, years, marriage_rank_results, highlight=True, reverse=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, relevant_years, marriage_rank_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, years, marriage_rank_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -719,10 +757,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, years, partnership_results, highlight=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, years, partnership_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -751,10 +789,10 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_rank_results, highlight=True, reverse=True)
+        pdf = report_utils.print_output_table(pdf, years, partnership_rank_results, highlight=True, reverse=True)
         pdf.cell(w=0, h=header_height, txt="Test Counts")
         pdf.ln(header_height)
-        pdf = report_utils.print_output_table(pdf, relevant_years, partnership_rank_test_counts_by_year, highlight=False)
+        pdf = report_utils.print_output_table(pdf, years, partnership_rank_test_counts_by_year, highlight=False)
 
         section_end = time.time()
         delta = section_end - section_start
@@ -788,7 +826,7 @@ if __name__ == '__main__':
         y_offset += header_height
         pdf.ln(header_height)
 
-        pdf = report_utils.print_output_table(pdf, relevant_years, death_results, highlight=True)
+        pdf = report_utils.print_output_table(pdf, years, death_results, highlight=True)
 
         section_end = time.time()
         delta = section_end - section_start
