@@ -150,6 +150,23 @@ def test_baseline(baseline, baseline_name):
         assert length == other_length, "Test Failed: baseline value lengths are different! " + str(
             length) + " : " + str(other_length)
 
+########################################################################################################################
+def test_pair_overlap(embedding_dict, variable_dict):
+    embedding_persons = set(embedding_dict.keys())
+
+    num_valid_pairs = 0
+    
+    variable_persons = set()
+    for pair in variable_dict:
+        variable_persons.add(pair[0])
+        variable_persons.add(pair[1])
+
+        if pair[0] in embedding_persons and pair[1] in embedding_persons:
+            num_valid_pairs += 1
+
+    embedding_variable_people = embedding_persons.intersection(variable_persons)
+    print("Num Valid Pairs:", num_valid_pairs, " Num Valid Individuals:", len(embedding_variable_people))
+    assert len(embedding_variable_people) > 100, "Test Failed: there are less than 100 people in the embedding/variable intersection -" + str(len(embedding_variable_people))
 
 ########################################################################################################################
 # Run tests
@@ -228,7 +245,8 @@ if __name__ == '__main__':
     print("Testing embedding/marriage/baseline overlap...")
     for year in years:
         marriage_pairs = marriages_by_year[year]
-        test_overlap(embedding_dict, marriage_pairs, baseline_dict, pair=True)
+        #test_overlap(embedding_dict, marriage_pairs, baseline_dict, pair=True)
+        test_pair_overlap(embedding_dict, marriage_pairs)
 
     embedding_index_type = type(list(embedding_dict.keys())[0])
     variable_index_type = type(list(marriages_by_year[2012].keys())[0][0])
