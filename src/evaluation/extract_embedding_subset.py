@@ -101,7 +101,16 @@ def main(emb_url: str, emb_types: list, dry_run: bool):
     id_subsets = {}
     for subset_type, filename in file_map.items():
         with open(os.path.join(data_root, filename), "rb") as pkl_file:
-            id_subsets[subset_type] = np.array(list(pickle.load(pkl_file)))
+            # Handle marriage subsets differently because they are sets of pairs of ids
+            if "marriage" in filename:
+                ids = set()
+                pairs = list(pickle.load(pkl_file))
+                for pair in pairs:
+                    ids.add(pair[0])
+                    ids.add(pair[1])
+                id_subsets[subset_type] = np.array(list(ids))
+            else:
+                id_subsets[subset_type] = np.array(list(pickle.load(pkl_file)))
 
     all_files = os.listdir(emb_url)
     filter_func = lambda x: os.path.splitext(x)[1] == ".h5"
