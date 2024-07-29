@@ -287,7 +287,7 @@ def load_hdf5(emb_url, id_key, value_key, nested_query_keys=None, sample_size=-1
                 embedding_size = min(emb_dim, embedding_size)
                 values = arrays[value_key][:, :embedding_size]
             else:
-                values = arrays[value_key][:, :embedding_size]
+                values = arrays[value_key][:, :]
     else:
         with h5py.File(emb_url, "r") as f:
             arrays = f
