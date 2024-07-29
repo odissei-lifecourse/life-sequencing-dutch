@@ -1505,3 +1505,35 @@ def print_output_table(pdf, years, results, highlight=True, reverse=False):
     return pdf
 
 #########################################################################################################################################################
+def select_from_indexed_array(ids, array, id_subset):
+    """From a two-dimensional array, extract the subset of rows indexed by identifiers in a reference array. 
+    The first axis of `ids` and `array` need to correspond in length.
+
+    This roughly corresponds to a sql query of `select * from array where ids in id_subset`
+    where the `ids` argument corresponds to a column `id`. 
+
+    Args:
+      ids (np.ndarray): Identifiers.
+      array (np.ndarray): For each `i` in `ids`, array[i, :] contains the row belonging to `i`. 
+      id_subset (list or np.ndarray): Identifiers whose rows to extract from `array`.
+
+    Notes
+      This is currently most useful when extract embeddings from hdf5 files where unit ids and embeddings are stored in 
+      separate arrays.
+
+    Returns:
+      (np.ndarray, np.ndarray): the id_subset in the order it appears in `ids`, and the corresponding array rows.
+    """
+    assert len(array.shape) == 2
+    assert len(ids.shape) == 1
+    nunique = np.unique(ids).shape[0]
+    assert nunique == ids.shape[0]
+    assert array.shape[0] == ids.shape[0]
+    if isinstance(id_subset, list):
+        id_subset = np.array(id_subset)
+
+    common_ids = np.intersect1d(id_subset, ids)
+    mask = np.isin(ids, common_ids)
+
+    return ids[mask], array[mask, :]
+

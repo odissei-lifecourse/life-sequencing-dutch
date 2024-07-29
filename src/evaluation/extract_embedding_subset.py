@@ -6,7 +6,7 @@ import logging
 import argparse
 
 from tqdm import tqdm
-from report_utils import load_hdf5
+from report_utils import load_hdf5, select_from_indexed_array
 
 RINPERS_ID = "sequence_id"
 EMB_TYPES_LLM = ["cls_emb", "mean_emb"]
@@ -40,6 +40,15 @@ def load_and_subset_embeddings(
         dry_run: bool,
         embedding_types: list = EMB_TYPES_LLM
 ):
+    """Load full-population embeddings and extract embeddings for different subsets of the population.
+
+    Args:
+      embedding_file_url: hdf5 file with embeddings.
+      id_subsets: dictionary where the values are the set of person identifiers to be extracted and the 
+        keys are the name of this set.
+      dry_run: If True, restricts the extracted subsets.
+      embedding_types: Which embeddings to extract. Correponds to group names in the embedding file.   
+    """
     embedding_data = {}
     n_obs = NOBS_DRY_RUN if dry_run else -1
     emb_size = EMB_SIZE_DRY_RUN if dry_run else -1
@@ -58,16 +67,14 @@ def load_and_subset_embeddings(
     for subset_type, subset_ids in id_subsets.items():
         emb_ids = embedding_data[RINPERS_ID]
 
-        # careful here: some elements in subset_ids may not be in emb_ids!
-        id_selector = np.where(np.isin(subset_ids, emb_ids))[0]  # elements in subset_ids for whome there is an embedding
-        emb_selector = np.where(np.isin(emb_ids, subset_ids))[0]  # elements in embeddings that are also in subset_ids (our persons of interest)
-
         data = {}
-        data[RINPERS_ID] = subset_ids[id_selector]
         for emb_type in embedding_types:
-            embs = embedding_data[emb_type][emb_selector]
-            if not dry_run:
-                assert embs.shape[0] == id_selector.shape[0], "mismatch between number of IDs and number of embeddings"
+            ids, embs = select_from_indexed_array(
+                ids=emb_ids, 
+                array=embedding_data[emb_type], 
+                id_subset=subset_ids)
+            if RINPERS_ID not in data:
+                data[RINPERS_ID] = ids
             data[emb_type] = embs
         data_dict[subset_type] = data
 
