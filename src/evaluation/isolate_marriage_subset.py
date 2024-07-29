@@ -20,35 +20,27 @@ for year in marriage_data:
 
     relevant_marriages = marriage_data[year]
 
-    yearly_people = set()
+    yearly_pairs = set()
 
     for person in relevant_marriages:
         partner = relevant_marriages[person]
 
-        # Only 1 real marriage per person per year
-        if person in yearly_people or partner in yearly_people:
-            continue
-
-        yearly_people.add(person)
-        yearly_people.add(partner)
-
-        #seen_people.add(person)
-        #seen_people.add(partner)
-
         real_pair = (person, partner)
 
         partner_gender = gender_map[partner]
-
         if partner_gender == 1:
             partner_list = full_male_list
         else:
             partner_list = full_female_list
 
         fake_partner = random.choice(partner_list)
-        yearly_people.add(fake_partner)
+        fake_pair = (person, fake_partner)
+
+        yearly_pairs.append(real_pair)
+        yearly_pairs.append(fake_pair)
 
     # Grab 5000 people from each year
-    isolated_group = list(random.sample(list(yearly_people), 5000))
+    isolated_group = list(random.sample(list(yearly_pairs), 5000))
 
     # 4000 for model training
     model_group = isolated_group[:4000]
@@ -62,7 +54,7 @@ for year in marriage_data:
 # Grab 1000 people from the training group for rank prediction
 marriage_rank_set = set(random.sample(marriage_model_set, 1000))
 
-# Save the sets of IDs
+# Save the sets of pairs
 with open("data/processed/marriage_model_subset.pkl", "wb") as pkl_file:
     pickle.dump(marriage_model_set, pkl_file)
 
