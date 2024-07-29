@@ -18,9 +18,9 @@ from pytorch_lightning.loggers import CSVLogger
 
 # define some constants
 # TODO: make them args/put into config file?
-ACCELERATOR="gpu"
+ACCELERATOR="cpu"
 N_DEVICES=1
-STRATEGY="auto" # strategy for pl.Trainer
+DDP_STRATEGY="ddp_mpi" # strategy for pl.Trainer
 
 
 assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp"]
@@ -87,6 +87,7 @@ def pretrain(cfg):
     'VAL_CHECK_INTERVAL', 
     int(num_val_items*5/batch_size)
   )
+  logger = CSVLogger(ckpoint_dir)  
   
   if 'RESUME_FROM_CHECKPOINT' in cfg:
     print_now(f"resuming training from checkpoint {cfg['RESUME_FROM_CHECKPOINT']}")
@@ -98,7 +99,7 @@ def pretrain(cfg):
     model = TransformerEncoder(hparams)
   
   callbacks = get_callbacks(ckpoint_dir, val_check_interval+1)
-  if STRATEGY == "auto":
+  if DDP_STRATEGY == "auto":
     trainer = Trainer(
       default_root_dir=ckpoint_dir,
       callbacks=callbacks,
@@ -110,10 +111,10 @@ def pretrain(cfg):
       precision="16-mixed"
     )
   else:
-      if STRATEGY == "ddp":
+      if DDP_STRATEGY == "ddp":
           ddp = DDPStrategy()
-      elif STRATEGY == "ddp_mpi":
-          ddp = DDPStrategy(process_group_backend="mpi")
+      elif DDP_STRATEGY == "ddp_mpi":
+          ddp = DDPStrategy(process_group_backend="cpu:mpi,cuda:mpi")
       
       trainer = Trainer(
         strategy=ddp,
@@ -127,7 +128,7 @@ def pretrain(cfg):
         precision="16-mixed"
       )  
   
-  logger = CSVLogger(ckpoint_dir)
+
   val_dataset = CustomIterableDataset(
     mlm_path, 
     validation=True, 
@@ -151,6 +152,7 @@ if __name__ == "__main__":
     level=logging.INFO
   )
   torch.set_float32_matmul_precision("medium")
+  #torch.distributed.init_process_group(backend='mpi', world_size=os.environ['OMPI_COMM_WORLD_SIZE'], rank=os.environ['OMPI_COMM_WORLD_RANK'])
   CFG_PATH = sys.argv[1]
   print_now(CFG_PATH)
   cfg = read_json(CFG_PATH)

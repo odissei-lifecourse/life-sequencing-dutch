@@ -34,8 +34,13 @@ initialize() {
 	    declare ROOTDIR="/gpfs/home4/$USER"
 	    declare REPO_DIR="$ROOTDIR/repositories/life-sequencing-dutch"
 	    declare VENV="$REPO_DIR/.venv"
-	fi
+	elif stringContain "benjamic" $USER; then 
+	    declare ROOTDIR="/home/$USER"
+	    declare REPO_DIR="$ROOTDIR/life-sequencing-dutch"
+	    declare VENV="$REPO_DIR/.venv"
+	fi	
 	
+	echo $VENV
 	module purge 
 	module load 2022 
 	module load Python/3.10.4-GCCcore-11.3.0
@@ -49,7 +54,7 @@ initialize() {
         export CUDA_VISIBLE_DEVICES=0
        
 
-        echo "job started" 
+        echo "Modules loaded." 
 }
 
 
