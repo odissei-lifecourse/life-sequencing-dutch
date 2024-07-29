@@ -67,7 +67,7 @@ for year in marriage_data:
 # Open a connection to the output database
 output_filename = "data/processed/background_db.sqlite"
 
-sqlite3.register_adapter(np.in64, lambda val: int(val))
+sqlite3.register_adapter(np.int64, lambda val: int(val))
 sqlite3.register_adapter(np.int32, lambda val: int(val))
 
 output_conn = sqlite3.connect(output_filename)
@@ -103,7 +103,7 @@ output_conn.commit()
 # Print how many eval sets we inserted
 select_command = ('SELECT * FROM person_marriages WHERE is_eval = 1')
 results = output_c.execute(select_command)
-print('Total Number of Evaluation Pairs:', len(results))
+print('Total Number of Evaluation Pairs:', len(list(results)))
 
 # Save the sets of pairs
 with open("data/processed/marriage_model_subset_by_year.pkl", "wb") as pkl_file:

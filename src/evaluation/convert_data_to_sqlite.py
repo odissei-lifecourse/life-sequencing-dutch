@@ -8,7 +8,7 @@ import numpy as np
 # Open a connection to the output database
 output_filename = "data/processed/background_db.sqlite"
 
-sqlite3.register_adapter(np.in64, lambda val: int(val))
+sqlite3.register_adapter(np.int64, lambda val: int(val))
 sqlite3.register_adapter(np.int32, lambda val: int(val))
 
 # If output file already exists, then print an error.
@@ -135,7 +135,7 @@ output_conn.commit()
 
 ########################################################################################################################
 
-full_set = income_eval_set.union(marriage_eval_set.union(marriage_rank_set))
+full_set = income_eval_set 
 
 # 1. Birth Year (Age)
 with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_year.pkl", 'rb') as pkl_file:

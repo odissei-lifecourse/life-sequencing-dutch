@@ -8,7 +8,7 @@
 #SBATCH -e /gpfs/ostor/ossc9424/homedir/logs/%x.%j.err
 #SBATCH -o /gpfs/ostor/ossc9424/homedir/logs/%x.%j.err
 
-cd /gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/
+cd /gpfs/ostor/ossc9424/homedir/
 
 module purge 
 source ossc_env/bin/activate
