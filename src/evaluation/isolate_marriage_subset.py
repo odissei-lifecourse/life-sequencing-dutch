@@ -13,8 +13,9 @@ with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
 with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
     full_female_list = list(pickle.load(pkl_file))
 
-marriage_model_set = set()
-marriage_eval_set = set()
+marriage_model_sets = {}
+marriage_eval_sets = {}
+marriage_rank_sets = {}
 
 for year in marriage_data:
 
@@ -48,18 +49,16 @@ for year in marriage_data:
     eval_group = isolated_group[4000:]
 
     # Add the people to the corresponding sets
-    marriage_model_set.update(model_group)
-    marriage_eval_set.update(eval_group)
-
-# Grab 1000 people from the training group for rank prediction
-marriage_rank_set = set(random.sample(marriage_model_set, 1000))
+    marriage_model_sets[year] = set(model_group)
+    marriage_eval_sets[year] = set(eval_group)
+    marriage_rank_sets[year] = set(random.sample(model_group, 1000))
 
 # Save the sets of pairs
-with open("data/processed/marriage_model_subset.pkl", "wb") as pkl_file:
-    pickle.dump(marriage_model_set, pkl_file)
+with open("data/processed/marriage_model_subset_by_year.pkl", "wb") as pkl_file:
+    pickle.dump(marriage_model_sets, pkl_file)
 
-with open("data/processed/marriage_eval_subset.pkl", "wb") as pkl_file:
-    pickle.dump(marriage_eval_set, pkl_file)
+with open("data/processed/marriage_eval_subset_by_year.pkl", "wb") as pkl_file:
+    pickle.dump(marriage_eval_sets, pkl_file)
 
-with open("data/processed/marriage_rank_subset.pkl", "wb") as pkl_file:
+with open("data/processed/marriage_rank_subset_by_year.pkl", "wb") as pkl_file:
     pickle.dump(marriage_rank_set, pkl_file)
