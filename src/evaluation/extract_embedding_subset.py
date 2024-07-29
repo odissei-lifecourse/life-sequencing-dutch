@@ -93,21 +93,23 @@ def main(emb_url: str, emb_types: list, dry_run: bool):
     file_map = {
         "income_eval": "income_eval_subset.pkl",
         "income_model": "income_model_subset.pkl",
-        "marriage_eval": "marriage_eval_subset.pkl",
-        "marriage_model": "marriage_model_subset.pkl",
-        "marriage_rank": "marriage_rank_subset.pkl"
+        "marriage_eval": "marriage_eval_subset_by_year.pkl",
+        "marriage_model": "marriage_model_subset_by_year.pkl",
+        "marriage_rank": "marriage_rank_subset_by_year.pkl"
     }
 
     id_subsets = {}
     for subset_type, filename in file_map.items():
         with open(os.path.join(data_root, filename), "rb") as pkl_file:
-            # Handle marriage subsets differently because they are sets of pairs of ids
+            # Handle marriage subsets differently because they are dictionaries(indexed by year) containing sets of pairs of ids
             if "marriage" in filename:
                 ids = set()
-                pairs = list(pickle.load(pkl_file))
-                for pair in pairs:
-                    ids.add(pair[0])
-                    ids.add(pair[1])
+                yearly_pair_dicts = dict(pickle.load(pkl_file))
+                for year in yearly_pair_dicts:
+                    pair_list = list(yearly_pair_dicts[year])
+                    for pair in pair_list:
+                        ids.add(pair[0])
+                        ids.add(pair[1])
                 id_subsets[subset_type] = np.array(list(ids))
             else:
                 id_subsets[subset_type] = np.array(list(pickle.load(pkl_file)))
