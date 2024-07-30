@@ -1025,7 +1025,7 @@ def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict,
         # Clone a new model for this year
         yearly_model = clone(model)
 
-        scores = cross_val_score(yearly_model, embeddings_by_year[year], labels_by_year[year], cv=5, n_jobs=1)
+        scores = cross_val_score(yearly_model, embeddings_by_year[year], labels_by_year[year], scoring='r2', cv=5, n_jobs=1)
         yearly_score = scores.mean()
         return_dict[year] = yearly_score
 
@@ -1034,7 +1034,7 @@ def one_model_per_year_variable_prediction(model, embedding_dict, variable_dict,
             # Clone a new baseline model for this year
             baseline_model = clone(model)
 
-            scores = cross_val_score(baseline_model, baseline_by_year[year], labels_by_year[year], cv=5, n_jobs=1)
+            scores = cross_val_score(baseline_model, baseline_by_year[year], labels_by_year[year], scoring='r2', cv=5, n_jobs=1)
             yearly_baseline_score = scores.mean()
             baseline_return_dict[year] = yearly_baseline_score
 
