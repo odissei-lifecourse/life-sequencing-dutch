@@ -1,3 +1,4 @@
+import argparse
 import re
 import src.transformer
 from src.transformer.models import TransformerEncoder
@@ -15,15 +16,6 @@ from src.new_code.utils import read_json, print_now
 import os
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import CSVLogger
-
-# define some constants
-# TODO: make them args/put into config file?
-ACCELERATOR="cpu"
-N_DEVICES=1
-DDP_STRATEGY="ddp_mpi" # strategy for pl.Trainer
-
-
-assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp"]
 
 def is_float(string):
     try:
@@ -114,7 +106,10 @@ def pretrain(cfg):
       if DDP_STRATEGY == "ddp":
           ddp = DDPStrategy()
       elif DDP_STRATEGY == "ddp_mpi":
-          ddp = DDPStrategy(process_group_backend="cpu:mpi,cuda:mpi")
+          ddp = DDPStrategy(process_group_backend="mpi")
+      elif DDP_STRATEGY == "gloo":
+          ddp = DDPStrategy(process_group_backend="gloo")
+
       
       trainer = Trainer(
         strategy=ddp,
@@ -145,15 +140,32 @@ def pretrain(cfg):
   print_now("training and validation dataloaders are created")
   trainer.fit(model, train_dataloader, val_dataloader)
   
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, …)")
+    parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
+    parser.add_argument("--devices", default=1, help=f"Number of devices")
+    parser.add_argument("--config", required=True, help=f".json config",type=str)    
+    return parser.parse_args()
+
 if __name__ == "__main__":
-  logging.basicConfig(
+
+    args = parse_args()
+    ACCELERATOR=args.accelerator
+    N_DEVICES=args.devices
+    DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
+    CFG_PATH=args.config
+
+    assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
+
+    logging.basicConfig(
     format='%(asctime)s %(name)s %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     level=logging.INFO
-  )
-  torch.set_float32_matmul_precision("medium")
-  #torch.distributed.init_process_group(backend='mpi', world_size=os.environ['OMPI_COMM_WORLD_SIZE'], rank=os.environ['OMPI_COMM_WORLD_RANK'])
-  CFG_PATH = sys.argv[1]
-  print_now(CFG_PATH)
-  cfg = read_json(CFG_PATH)
-  pretrain(cfg)
+    )
+    torch.set_float32_matmul_precision("medium")
+
+    print_now(CFG_PATH)
+    cfg = read_json(CFG_PATH)
+    pretrain(cfg)
