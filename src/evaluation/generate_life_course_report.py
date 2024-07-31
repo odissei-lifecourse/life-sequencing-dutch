@@ -104,16 +104,12 @@ if __name__ == '__main__':
     with open(load_url, 'rb') as pkl_file:
         embedding_sets = list(pickle.load(pkl_file))
 
-    baseline_dict = report_utils.precompute_global('background', years, is_eval=is_eval)
+    baseline_dict = report_utils.precompute_global(
+        'background', years, 
+        income_baseline_year=income_baseline_year,
+        is_eval=is_eval)
     income_by_year = report_utils.precompute_global('income', years, is_eval=is_eval)
     marriages_by_year = report_utils.precompute_global('marriage', years, is_eval=is_eval)
-
-    # Build the income baseline by appending a given years' income to the standard baseline    
-    income_baseline_dict = {}
-    relevant_income = income_by_year[income_baseline_year]
-    for person in relevant_income:
-        if person in baseline_dict:
-            income_baseline_dict[person] = baseline_dict[person] + [relevant_income[person]] 
 
 
 
