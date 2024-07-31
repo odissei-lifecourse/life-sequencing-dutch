@@ -91,6 +91,47 @@ if __name__ == "__main__":
              "truth": "full"
              }
         ]
+    
+    elif args.collection_name == "llm_pooled": 
+        embedding_sets = [
+           {
+                "name": "CLS m2 v2",
+                "year": 2016, 
+                "type": "LLM",
+                "root": eval_root, 
+                "url": "2017_medium.h5",
+                "emb_type": "cls_emb",
+                "truth": "full"
+            },  
+           {
+                "name": "CLS m2 v1",
+                "year": 2016, 
+                "type": "LLM",
+                "root": eval_root, 
+                "url": "2017_medium_v0.0.1.h5",
+                "emb_type": "cls_emb",
+                "truth": "full"
+            },             
+            {
+                "name": "Mean m2 v2",
+                "year": 2016, 
+                "type": "LLM",
+                "root": eval_root, 
+                "url": "2017_medium.h5",
+                "emb_type": "mean_emb",
+                "truth": "full"
+            },  
+           {
+                "name": "Mean m2 v1",
+                "year": 2016, 
+                "type": "LLM",
+                "root": eval_root, 
+                "url": "2017_medium_v0.0.1.h5",
+                "emb_type": "mean_emb",
+                "truth": "full"
+            },  
+
+        ]
 
     elif args.collection_name in ["llm_embedding_set", "llm_embedding_set_old"]: 
         suffix = ""
