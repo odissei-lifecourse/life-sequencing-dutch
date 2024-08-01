@@ -21,6 +21,14 @@ source $VENV
 cd $REPO_DIR/src/llm/
 
 #Start training
-#python -m src.new_code.pretrain --accelerator gpu --ddpstrategy gloo --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
-python -m src.new_code.pretrain --accelerator gpu --ddpstrategy auto --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
+python -m src.new_code.pretrain \
+       --accelerator gpu \
+       --ddpstrategy auto \
+       --device $SLURM_GPUS_ON_NODE \
+       --batch 256 \
+       --hparams src/new_code/regular_hparams_medium2x.txt \
+       --config projects/dutch_real/pretrain_cfg.json
+
+
+#python -m src.new_code.pretrain --accelerator gpu --ddpstrategy auto --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
 
