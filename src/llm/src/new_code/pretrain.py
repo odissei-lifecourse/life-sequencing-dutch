@@ -68,17 +68,24 @@ def get_callbacks(ckpoint_dir, val_check_interval):
   ]
   return callbacks
 
-def pretrain(cfg):
+def pretrain(cfg, batch_size=None):
+  """Train the model with lightning trainer
+
+  Args:
+    cfg (dict): configuration dict from json config file
+    batch_size (int or None): batch size to use. If None, uses batch size specified in config.
+  """
   hparams_path = cfg['HPARAMS_PATH']#'src/new_code/regular_hparams.txt'
   ckpoint_dir = cfg['CHECKPOINT_DIR']
   mlm_path = cfg['MLM_PATH']
   hparams = read_hparams_from_file(hparams_path)
-  batch_size = cfg['BATCH_SIZE']
+
   num_val_items = cfg.get('NUM_VAL_ITEMS', 100000)
   val_check_interval = cfg.get(
     'VAL_CHECK_INTERVAL', 
     int(num_val_items*5/batch_size)
   )
+  batch_size = cfg['BATCH_SIZE'] if not batch_size else batch_size
   logger = CSVLogger(ckpoint_dir)  
   
   if 'RESUME_FROM_CHECKPOINT' in cfg:
@@ -146,6 +153,7 @@ def parse_args():
     parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, …)")
     parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
     parser.add_argument("--devices", default=1, help=f"Number of devices")
+    parser.add_argument("--batch", default=None, help="Batch size to use. If None, uses batch size specified in the config file")
     parser.add_argument("--config", required=True, help=f".json config",type=str)    
     return parser.parse_args()
 
@@ -155,6 +163,7 @@ if __name__ == "__main__":
     ACCELERATOR=args.accelerator
     N_DEVICES=args.devices
     DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
+    BATCH_SIZE=args.batch
     CFG_PATH=args.config
 
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
@@ -168,4 +177,4 @@ if __name__ == "__main__":
 
     print_now(CFG_PATH)
     cfg = read_json(CFG_PATH)
-    pretrain(cfg)
+    pretrain(cfg, batch_size=BATCH_SIZE)
