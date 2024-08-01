@@ -7,8 +7,8 @@
 #SBATCH -e %x-%j.err 
 #SBATCH -o %x-%j.out 
 
-export ROOT_DIR=/home/benjamic
-export REPO_DIR=$ROOT_DIR/life-sequencing-dutch
+export ROOT_DIR=/home/fhafner/
+export REPO_DIR=$ROOT_DIR/repositories/life-sequencing-dutch
 export VENV=$REPO_DIR/.venv/bin/activate
 
 #load the modules
@@ -21,5 +21,6 @@ source $VENV
 cd $REPO_DIR/src/llm/
 
 #Start training
-python -m src.new_code.pretrain --accelerator gpu --ddpstrategy gloo --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
+#python -m src.new_code.pretrain --accelerator gpu --ddpstrategy gloo --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
+python -m src.new_code.pretrain --accelerator gpu --ddpstrategy auto --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
 
