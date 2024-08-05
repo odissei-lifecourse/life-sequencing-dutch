@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=pretrain
 #SBATCH -p gpu
-#SBATCH --gpus-per-node=2
+#SBATCH --gpus-per-node=4
 #SBATCH -t 00:30:00
 #SBATCH -e %x-%j.err 
 #SBATCH -o %x-%j.out 
@@ -23,10 +23,10 @@ cd $REPO_DIR/src/llm/
 #Start training
 python -m src.new_code.pretrain \
        --accelerator gpu \
-       --ddpstrategy auto \
+       --ddpstrategy gloo \
        --device $SLURM_GPUS_ON_NODE \
        --batch 256 \
-       --hparams src/new_code/regular_hparams_medium2x.txt \
+       --hparams src/new_code/regular_hparams_large.txt \
        --config projects/dutch_real/pretrain_cfg.json
 
 
