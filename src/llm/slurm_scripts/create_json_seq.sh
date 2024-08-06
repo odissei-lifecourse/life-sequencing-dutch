@@ -31,11 +31,8 @@ initialize() {
 	    declare REPO_DIR="$ROOTDIR/repositories/life-sequencing-dutch"
 	    declare VENV="$REPO_DIR/.venv"
 	fi
-	
-	module purge 
-	module load 2022 
-	module load Python/3.10.4-GCCcore-11.3.0
-	module load SciPy-bundle/2022.05-foss-2022a
+
+	source $REPO_DIR/requirements/2023_snel_modules.sh	
 	source "$VENV/bin/activate" 
 	
 	echo "job started" 

@@ -12,7 +12,7 @@ export REPO_DIR=$ROOT_DIR/repositories/life-sequencing-dutch
 export VENV=$REPO_DIR/.venv/bin/activate
 
 #load the modules
-source $REPO_DIR/src/llm/slurm_scripts/2023_snel_modules.sh
+source $REPO_DIR/requirements/2023_snel_modules.sh
 
 #source the virtual environment
 source $VENV
