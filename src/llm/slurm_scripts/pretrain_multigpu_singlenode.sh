@@ -29,6 +29,3 @@ python -m src.new_code.pretrain \
        --hparams src/new_code/regular_hparams_large.txt \
        --config projects/dutch_real/pretrain_cfg.json
 
-
-#python -m src.new_code.pretrain --accelerator gpu --ddpstrategy auto --device $SLURM_GPUS_ON_NODE --config projects/dutch_real/pretrain_cfg.json
-

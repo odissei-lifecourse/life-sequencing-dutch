@@ -41,9 +41,6 @@ initialize() {
 	cd $REPO_DIR/src/llm/
 }
 
-#cd /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/ 
-
-#source ossc_env_may2/bin/activate 
 
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     initialize

@@ -43,7 +43,6 @@ initialize() {
 
 echo "job started"
 
-#cd /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/ 
 
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     initialize
