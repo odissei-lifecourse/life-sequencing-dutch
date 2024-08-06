@@ -10,3 +10,4 @@ __pycache__/
 *.pyd                # Ignore Windows specific Python extension files
 env_ossc/
 .venv/
+*.swp
