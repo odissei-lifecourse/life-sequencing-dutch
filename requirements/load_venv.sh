@@ -1,9 +1,7 @@
 #!/bin/bash
 # This is how the venv on snellius (OSSC and regular) should be activated
 
-declare ENV_NAME="ossc_env_may2"
+declare ENV_NAME="ossc_env_aug2024"
 
-module purge 
-module load 2022
-module load Python/3.10.4-GCCcore-11.3.0
+source snel_modules_2023.sh
 source ${ENV_NAME}/bin/activate

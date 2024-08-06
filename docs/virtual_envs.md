@@ -7,8 +7,8 @@
 #### Installing the venv
 
 ```bash
-module load 2022
-module load Python/3.10.4-GCCcore-11.3.0
+source requirements/snel_modules_2023.sh
+
 python -m venv .venv
 source .venv/bin/activate 
 pip install -r requirements/snellius.txt
@@ -32,8 +32,8 @@ For other cases (ie, on local laptops or on a github action), the virtual enviro
 
 
 ```bash
-pyenv install 3.10.4 # might be necessary
-pyenv local 3.10.4 # or other ways to get the right python version
+pyenv install 3.11.3 # might be necessary
+pyenv local 3.11.3 # or other ways to get the right python version
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements/regular.txt
@@ -64,3 +64,5 @@ The virtual environment on the OSSC is installed by SURF.
     python requirements/translate.py
     ```
 3. Give `requirements/source.txt` to SURF so they can install a new environment on the OSSC.
+
+Note. If you install a package with `pip install pkg_name`, it's suggested to add this package to the list `PKG_NO_PIN` in `requirements/translate.py`. This will make it easier to install the venv on other machines. The environment on snellius will still be equivalent to the environment on the OSSC because `requirements/source.txt` records the exact version you installed on Snellius and this will be used to install the virtual environment on the OSSC.
