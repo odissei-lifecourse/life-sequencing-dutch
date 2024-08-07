@@ -143,8 +143,8 @@ def pretrain(cfg, batch_size=None, hparams=None):
     validation=False, 
     num_val_items=num_val_items
   )
-  val_dataloader = DataLoader(val_dataset, batch_size=batch_size) 
-  train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
+  val_dataloader = DataLoader(val_dataset, batch_size=batch_size,num_workers=10) 
+  train_dataloader = DataLoader(train_dataset, batch_size=batch_size,num_workers=10)
   
   print_now("training and validation dataloaders are created")
   trainer.fit(model, train_dataloader, val_dataloader)
