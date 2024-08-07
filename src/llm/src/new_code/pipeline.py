@@ -166,7 +166,7 @@ def convert_to_numpy(data_dict):
 
 def encode_documents(docs_with_counter, write_path_prefix, needed_ids, do_mlm, mlm):
   docs, counter = docs_with_counter
-  print("Starting to encode document {counter}",flush=True)
+  print(f"Starting to encode document {counter}",flush=True)
   data_dict = init_data_dict(do_mlm)
   for document in docs:
     person_dict = load_json_obj(document)
@@ -180,8 +180,8 @@ def encode_documents(docs_with_counter, write_path_prefix, needed_ids, do_mlm, m
     person_document = PersonDocument(
       person_id=person_dict['person_id'],
       sentences=person_dict['sentence'],
-      abspos=[int(x) for x in person_dict['abspos']],
-      age=[int(x) for x in person_dict['age']],
+      abspos=[int(float(x)) for x in person_dict['abspos']],  
+      age=[int(float(x)) for x in person_dict['age']],
       segment=person_dict['segment'],
       background=Background(**person_dict['background']),
     )
@@ -194,7 +194,7 @@ def encode_documents(docs_with_counter, write_path_prefix, needed_ids, do_mlm, m
     update_data_dict(data_dict, output, do_mlm)
     
   convert_to_numpy(data_dict)
-  write_path = f"{write_path_prefix}_{counter}.h5" 
+  write_path = f"{write_path_prefix}.h5" 
   write_to_hdf5(write_path, data_dict)
 
 def init_hdf5_datasets(h5f, data_dict, dtype='i4'):
@@ -361,7 +361,7 @@ if __name__ == "__main__":
   logging.basicConfig(
     format='%(asctime)s %(name)s %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.DEBUG
+    level=logging.INFO
   )
   CFG_PATH = sys.argv[1]
   cfg = read_json(CFG_PATH)

@@ -1,4 +1,4 @@
-vocab_size: 1938 #this one you should knwo in advance (fix later)
+vocab_size: 2918 #this one you should knwo in advance (fix later)
 max_epochs: 100
 train_split: 0.8
 batch_size: 10

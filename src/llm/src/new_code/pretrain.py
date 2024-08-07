@@ -1,3 +1,4 @@
+import argparse
 import re
 import src.transformer
 from src.transformer.models import TransformerEncoder
@@ -15,7 +16,6 @@ from src.new_code.utils import read_json, print_now
 import os
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import CSVLogger
-
 
 def is_float(string):
     try:
@@ -68,17 +68,27 @@ def get_callbacks(ckpoint_dir, val_check_interval):
   ]
   return callbacks
 
-def pretrain(cfg):
-  hparams_path = cfg['HPARAMS_PATH']#'src/new_code/regular_hparams.txt'
+def pretrain(cfg, batch_size=None, hparams=None):
+  """Train the model with lightning trainer
+
+  Args:
+    cfg (dict): configuration dict from json config file
+    batch_size (int, optional): batch size to use. If None, uses batch size specified in config.
+    hparams (str, optional): path to file with hyperparameters. If None, uses file specified in config.
+  """
   ckpoint_dir = cfg['CHECKPOINT_DIR']
   mlm_path = cfg['MLM_PATH']
+
+  hparams_path = cfg['HPARAMS_PATH'] if not hparams else hparams
   hparams = read_hparams_from_file(hparams_path)
-  batch_size = cfg['BATCH_SIZE']
+
   num_val_items = cfg.get('NUM_VAL_ITEMS', 100000)
   val_check_interval = cfg.get(
     'VAL_CHECK_INTERVAL', 
     int(num_val_items*5/batch_size)
   )
+  batch_size = cfg['BATCH_SIZE'] if not batch_size else batch_size
+  logger = CSVLogger(ckpoint_dir)  
   
   if 'RESUME_FROM_CHECKPOINT' in cfg:
     print_now(f"resuming training from checkpoint {cfg['RESUME_FROM_CHECKPOINT']}")
@@ -90,19 +100,39 @@ def pretrain(cfg):
     model = TransformerEncoder(hparams)
   
   callbacks = get_callbacks(ckpoint_dir, val_check_interval+1)
-  #ddp = DDPStrategy(process_group_backend="mpi")
-  logger = CSVLogger(ckpoint_dir)
-  trainer = Trainer(
-    #strategy=ddp,
-    default_root_dir=ckpoint_dir,
-    callbacks=callbacks,
-    max_epochs=cfg['MAX_EPOCHS'],
-    val_check_interval=val_check_interval,
-    accelerator='gpu',
-    devices=1,
-    logger=logger,
-    precision=16
-  )
+  if DDP_STRATEGY == "auto":
+    trainer = Trainer(
+      default_root_dir=ckpoint_dir,
+      callbacks=callbacks,
+      max_epochs=cfg['MAX_EPOCHS'],
+      val_check_interval=val_check_interval,
+      accelerator=ACCELERATOR,
+      devices=N_DEVICES,
+      logger=logger,
+      precision="16-mixed"
+    )
+  else:
+      if DDP_STRATEGY == "ddp":
+          ddp = DDPStrategy()
+      elif DDP_STRATEGY == "ddp_mpi":
+          ddp = DDPStrategy(process_group_backend="mpi")
+      elif DDP_STRATEGY == "gloo":
+          ddp = DDPStrategy(process_group_backend="gloo")
+
+      
+      trainer = Trainer(
+        strategy=ddp,
+        default_root_dir=ckpoint_dir,
+        callbacks=callbacks,
+        max_epochs=cfg['MAX_EPOCHS'],
+        val_check_interval=val_check_interval,
+        accelerator=ACCELERATOR,
+        devices=N_DEVICES,
+        logger=logger,
+        precision="16-mixed"
+      )  
+  
+
   val_dataset = CustomIterableDataset(
     mlm_path, 
     validation=True, 
@@ -119,9 +149,36 @@ def pretrain(cfg):
   print_now("training and validation dataloaders are created")
   trainer.fit(model, train_dataloader, val_dataloader)
   
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, …)")
+    parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
+    parser.add_argument("--devices", default=1, help=f"Number of devices")
+    parser.add_argument("--batch", default=None, type=int, help="Batch size to use. If None, uses `batch` size specified in the config file")
+    parser.add_argument("--hparams", default=None, type=str, help="Path to hyperparameters file. If `None`, uses file specified in the config file")
+    parser.add_argument("--config", required=True, help=f".json config",type=str)    
+    return parser.parse_args()
+
 if __name__ == "__main__":
-  torch.set_float32_matmul_precision("medium")
-  CFG_PATH = sys.argv[1]
-  print_now(CFG_PATH)
-  cfg = read_json(CFG_PATH)
-  pretrain(cfg)
+
+    args = parse_args()
+    ACCELERATOR=args.accelerator
+    N_DEVICES=args.devices
+    DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
+    BATCH_SIZE=args.batch
+    HPARAMS=args.hparams
+    CFG_PATH=args.config
+
+    assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
+
+    logging.basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO
+    )
+    torch.set_float32_matmul_precision("medium")
+
+    print_now(CFG_PATH)
+    cfg = read_json(CFG_PATH)
+    pretrain(cfg, batch_size=BATCH_SIZE, hparams=HPARAMS)
