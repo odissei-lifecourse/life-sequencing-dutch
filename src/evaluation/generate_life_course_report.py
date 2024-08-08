@@ -10,7 +10,7 @@ import report_utils
 import pickle
 import copy
 import logging
-from prediction_models import model_dict
+from prediction_models.models import model_dict 
 
 embedding_map = { # keys are tasks, values are names of embeddings
     "income": ["income_eval"],
