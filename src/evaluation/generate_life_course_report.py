@@ -12,7 +12,7 @@ import copy
 import logging
 from prediction_models import model_dict
 
-embedding_map = {
+embedding_map = { # keys are tasks, values are names of embeddings
     "income": ["income_eval"],
     "marriage": ["marriage_eval"],
     "marriage_rank": ["marriage_rank"]
@@ -38,7 +38,6 @@ if __name__ == '__main__':
     regen_images = True
     is_eval = True 
     years = list(range(2011, 2022))
-    prediction_model = "linear_regression"
 
     parser = argparse.ArgumentParser(description='')
 
