@@ -45,3 +45,5 @@ tqdm==4.66.2
 transformers==4.44.0
 typing_extensions==4.11.0
 yarl==1.9.4
+pre-commit
+ruff
