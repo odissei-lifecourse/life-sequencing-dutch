@@ -4,17 +4,15 @@ import random
 from fpdf import FPDF
 from sentence_transformers import util
 from torch import Tensor
-from sklearn.linear_model import LinearRegression, LogisticRegression, RidgeClassifier, Ridge, Lasso
-from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.svm import SVC, SVR
 import time
 from datetime import date
 import report_utils
 import pickle
 import copy
 import logging
+from prediction_models.models import model_dict 
 
-embedding_map = {
+embedding_map = { # keys are tasks, values are names of embeddings
     "income": ["income_eval"],
     "marriage": ["marriage_eval"],
     "marriage_rank": ["marriage_rank"]
@@ -40,27 +38,6 @@ if __name__ == '__main__':
     regen_images = True
     is_eval = True 
     years = list(range(2011, 2022))
-
-    # Regression Models
-    max_iters = 10000
-    single_model = LinearRegression()
-    pair_model = LogisticRegression(max_iter=max_iters)
-
-    # Decision Tree Models
-    #max_depth = 100
-    #single_model = DecisionTreeRegressor(max_depth=max_depth)
-    #pair_model = DecisionTreeClassifier(max_depth=max_depth)
-
-    # Support Vector Machine Models
-    #kernel = 'rbf'
-    #C = 1.0
-    #single_model = SVR(kernel=kernel, C=C)
-    #pair_model = SVC(kernel=kernel, C=C)
-
-    # Alternative regression models
-    #alpha=1.0
-    #single_model = Ridge(alpha=alpha)
-    #pair_model = RidgeClassifier(alpha=alpha)
 
     parser = argparse.ArgumentParser(description='')
 
@@ -90,8 +67,18 @@ if __name__ == '__main__':
         type=int,
         help="If positive, restrict embedding dimension to this size."
     )
+    parser.add_argument(
+        "--pred_model",
+        type=str,
+        default="linear_regression",
+        help="Model type to use for prediction"
+    )
 
     args = parser.parse_args()
+
+    
+    single_model = model_dict[args.pred_model]["single"]
+    pair_model = model_dict[args.pred_model]["pair"]
 
     logging.basicConfig(
         format='%(asctime)s %(name)s %(levelname)s: %(message)s',
@@ -104,16 +91,12 @@ if __name__ == '__main__':
     with open(load_url, 'rb') as pkl_file:
         embedding_sets = list(pickle.load(pkl_file))
 
-    baseline_dict = report_utils.precompute_global('background', years, is_eval=is_eval)
+    baseline_dict = report_utils.precompute_global(
+        'background', years, 
+        income_baseline_year=income_baseline_year,
+        is_eval=is_eval)
     income_by_year = report_utils.precompute_global('income', years, is_eval=is_eval)
     marriages_by_year = report_utils.precompute_global('marriage', years, is_eval=is_eval)
-
-    # Build the income baseline by appending a given years' income to the standard baseline    
-    income_baseline_dict = {}
-    relevant_income = income_by_year[income_baseline_year]
-    for person in relevant_income:
-        if person in baseline_dict:
-            income_baseline_dict[person] = baseline_dict[person] + [relevant_income[person]] 
 
 
 

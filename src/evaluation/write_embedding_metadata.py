@@ -92,7 +92,7 @@ if __name__ == "__main__":
              }
         ]
     
-    elif args.collection_name == "llm_pooled": 
+    elif args.collection_name == "llm_eval_set": 
         embedding_sets = [
            {
                 "name": "CLS m2 v2",
@@ -176,57 +176,6 @@ if __name__ == "__main__":
                 "year": 2016,
                 "type": "LLM",
                 "root": llm_emb_root,
-                "url": f"2017_small{suffix}.h5",
-                "emb_type:": "cls_emb",
-                "truth": "full"
-            }
-
-            embedding_sets.insert(0, add_set)
-
-
-    elif args.collection_name in ["llm_eval_set", "llm_eval_set_old"]: 
-        suffix = ""
-        if args.collection_name == "llm_eval_set_old":
-            suffix = "_v0.0.1"
-
-        embedding_sets = [
-
-            {
-                "name": "LLM CLS 2017 medium",
-                "year": 2016, 
-                "type": "LLM",
-                "root": eval_root, 
-                "url": f"2017_medium{suffix}.h5",
-                "emb_type": "cls_emb",
-                "truth": "full"
-            },           
-            
-            {
-                "name": "LLM CLS 2017 medium2x",
-                "year": 2016, 
-                "type": "LLM",
-                "root": eval_root, 
-                "url": f"2017_medium2x{suffix}.h5",
-                "emb_type": "cls_emb",
-                "truth": "full"
-            },
-            
-            {
-                "name": "LLM CLS 2017 large",
-                "year": 2016, 
-                "type": "LLM",
-                "root": eval_root, 
-                "url": f"2017_large{suffix}.h5",
-                "emb_type": "cls_emb",
-                "truth": "full"
-            }
-        ]
-        if args.collection_name == "llm_eval_set_old":
-            add_set = {
-                "name": "LLM CLS 2017 small",
-                "year": 2016,
-                "type": "LLM",
-                "root": eval_root,
                 "url": f"2017_small{suffix}.h5",
                 "emb_type:": "cls_emb",
                 "truth": "full"

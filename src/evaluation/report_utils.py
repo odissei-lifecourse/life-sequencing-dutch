@@ -18,16 +18,20 @@ import logging
 from nearest_neighbor import build_index, get_nearest_neighbor_e2e
 
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
-def precompute_global(var_type, years, is_eval=False):
+def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False):
     """
     Load data necessary to evaluate all embedding sets.
 
     Args:
-    years (list): Subset the data to years that are present both in the data in this list.
-    var_type (str): Target variable, either of 'income', 'marriage', or 'death'.
+        years (list): Subset the data to years that are present both in the data in this list.
+        var_type (str): Target variable, either of 'income', 'marriage', or 'death'.
+        income_baseline_year (int): The year whose income to use for the baseline model
+        is_eval (bool): If True, uses the evaluation subset of persons, which is faster and low-memory.
 
     Returns:
     A single or a tuple of data objects, depending on the `var_type`.
+        For `var_type="background"`, it returns a dict. The keys are the person IDs, the values 
+        a list of variables. 
     """
 
     input_conn = sqlite3.connect("data/processed/background_db.sqlite")
@@ -35,11 +39,24 @@ def precompute_global(var_type, years, is_eval=False):
 
     if var_type == 'background':
 
-        query = 'SELECT * FROM person_background'
+        query = """
+            SELECT rinpersoon
+                , gender
+                , birth_year
+                , birth_city
+                , income 
+            FROM person_background 
+            INNER JOIN (
+                SELECT rinpersoon, income
+                FROM person_income
+                WHERE year = ?
+            )
+            USING(rinpersoon)
+        """
         if is_eval:
             query += ' WHERE is_eval = 1'
 
-        results = input_c.execute(query)
+        results = input_c.execute(query, (income_baseline_year,))
 
         data = {}
         for row in results:
@@ -47,8 +64,9 @@ def precompute_global(var_type, years, is_eval=False):
             gender = row[1]
             birth_year = row[2]
             birth_city = row[3]
+            income = row[4]
 
-            data[rinpersoon] = [gender, birth_year, birth_city]
+            data[rinpersoon] = [1, gender, birth_year, birth_city, income]
 
         return data
 
