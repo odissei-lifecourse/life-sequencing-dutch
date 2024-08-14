@@ -7,8 +7,8 @@ import os
 import pandas as pd 
 import sys
 import shutil
-from src.new_code.utils import get_column_names, print_now
-from src.new_code.constants import MISSING, DAYS_SINCE_FIRST, FIRST_EVENT_TIME, AGE, INF
+from pop2vec.llm.src.new_code.utils import get_column_names, print_now
+from pop2vec.llm.src.new_code.constants import MISSING, DAYS_SINCE_FIRST, FIRST_EVENT_TIME, AGE, INF
 from functools import partial
 
 
