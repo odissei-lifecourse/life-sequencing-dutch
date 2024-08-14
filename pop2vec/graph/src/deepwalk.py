@@ -6,9 +6,9 @@ import time
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-from model import SkipGramModel
+from pop2vec.graph.src.model import SkipGramModel
 from torch.utils.data import DataLoader
-from deepwalk_dataset import DeepwalkDataset
+from pop2vec.graph.src.deepwalk_dataset import DeepwalkDataset
 
 
 class DeepwalkTrainer:
