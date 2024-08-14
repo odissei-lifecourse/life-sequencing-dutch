@@ -8,7 +8,7 @@ from sklearn.ensemble import (
     GradientBoostingClassifier,
     GradientBoostingRegressor
 )
-import prediction_models.params as params # assumes code is run from `LifeCourseEvaluation/`
+from pop2vec.evaluation.prediction_models import params # assumes code is run from `LifeCourseEvaluation/`
 
 linear_regression = {
     "single": LinearRegression(),

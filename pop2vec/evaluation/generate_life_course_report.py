@@ -6,11 +6,11 @@ from sentence_transformers import util
 from torch import Tensor
 import time
 from datetime import date
-import report_utils
+from pop2vec.evaluation import report_utils
 import pickle
 import copy
 import logging
-from prediction_models.models import model_dict 
+from pop2vec.evaluation.prediction_models.models import model_dict 
 
 embedding_map = { # keys are tasks, values are names of embeddings
     "income": ["income_eval"],
