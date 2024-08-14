@@ -1,6 +1,6 @@
-from src.new_code.constants import GENDER, BIRTH_MONTH, BIRTH_YEAR, ORIGIN, DAYS_SINCE_FIRST, AGE, DELIMITER, IGNORE_COLUMNS, MISSING
-from src.data_new.types import Background, PersonDocument
-from src.new_code.utils import print_now
+from pop2vec.llm.src.new_code.constants import GENDER, BIRTH_MONTH, BIRTH_YEAR, ORIGIN, DAYS_SINCE_FIRST, AGE, DELIMITER, IGNORE_COLUMNS, MISSING
+from pop2vec.llm.src.data_new.types import Background, PersonDocument
+from pop2vec.llm.src.new_code.utils import print_now
 import pandas as pd
 import json
 

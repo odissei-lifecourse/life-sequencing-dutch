@@ -1,6 +1,6 @@
-from src.new_code.create_person_dict import CreatePersonDict
-from src.new_code.utils import get_column_names, print_now, read_json
-from src.new_code.constants import DAYS_SINCE_FIRST, INF
+from pop2vec.llm.src.new_code.create_person_dict import CreatePersonDict
+from pop2vec.llm.src.new_code.utils import get_column_names, print_now, read_json
+from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST, INF
 
 import os
 import json
