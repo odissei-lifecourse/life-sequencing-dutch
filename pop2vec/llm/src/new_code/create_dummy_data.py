@@ -5,7 +5,7 @@ import pickle
 from torch.utils.data import Dataset, DataLoader
 import torch
 
-from load_data import CustomDataset
+from .load_data import CustomDataset
 
 vocab_size = 2000
 dataset_len = 10000
