@@ -4,7 +4,7 @@ import numpy as np
 import pyreadstat 
 import pytest
 
-import synthetic_data_generation.utils as su
+import pop2vec.fake_data.utils as su
 
 # from src.llm.src.new_code.pipeline import read_jsonl_file_in_chunks # this fails
 
