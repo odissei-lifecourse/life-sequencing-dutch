@@ -26,6 +26,6 @@ export CUDA_VISIBLE_DEVICES=2
 cd "$PREFIX"/Tanzir/LifeToVec_Nov/
 
 date
-time python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg_medium2x.json
+time python -m pop2vec.llm.src.new_code.pretrain pop2vec/llm/projects/dutch_real/pretrain_cfg_medium2x.json
 
 echo "job ended successfully"

@@ -11,6 +11,6 @@
 echo "job started"
 
 date
-python src/new_code/preprocess_data.py projects/dutch_real/preprocess_cfg.json
+python pop2vec/llm/src/new_code/preprocess_data.py ppop2vec/llm/rojects/dutch_real/preprocess_cfg.json
 
 echo "job ended successfully"

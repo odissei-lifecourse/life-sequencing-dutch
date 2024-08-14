@@ -50,7 +50,7 @@ else
     initialize
 
     date
-    time python -m src.new_code.create_life_seq_jsons projects/dutch_real/create_json_seq_cfg.json
+    time python -m pop2vec.llm.src.new_code.create_life_seq_jsons pop2vec/llm/projects/dutch_real/create_json_seq_cfg.json
 
     echo "job ended"
 fi

@@ -61,7 +61,7 @@ initialize() {
 main() {
 	# NOTE: changes in this file require changes in pretrain.py
 	date
-	python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
+	python -m pop2vec.llm.src.new_code.pretrain pop2vec/llm/projects/dutch_real/pretrain_cfg.json
  	#srun --mpi=pmi2 python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json	
  	#python -m src.new_code.pretrain projects/dutch_real/pretrain_cfg.json
 	# for debugging on GPU

@@ -27,6 +27,6 @@ source "$PREFIX"/ossc_new/bin/activate
 cd "$PREFIX"/Tanzir/LifeToVec_Nov/
 
 date
-time python -m src.new_code.infer_embedding projects/dutch_real/infer_cfg_small.json
+time python -m pop2vec.llm.src.new_code.infer_embedding pop2vec/llm/projects/dutch_real/infer_cfg_small.json
 
 echo "job ended successfully"

@@ -22,11 +22,11 @@ source $VENV
 cd $REPO_DIR/src/llm/
 
 #Start training
-srun python -m src.new_code.pretrain \
+srun python -m pop2vec.llm.src.new_code.pretrain \
        --accelerator gpu \
        --ddpstrategy auto \
        --device $SLURM_GPUS_ON_NODE \
        --batch 256 \
-       --hparams src/new_code/regular_hparams_large.txt \
-       --config projects/dutch_real/pretrain_cfg.json
+       --hparams pop2vec/llm/src/new_code/regular_hparams_large.txt \
+       --config pop2vec/llm/projects/dutch_real/pretrain_cfg.json
 

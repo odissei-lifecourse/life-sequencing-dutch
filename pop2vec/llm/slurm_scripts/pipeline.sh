@@ -48,7 +48,7 @@ else
     initialize
 
     date
-    srun python -m src.new_code.pipeline projects/dutch_real/pipeline_cfg.json
+    srun python -m pop2vec.llm.src.new_code.pipeline pop2vec/llm/projects/dutch_real/pipeline_cfg.json
 
     echo "job ended"
 fi
