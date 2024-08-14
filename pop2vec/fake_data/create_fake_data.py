@@ -32,9 +32,9 @@ import os
 import logging
 from tqdm import tqdm
 
-from src.others.synthetic_data_generation.fake_data_generator import FakeDataGenerator
-from src.others.synthetic_data_generation.utils import get_unique_source_files
-from src.llm.src.new_code.utils import read_json
+from pop2vec.fake_data.fake_data_generator import FakeDataGenerator
+from pop2vec.fake_data.utils import get_unique_source_files
+from pop2vec.llm.src.new_code.utils import read_json
 
 
 SAMPLE_SIZE_DRY_RUN = 1_000
