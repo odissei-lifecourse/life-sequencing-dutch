@@ -1,6 +1,6 @@
 import json
 
-from src.data_new.types import Background, PersonDocument
+from pop2vec.llm.src.data_new.types import Background, PersonDocument
 
 
 def get_person_from_dict(x):

@@ -23,4 +23,6 @@ def test_imports_new_code():
         # check_pipeline_output, # FileNotFoundError
         # create_dummy_data, # CustomDataset not defined anymore
         create_life_seq_jsons,
+        custom_vocab,
+        data_io_utilities,
     )
