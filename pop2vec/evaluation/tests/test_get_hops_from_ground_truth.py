@@ -1,4 +1,4 @@
-from src.evaluation.get_hops_from_ground_truth import bfs
+from pop2vec.evaluation.get_hops_from_ground_truth import bfs
 
 def test_bfs():
   adjacency_dict = {
