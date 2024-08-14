@@ -2,4 +2,9 @@
 import pytest 
 
 
-from pop2vec.llm.src import callbacks
+
+
+def test_imports():
+    from pop2vec.llm.src import callbacks
+    from pop2vec.llm.src import prepare_data
+
