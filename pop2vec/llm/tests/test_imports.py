@@ -25,4 +25,12 @@ def test_imports_new_code():
         create_life_seq_jsons,
         custom_vocab,
         data_io_utilities,
+        load_data,
+        nearest_neighbor,
+        pipeline,
+        preprocess_data,
+        pretrain,
+        summarise_training,
+        # testing # ModuleNotFoundError: No module named 'dummy_attempt'
+        utils
     )
