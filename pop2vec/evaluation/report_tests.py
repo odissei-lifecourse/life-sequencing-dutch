@@ -1,7 +1,7 @@
 # Set of unit tests for ensuring that the report code continues to function as expected
 import numpy as np
 import pickle
-import report_utils
+import pop2vec.evaluation.report_utils
 import logging
 
 
