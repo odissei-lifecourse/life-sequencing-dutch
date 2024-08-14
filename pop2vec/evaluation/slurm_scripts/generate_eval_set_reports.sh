@@ -32,29 +32,29 @@ main () {
     LINEAR_MODEL="ridge_regression"
 
 
-    python write_embedding_metadata --collection_name llm_eval_set 
-    python write_embedding_metadata --collection_name network_eval_set
+    python -m pop2vec.evaluation.write_embedding_metadata --collection_name llm_eval_set 
+    python -m pop2vec.evaluation.write_embedding_metadata --collection_name network_eval_set
 
     echo "Running llm with ${LINEAR_MODEL}" 
-    python generate_life_course_report.py \
+    python -m pop2vec.evaluation.generate_life_course_report \
         --collection_name llm_eval_set \
         --pred_model $LINEAR_MODEL \
         --savename "results/llm_${LINEAR_MODEL}_" 
     
     echo "Running network with ${LINEAR_MODEL}" 
-    python generate_life_course_report.py \
+    python -m pop2vec.evaluation.generate_life_course_report \
         --collection_name network_eval_set \
         --pred_model $LINEAR_MODEL \
         --savename "results/net_${LINEAR_MODEL}_" 
     
     echo "Running network with ${NONLINEAR_MODEL}" 
-    python generate_life_course_report.py \
+    python -m pop2vec.evaluation.generate_life_course_report \
         --collection_name network_eval_set \
         --pred_model $NONLINEAR_MODEL \
         --savename "results/net_${NONLINEAR_MODEL}_" 
     
     echo "Running llm with ${NONLINEAR_MODEL}" 
-    python generate_life_course_report.py \
+    python -m pop2vec.evaluation.generate_life_course_report \
         --collection_name llm_eval_set \
         --pred_model $NONLINEAR_MODEL \
         --savename "results/llm_${NONLINEAR_MODEL}_" 

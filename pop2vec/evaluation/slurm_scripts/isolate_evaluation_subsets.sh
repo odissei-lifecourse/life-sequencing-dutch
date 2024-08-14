@@ -20,22 +20,22 @@ cd /gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/
 
 date
 echo "Starting scripts"
-time python isolate_income_subset.py
-time python isolate_marriage_subset.py
+time python -m pop2vec.evaluation.isolate_income_subset
+time python -m pop2vec.evaluation.isolate_marriage_subset
 
 python convert_data_to_sqlite.py
 
 # subset embeddings for different models
 echo "Extracting subset for llm new"
-time python extract_embedding_subset.py --model llm_new
+time python -m pop2vec.evaluation.extract_embedding_subset --model llm_new
 
 echo "Extracting subset for llm old"
-time python convert_embeddings_to_hdf5.py 
-time python extract_embedding_subset.py --model llm_old 
+time python -m pop2vec.evaluation.convert_embeddings_to_hdf5
+time python -m pop2vec.evaluation.extract_embedding_subset --model llm_old 
 
 echo "Extracting subset for network"
-time python convert_pickle_embeddings.py 
-time python extract_embedding_subset.py --model network
+time python -m pop2vec.evaluation.convert_pickle_embeddings 
+time python -m pop2vec.evaluation.extract_embedding_subset --model network
 
 
 echo "job ended" 

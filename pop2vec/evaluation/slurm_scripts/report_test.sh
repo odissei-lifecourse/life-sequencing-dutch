@@ -17,6 +17,6 @@ echo "job started"
 cd /gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/
 
 date
-time python report_tests.py
+time python -m pop2vec.evaluation.report_tests
 
 echo "job ended successfully" 

@@ -23,6 +23,6 @@ module load matplotlib/3.5.2-foss-2022a
 cd /gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/
 
 date
-time python generate_income_baseline.py
+time python -m pop2vec.evaluation.generate_income_baseline
 
 echo "job ended" 
