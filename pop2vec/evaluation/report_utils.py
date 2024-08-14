@@ -15,7 +15,7 @@ import csv
 import json
 import h5py
 import logging
-from nearest_neighbor import build_index, get_nearest_neighbor_e2e
+from pop2vec.evaluation.nearest_neighbor import build_index, get_nearest_neighbor_e2e
 
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
 def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False):

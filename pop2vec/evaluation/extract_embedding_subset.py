@@ -6,7 +6,7 @@ import logging
 import argparse
 
 from tqdm import tqdm
-from report_utils import load_hdf5, select_from_indexed_array
+from pop2vec.evaluation.report_utils import load_hdf5, select_from_indexed_array
 
 RINPERS_ID = "sequence_id"
 EMB_TYPES_LLM = ["cls_emb", "mean_emb"]
