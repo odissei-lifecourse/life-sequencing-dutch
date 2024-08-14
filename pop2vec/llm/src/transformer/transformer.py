@@ -11,9 +11,9 @@ import math
 import logging
 
 """Custom code"""
-from src.transformer.embeddings import Embeddings
-from src.transformer.transformer_utils import ScaleNorm, SigSoftmax, l2_norm, Center, Swish
-from src.transformer.transformer_utils import EncoderLayer
+from pop2vec.llm.src.transformer.embeddings import Embeddings
+from pop2vec.llm.src.transformer.transformer_utils import ScaleNorm, SigSoftmax, l2_norm, Center, Swish
+from pop2vec.llm.src.transformer.transformer_utils import EncoderLayer
 
 log = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ from turtle import forward
 import torch.nn as nn
 from torch.nn.utils import parametrize
 import torch
-from src.transformer.transformer_utils import ScaleNorm, ReZero, Norm, Center
+from pop2vec.llm.src.transformer.transformer_utils import ScaleNorm, ReZero, Norm, Center
 import logging
 
 log = logging.getLogger(__name__)

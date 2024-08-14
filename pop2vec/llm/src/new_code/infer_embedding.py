@@ -5,11 +5,11 @@ import sys
 import logging 
 from tqdm import tqdm
 
-from src.transformer.models import TransformerEncoder
-from src.new_code.load_data import CustomIterableDataset
-from src.new_code.pretrain import read_hparams_from_file
-from src.new_code.pipeline import write_to_hdf5
-from src.new_code.utils import read_json, print_now
+from pop2vec.llm.src.transformer.models import TransformerEncoder
+from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
+from pop2vec.llm.src.new_code.pretrain import read_hparams_from_file
+from pop2vec.llm.src.new_code.pipeline import write_to_hdf5
+from pop2vec.llm.src.new_code.utils import read_json, print_now
 from torch.utils.data import DataLoader
 
 

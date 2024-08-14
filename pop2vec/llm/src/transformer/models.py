@@ -12,9 +12,9 @@ import os
 from pathlib import Path
 import logging
 """Custom code"""
-import src.transformer
-from src.transformer.transformer_utils import *
-from src.transformer.transformer import CLS_DecoderS, Transformer, MaskedLanguageModel
+import pop2vec.llm.src.transformer
+from pop2vec.llm.src.transformer.transformer_utils import *
+from pop2vec.llm.src.transformer.transformer import CLS_DecoderS, Transformer, MaskedLanguageModel
 
 log = logging.getLogger(__name__)
 HOME_PATH = str(Path.home())

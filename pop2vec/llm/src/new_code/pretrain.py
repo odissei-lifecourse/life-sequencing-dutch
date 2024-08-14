@@ -1,7 +1,7 @@
 import argparse
 import re
-import src.transformer
-from src.transformer.models import TransformerEncoder
+import pop2vec.llm.src.transformer
+from pop2vec.llm.src.transformer.models import TransformerEncoder
 # from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything, Trainer
 import sys
@@ -11,8 +11,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import Dataset, DataLoader, random_split
 import pickle
 import torch
-from src.new_code.load_data import CustomIterableDataset
-from src.new_code.utils import read_json, print_now
+from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
+from pop2vec.llm.src.new_code.utils import read_json, print_now
 import os
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import CSVLogger
