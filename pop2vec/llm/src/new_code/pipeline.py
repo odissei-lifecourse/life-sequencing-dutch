@@ -1,11 +1,11 @@
 import sys
 
-from src.new_code.custom_vocab import CustomVocabulary
-from src.new_code.custom_vocab import DataFile
-from src.tasks.mlm import MLM
-from src.data_new.types import PersonDocument, Background
-from src.new_code.utils import get_column_names, print_now, read_json, shuffle_json
-from src.new_code.constants import DAYS_SINCE_FIRST, INF
+from pop2vec.llm.src.new_code.custom_vocab import CustomVocabulary
+from pop2vec.llm.src.new_code.custom_vocab import DataFile
+from pop2vec.llm.src.tasks.mlm import MLM
+from pop2vec.llm.src.data_new.types import PersonDocument, Background
+from pop2vec.llm.src.new_code.utils import get_column_names, print_now, read_json, shuffle_json
+from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST, INF
 
 import os
 import json

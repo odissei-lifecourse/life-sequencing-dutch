@@ -11,7 +11,7 @@ import h5py
 # print("Current Directory:", current_directory)
 # print(sys.path)
 
-from src.new_code.pipeline import init_hdf5_datasets, write_to_hdf5, convert_to_numpy
+from pop2vec.llm.src.new_code.pipeline import init_hdf5_datasets, write_to_hdf5, convert_to_numpy
 
 def get_data_dict():
   SIZE = 5000

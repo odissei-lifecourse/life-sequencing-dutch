@@ -8,7 +8,7 @@ import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch.utils.data import RandomSampler, WeightedRandomSampler
-from coral_pytorch.dataset import corn_label_from_logits
+# from coral_pytorch.dataset import corn_label_from_logits
 
 import os
 import hashlib
@@ -28,7 +28,7 @@ import math
 from scipy.optimize import fsolve
 import random
 
-from src.transformer.transformer_utils import SigSoftmax
+from pop2vec.llm.src.transformer.transformer_utils import SigSoftmax
 
 
 

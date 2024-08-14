@@ -1,7 +1,7 @@
 import pandas as pd
 
 from dataclasses import dataclass, field
-from src.data_new.vocabulary import Vocabulary
+from pop2vec.llm.src.data_new.vocabulary import Vocabulary
 from typing import TYPE_CHECKING, Generic, List, NewType, Optional, TypeVar
 
 from dataclasses import dataclass, field
@@ -11,11 +11,11 @@ from typing import TYPE_CHECKING, Dict, List, Tuple, Union, cast
 import dask
 import pandas as pd
 
-from src.data_new.decorators import save_pickle, save_tsv
-from src.data_new.serialize import DATA_ROOT
-from src.data_new.sources.base import TokenSource
+from pop2vec.llm.src.data_new.decorators import save_pickle, save_tsv
+from pop2vec.llm.src.data_new.serialize import DATA_ROOT
+from pop2vec.llm.src.data_new.sources.base import TokenSource
 
-from src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, IGNORE_COLUMNS, MISSING, DELIMITER
+from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, IGNORE_COLUMNS, MISSING, DELIMITER
 
 class DataFile():
   

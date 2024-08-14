@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Generic, List, NewType, Optional, TypeVar
 JSONSerializable = NewType("JSONSerializable", object)
 
 if TYPE_CHECKING:
-    from src.tasks.base import Task
+    from pop2vec.llm.src.tasks.base import Task
 
 _TaskT = TypeVar("_TaskT", bound="Task")
 

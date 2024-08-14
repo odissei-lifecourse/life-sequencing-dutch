@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.data_new.augment import (
+from pop2vec.llm.src.data_new.augment import (
     add_noise2time,
     align_document,
     make_timecut,
@@ -15,11 +15,11 @@ from src.data_new.augment import (
     shuffle_sentences,
     drop_tokens,
 )
-from src.data_new.types import Background, PersonDocument
+from pop2vec.llm.src.data_new.types import Background, PersonDocument
 
 if TYPE_CHECKING:
-    from src.data_new.datamodule import L2VDataModule
-    from src.data_new.types import EncodedDocument
+    from pop2vec.llm.src.data_new.datamodule import L2VDataModule
+    from pop2vec.llm.src.data_new.types import EncodedDocument
 
 
 def collate_encoded_documents(

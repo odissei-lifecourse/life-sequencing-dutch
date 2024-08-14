@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from src.transformer.performer import CustomSelfAttention
+from pop2vec.llm.src.transformer.performer import CustomSelfAttention
 import math
-from src.transformer.att_utils import *
+from pop2vec.llm.src.transformer.att_utils import *
 
 class MultiHeadAttention(nn.Module):
     """Multi Head Attention Module"""

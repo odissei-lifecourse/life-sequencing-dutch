@@ -1,4 +1,4 @@
-from signal import Sigmasks
+# from signal import Sigmasks
 #from focal_loss.focal_loss import FocalLoss
 import torch
 import torch.nn as nn
@@ -8,7 +8,7 @@ import time
 import math
 import logging
 
-from src.transformer.attention import MultiHeadAttention
+from pop2vec.llm.src.transformer.attention import MultiHeadAttention
 import torch
 from torch import nn
 from typing import Optional

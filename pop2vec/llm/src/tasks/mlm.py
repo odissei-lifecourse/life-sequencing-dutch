@@ -9,10 +9,10 @@ import numpy as np
 import torch
 from random import shuffle
 
-from src.data_new.types import Background, PersonDocument, EncodedDocument
-from src.tasks.base import Task
-from src.new_code.constants import INF
-from src.new_code.utils import print_now
+from pop2vec.llm.src.data_new.types import Background, PersonDocument, EncodedDocument
+from pop2vec.llm.src.tasks.base import Task
+from pop2vec.llm.src.new_code.constants import INF
+from pop2vec.llm.src.new_code.utils import print_now
 import copy
 
 log = logging.getLogger(__name__)
