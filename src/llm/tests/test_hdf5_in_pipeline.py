@@ -5,11 +5,11 @@ import numpy as np
 import resource
 import h5py
 # Get the current working directory
-current_directory = os.getcwd()
-sys.path.append('/Users/tanzir5/Documents/GitHub/life-sequencing-dutch/code/llm')
+# current_directory = os.getcwd()
+# sys.path.append('/Users/tanzir5/Documents/GitHub/life-sequencing-dutch/code/llm')
 # Print the current directory
-print("Current Directory:", current_directory)
-print(sys.path)
+# print("Current Directory:", current_directory)
+# print(sys.path)
 
 from src.new_code.pipeline import init_hdf5_datasets, write_to_hdf5, convert_to_numpy
 

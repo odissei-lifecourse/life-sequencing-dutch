@@ -2,6 +2,15 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+
+[tool.pytest.ini_options]
+testpaths = [
+    # "src/llm/tests/",
+    "src/evaluation/tests/",
+    # "src/graph/tests/",
+    "src/others/tests/"
+]
+
 [tool.ruff]
 line-length = 120
 output-format = "concise"

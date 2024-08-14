@@ -1,4 +1,4 @@
-from get_hops_from_ground_truth import bfs
+from src.evaluation.get_hops_from_ground_truth import bfs
 
 def test_bfs():
   adjacency_dict = {

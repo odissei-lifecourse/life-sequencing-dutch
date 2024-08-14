@@ -105,4 +105,5 @@ trainer = pl.Trainer(
 model = DummyModel()
 
 # Train the model
-trainer.fit(model, train_dataloader, val_dataloader)
+print("skipped running the model!")
+# trainer.fit(model, train_dataloader, val_dataloader)
