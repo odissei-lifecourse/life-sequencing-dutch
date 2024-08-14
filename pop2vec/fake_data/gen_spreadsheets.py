@@ -5,7 +5,7 @@ import numpy as np
 import json
 import logging 
 import pyreadstat
-from utils import check_column_names, sample_from_file
+from pop2vec.fake_data.utils import check_column_names, sample_from_file
 
 PII_COLS = ['RINPERSOON', 'RINADRES', 'BEID', 'BRIN', 'HUISHOUDNR', 
             'REFPERSOONHH', 'IKVID', 'SCHEIDINGNUMMER', '_crypt']
