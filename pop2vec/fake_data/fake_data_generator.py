@@ -5,7 +5,8 @@ import json
 import os
 import re 
 import math
-from .utils import split_at_last_match
+from .utils import split_at_last_match, replace_numeric_in_path
+
 import logging
 from pathlib import Path
 import pyreadstat
@@ -43,7 +44,7 @@ class FakeDataGenerator:
         return re.sub(path_start, "", full_path)
     
 
-    def save(self, original_root, new_root, data):
+    def save(self, original_root, new_root, data, replace=None):
         """Save the data to a data root directory with the correct format.
 
         The new path is defined as follows. From the full original path, `original_root` is cropped and
@@ -53,6 +54,8 @@ class FakeDataGenerator:
             original_root (str): original root directory of the source file.
             new_root (str): new root directory of the data.
             data (pd.DataFrame): data frame to store
+            replace (dict, optional): value and level to replace in the resulting filename. If provided,
+                needs to have keys `"level"` and `"value"`. See the function `replace_numeric_in_path` for details.
         """
         immutable_part = self._path_end(original_root)
         filename = os.path.join(new_root, immutable_part)
@@ -60,6 +63,9 @@ class FakeDataGenerator:
         if not os.path.isdir(target_dir):
             os.makedirs(target_dir)
 
+        if replace:
+            filename = replace_numeric_in_path(filename, replace["level"], replace["value"])
+            
         if ".csv" in filename:
             data.to_csv(filename, index=False)
         elif ".sav" in filename:
