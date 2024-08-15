@@ -7,6 +7,8 @@ import re
 import math
 from .utils import split_at_last_match
 import logging
+from pathlib import Path
+import pyreadstat
 
 class FakeDataGenerator: 
     """Class to generate fake data from summary statistics.
@@ -58,8 +60,10 @@ class FakeDataGenerator:
         if not os.path.isdir(target_dir):
             os.makedirs(target_dir)
 
-        if "csv" in filename:
+        if ".csv" in filename:
             data.to_csv(filename, index=False)
+        elif ".sav" in filename:
+            pyreadstat.write_sav(data, filename)
         else:
             _, filetype = split_at_last_match(filename, "\.")
             raise NotImplementedError("Cannot save as %s file type" % filetype)
@@ -76,6 +80,9 @@ class FakeDataGenerator:
         """
         with open(os.path.join(url, filename + "_meta.txt"), "r") as f:
             self.meta = dict(json.load(f))
+
+        # convert "//" in path to "/"
+        self.meta["path"] = str(Path(self.meta["path"]))
         
         self.col_summary = pd.read_csv(os.path.join(url, filename + "_columns.csv"))
 
@@ -124,10 +131,7 @@ class FakeDataGenerator:
 
         for colname, inputs in self.generation_inputs.items():
             required_dtype = column_dtypes.get(colname)
-            implemented_types = ["object", "int64"]
-            if required_dtype not in implemented_types:
-                raise NotImplementedError("data type %s not implemented" % required_dtype)
-        
+            
             n_nulls = int(size * inputs["null_fraction"])
             n_nonulls = size - n_nulls 
 
@@ -139,6 +143,10 @@ class FakeDataGenerator:
                 )
                 if required_dtype == "int64":
                     col_data = np.int64(np.round(col_data))
+                elif required_dtype == "float64":
+                    col_data = np.float64(col_data)
+                else:
+                    raise NotImplementedError("data type %s not implemented for continuous data" % required_dtype)
 
             if n_nulls > 0:
                 col_data = add_nans(rng, col_data, n_nulls)
@@ -204,9 +212,23 @@ def detect_variable_type(row, max_diff_q10_q90=10):
         logging.debug("category_0 is str")
         top_cats = [row[f"category_top_{i}"] for i in range(5)]
         top_cats = [x for x in top_cats if isinstance(x, str)]
-        top_cats = [x.split("--") for x in top_cats]
-        classes = [x[0] for x in top_cats]
-        probs = [float(x[1]) for x in top_cats]
+        top_cats_splitted = []
+        for x in top_cats:
+            if "---" in x:
+                prob = re.findall(r'\d+\.\d+', x)[0]
+                string_part = x.split(prob)[0]
+
+                x_prob = float(prob)
+                x_class = string_part[:2]
+
+                x_splitted = [x_class, x_prob]
+            else:
+                x_splitted = x.split("--")
+
+            top_cats_splitted.append(x_splitted)
+
+        classes = [x[0] for x in top_cats_splitted]
+        probs = [float(x[1]) for x in top_cats_splitted]
         probsum = sum(probs)
         probs = [prob/probsum for prob in probs]
         result_dict = {
