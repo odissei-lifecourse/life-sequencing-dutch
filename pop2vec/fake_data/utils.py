@@ -146,3 +146,37 @@ def replace_numeric_in_path(input_path, level, replace_value):
   
   new_path = Path(*parts)
   return str(new_path)
+
+
+def split_classes_and_probs(cats):
+  """Split a string of categories and probabilities
+  
+  Summary statistics of categorical variables are stored as "class--prob". 
+  Sometimes, the class is "--", preventing a simple splitting. This function
+  deals with this.  
+  """
+  cats_splitted = []
+
+  for cat in cats:
+    if "---" in cat:
+        splitted = split_single_category(cat) 
+    else:
+        splitted = cat.split("--")
+    cats_splitted.append(splitted)
+
+  return cats_splitted
+
+
+def split_single_category(x):
+  """Split a pair of a class value and a probability
+  
+  Example: "abc--0.44" -> ["abc", 0.44]
+  """
+  prob = re.findall(r'\d+\.\d+', x)[0]
+  string_part = x.split(prob)[0]
+
+  x_prob = float(prob)
+  x_class = string_part[:-2]
+
+  result = [x_class, x_prob]
+  return result

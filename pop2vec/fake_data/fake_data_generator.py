@@ -5,7 +5,11 @@ import json
 import os
 import re 
 import math
-from .utils import split_at_last_match, replace_numeric_in_path
+from .utils import (
+    split_at_last_match,
+    replace_numeric_in_path,
+    split_classes_and_probs
+)
 
 import logging
 from pathlib import Path
@@ -218,20 +222,7 @@ def detect_variable_type(row, max_diff_q10_q90=10):
         logging.debug("category_0 is str")
         top_cats = [row[f"category_top_{i}"] for i in range(5)]
         top_cats = [x for x in top_cats if isinstance(x, str)]
-        top_cats_splitted = []
-        for x in top_cats:
-            if "---" in x:
-                prob = re.findall(r'\d+\.\d+', x)[0]
-                string_part = x.split(prob)[0]
-
-                x_prob = float(prob)
-                x_class = string_part[:2]
-
-                x_splitted = [x_class, x_prob]
-            else:
-                x_splitted = x.split("--")
-
-            top_cats_splitted.append(x_splitted)
+        top_cats_splitted = split_classes_and_probs(top_cats)
 
         classes = [x[0] for x in top_cats_splitted]
         probs = [float(x[1]) for x in top_cats_splitted]

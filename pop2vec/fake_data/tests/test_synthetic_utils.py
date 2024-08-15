@@ -104,3 +104,14 @@ def test_replace_numeric_in_path():
     path_with_multiple_numerics = "/c/datadir/2011/data9988/file.csv"
     with pytest.raises(AssertionError):
         su.replace_numeric_in_path(path_with_multiple_numerics, 0, year)
+
+
+@pytest.mark.parametrize(
+        "test_input,expected", 
+        [("some-class--0.4", ['some-class', 0.4]),
+         ("abc--0.5", ['abc', 0.5]),
+         ("----0.1", ["--", 0.1])
+         ]
+        )
+def test_split_single_category(test_input, expected):
+    assert su.split_single_category(test_input) == expected
