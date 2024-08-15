@@ -23,7 +23,7 @@ echo "Starting scripts"
 time python -m pop2vec.evaluation.isolate_income_subset
 time python -m pop2vec.evaluation.isolate_marriage_subset
 
-python convert_data_to_sqlite.py
+python -m convert_data_to_sqlite.py
 
 # subset embeddings for different models
 echo "Extracting subset for llm new"
