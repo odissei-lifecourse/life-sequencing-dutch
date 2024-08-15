@@ -50,10 +50,10 @@ else
    
     date
     time python -m pop2vec.fake_data.create_fake_data \
-    	--cfg pop2vec/fake_data/configs/llm_data.json 
+    	--cfg pop2vec/fake_data/configs/llm_data.cfg
 
 	time python -m pop2vec.fake_data.create_fake_data \
-		--cfg pop2vec/fake_data/configs/original_data.json
+		--cfg pop2vec/fake_data/configs/original_data.cfg
 
     echo "job ended" 
 fi
