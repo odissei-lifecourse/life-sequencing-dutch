@@ -18,6 +18,11 @@ Configuration File:
         - "SUMMARY_STAT_DIR" (str): Directory containing summary statistics of multiple data files. 
         - "ORIGINAL_ROOT" (str): Path to the root directory where the original data are stored.
         - "NEW_ROOT" (str): Path to the root directory where the fake data are stored.
+        - "REPEAT" (optional): a dictionary with a key "level" and a key "years". 
+
+The REPEAT option allows to create multiple fake data files for different years based on a single set of summary statistics.
+The "years" argument indicates for which years the data should be generated.
+The "level" argument indicates the reverse level in the directory path the relevant years should be inserted into the file name.
         
 Constants:
     SAMPLE_SIZE_DRY_RUN (int): Default sample size for dry run mode.
@@ -64,18 +69,28 @@ def main(cfg, n_observations=None):
 
     rng = np.random.default_rng(seed=RANDOM_SEED)
     src_files = get_unique_source_files(cfg["SUMMARY_STAT_DIR"])
+    if "REPEAT" in cfg:
+        repeat_dict = cfg["REPEAT"]
+        start, end = tuple(repeat_dict["years"])
+        years = range(start, end)
+    else:
+        years = [None]
+
 
     generator = FakeDataGenerator(override=OVERRIDE_STATISTICS)
     for src_file in tqdm(src_files):
         url, filename = os.path.split(src_file)
         generator.load_metadata(url=url, filename=filename)
         generator.fit()
-        data = generator.generate(rng=rng, size=n_observations)
-        generator.save(
-            original_root=cfg["ORIGINAL_ROOT"],
-            new_root=cfg["NEW_ROOT"], 
-            data=data
-        )
+        for year in years:
+            data = generator.generate(rng=rng, size=n_observations)
+            replacement_dict = {"level": repeat_dict["level"], "value": year} if year else None
+            generator.save(
+                original_root=cfg["ORIGINAL_ROOT"],
+                new_root=cfg["NEW_ROOT"], 
+                data=data,
+                replace=replacement_dict
+            )
 
 
 
