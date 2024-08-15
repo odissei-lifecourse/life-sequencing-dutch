@@ -3,6 +3,7 @@ import pyreadstat
 import pandas as pd 
 import os 
 import re 
+from pathlib import Path 
 
 def check_column_names(column_names, names_to_check):
     "Check if a colum name matches exactly, or on a substring, the names to check."
@@ -106,7 +107,7 @@ def get_unique_source_files(root):
     src_file, _ = split_at_last_match(f, "_")
     src_files.add(src_file)
 
-  return src_files
+  return list(src_files)
 
 
 
@@ -116,3 +117,32 @@ def split_at_last_match(s, p):
   first = s[:last_match.end()-1]
   second = s[last_match.end():]
   return first, second
+
+
+def replace_numeric_in_path(input_path, level, replace_value):
+  """Replace a 4-digit numeric a path
+  
+  Args:
+    input_path (str or pathlib.Path): path to operate on.
+    level (int): level at which to replace on. Level is relative to the filename in a directory.
+      Thus, a change in the filename requires level=0. A change in the parent directory of the file
+      requires level=1, etc. See example.
+    replace_value (str): value for the replacement. 
+
+  Example
+    replace_numeric_in_path('path/to/my2011file.csv', 0, 2015) -> 'path/to/my2015file.csv' 
+  """
+
+  path = Path(input_path)
+  parts = list(path.parts)
+  
+  index = -1 - level
+  part = parts[index]
+  match = re.search(r'\d{4}', part)
+  assert match, f"found none or multiple 4-digit numeric elements in {path}"
+  
+  new_part = part[:match.start()] + str(replace_value) + part[match.end():]
+  parts[index] = new_part
+  
+  new_path = Path(*parts)
+  return str(new_path)

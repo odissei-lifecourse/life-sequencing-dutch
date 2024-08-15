@@ -84,3 +84,23 @@ def test_sample_from_file(wage_df, wage_sav_file, wage_csv_file, wage_csv_file_w
     with pytest.raises(ValueError, match="wrong path"): 
         su.sample_from_file("wrong path", nrow)
 
+
+def test_replace_numeric_in_path():
+    mypath = "/c/datadir/dataset/yearly2011file.csv"
+    year = 2015
+    expected = f"/c/datadir/dataset/yearly{year}file.csv"
+    output = su.replace_numeric_in_path(mypath, 0, year)
+    assert output == expected
+
+    mypath =  "/c/datadir/dataset/2011/yearlyfile.csv"
+    expected = f"/c/datadir/dataset/{year}/yearlyfile.csv"
+    output = su.replace_numeric_in_path(mypath, 1, year)
+    assert output == expected
+
+    failpath = mypath = "/c/datadir/dataset/yearly201xfile.csv"
+    with pytest.raises(AssertionError):
+        su.replace_numeric_in_path(failpath, 0, year)
+
+    path_with_multiple_numerics = "/c/datadir/2011/data9988/file.csv"
+    with pytest.raises(AssertionError):
+        su.replace_numeric_in_path(path_with_multiple_numerics, 0, year)
