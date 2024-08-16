@@ -10,7 +10,9 @@ Main code for the project [Modeling life outcomes](https://research-software-dir
 
 
 
-### For developers
+## For developers
+
+### Tests
 
 #### Running tests
 
@@ -26,9 +28,21 @@ python -m pytest -v
 Each module has its own directory for tests. Import any code from repository relative to the project root.
 It is recommended to use [pytest](https://docs.pytest.org/en/stable/) for writing unit tests. An example can be found in `pop2vec/fake_data/tests/test_synthetic_utils.py`.
 
-#### Linting and code quality checks with `pre-commit`
+### Linting and code quality checks with `ruff` and `pre-commit`
 
-Before a commit is stored (with `git commit -m "some message"`), `pre-commit` runs, on all the files staged for a commit, as specified in `.pre-commit-config.yaml` . `pre-commit` will
+`ruff` is a linter and code formatter. One way it can be used is directly from the command line, for instance with `ruff check`.
+
+For two reasons, however, it's recommended to use `ruff` via `pre-commit`. First, we have a lot of files that do not conform to code style conventions, and `ruff check` will give an overwhelming number of errors.
+Second, in the future, we will set up a github action to automatically run `ruff` on newly committed files.
+
+Running `ruff` via `pre-commit` works as follows. First, you need to install the pre-commit hook with
+
+```bash
+source .venv/bin/activate
+pre-commit install
+```
+
+Now, pre-commit will run everytime before you commit something via `git commit -m "some message"`. `pre-commit` runs, on all the files staged for a commit, as specified in `.pre-commit-config.yaml` . `pre-commit` will
 - automatically fix certain things, such as line endings and import ordering. If this happens, it will be necessary to re-stage the files for committing.
 - complain about other errors that cannot be fixed automatically. for instance
   ```bash
