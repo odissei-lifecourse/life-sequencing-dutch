@@ -1,24 +1,44 @@
-"""Create some pickle files used in the evaluation pipeline
+"""Create pickle files for use in the evaluation pipeline.
 
-Constants
-    - STANDARDIZE: whether the categorical values for birth year and municipality ids should be standardized
-    - USE_INT_IDS: whether the person identifiers should be used as integers
-    - N_MUNICIPALITIES: number of municipalities
-    - RANDOM_SEED: seed for random number generator
-    - SAMPLE_SIZE_DRY_RUN: number of samples when doing a dry run
+This script generates and saves various data structures related to person demographics,
+marriages, and municipalities. The data is artificial and used for evaluation purposes.
+
+Constants:
+    STANDARDIZE (bool): Whether to standardize categorical values for birth year and municipality IDs.
+    USE_INT_IDS (bool): Whether to use integer person identifiers.
+    N_MUNICIPALITIES (int): Number of municipalities to generate.
+    RANDOM_SEED (int): Seed for the random number generator to ensure reproducibility.
+    SAMPLE_SIZE_DRY_RUN (int): Number of samples to use when performing a dry run.
+
+Key Functionalities:
+    - Loads unique person identifiers from SPSS files.
+    - Generates fake demographic data (gender, birth year, birth municipality).
+    - Creates synthetic marriage data across multiple years.
+    - Saves generated data as pickle files for further use.
+
+Usage:
+    Run the script with appropriate command-line arguments:
+    --cfg: Path to the configuration file (required)
+    --dry-run: Optional flag to run a test with a small output data size
+    --debug: Optional flag to set logging level to DEBUG
+
+Output:
+    Several pickle files containing generated data, saved in the directory specified in the config file.
+
+Docstring generated with the help of Claude.ai.
 """
+
 
 import argparse
 import logging
-import pandas as pd 
-from pathlib import Path
-import numpy as np 
-from pop2vec.fake_data.utils import batched
-from pop2vec.fake_data.fake_data_generator import draw_categorical
 import os
 import pickle
+from pathlib import Path
+import numpy as np
+import pandas as pd
+from pop2vec.fake_data.fake_data_generator import draw_categorical
+from pop2vec.fake_data.utils import batched
 from pop2vec.llm.src.new_code.utils import read_json
-
 
 N_MUNICIPALITIES = 342
 RANDOM_SEED = 593586236
@@ -28,14 +48,13 @@ SAMPLE_SIZE_DRY_RUN = 1000
 
 
 def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
-    "Load unique person identifiers from a set of sav files"
-
+    """Load unique person identifiers from a set of sav files."""
     files = os.listdir(root)
     all_persons = []
     for f in files:
         filename = Path(root + f)
-        df = pd.read_spss(filename, usecols=[id_col])
-        persons = np.array(df[id_col])
+        person_df = pd.read_spss(filename, usecols=[id_col])
+        persons = np.array(person_df[id_col])
         if use_ints:
             persons = np.int64(persons)
         if sample_size:
@@ -46,18 +65,20 @@ def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
 
 
 def power_law_probs(n, rng, alpha=3):
+    """Create choice probabilies according to a power law."""
     probs = rng.power(alpha, n)
-    probs = probs / probs.sum()
-    return probs
+    return probs / probs.sum()
 
 
 def create_marriage_data(persons, years, person_gender_dict, rng, use_ints=False):
     """Create marriage data that are consistent with each other.
-    
+
     Args:
         persons (np.ndarray): population from which to draw the marriage pairs from.
-        years (range): years of marriage data to generate
-        person_gender_dict: mapping of person identifier to gender
+        years (range): years of marriage data to generate.
+        person_gender_dict (dict): mapping of person identifier to gender.
+        rng (np.random.default_rng): random number generator.
+        use_ints (bool, optional): if True, store person identifiers as np.int64.
 
     Returns:
         tuple of (
@@ -66,13 +87,11 @@ def create_marriage_data(persons, years, person_gender_dict, rng, use_ints=False
             full_female_list: list,
             full_male_list: list
         )
-        marriages_by_year[year] is a dictionary where each married person has a key, with the value 
+        marriages_by_year[year] is a dictionary where each married person has a key, with the value
             being the identifier of the partner.
         id_to_gender_map: maps the identifier of the married person to the gender of the partner.
         full_female_list, full_male_list: list of all men and women that got married at some point.
-    
     """
-
     n_marriages_per_year = rng.choice(range(12_000, 18_000), len(years))
     marriages_by_year = {}
     for myear, n in zip(list(years), n_marriages_per_year):
@@ -93,18 +112,18 @@ def create_marriage_data(persons, years, person_gender_dict, rng, use_ints=False
 
     full_male_list = set() # 0
     full_female_list = set() # 1
-    id_to_gender_map = {} 
+    id_to_gender_map = {}
     for marriages in marriages_by_year.values():
-        for person, partner in marriages.items():
-            # since there is an entry for both person and partner, 
+        for person in marriages:
+            # since there is an entry for both person and partner,
             # we only add the information for the person in one iteration
             person_gender = person_gender_dict[person]
-            assert person_gender in [0, 1], "gender has unexpected values"
+            assert person_gender in [0, 1], "gender has unexpected values" # noqa: S101
             if person_gender == 0:
                 full_male_list.add(person)
             else:
                 full_female_list.add(person)
-            
+
             id_to_gender_map[person] = person_gender
 
     full_female_list = list(full_female_list)
@@ -113,10 +132,10 @@ def create_marriage_data(persons, years, person_gender_dict, rng, use_ints=False
     return marriages_by_year, id_to_gender_map, full_female_list, full_male_list
 
 
-def parse_args():
+def parse_args(): # noqa: D103
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dry-run", 
-                        dest="dry_run", 
+    parser.add_argument("--dry-run",
+                        dest="dry_run",
                         help="If given, runs a test with a small output data size.",
                         action=argparse.BooleanOptionalAction)
     parser.add_argument("--cfg",
@@ -125,11 +144,10 @@ def parse_args():
     parser.add_argument("--debug",
                         action=argparse.BooleanOptionalAction)
 
-    args = parser.parse_args()
-    return args 
+    return parser.parse_args()
 
 
-def main(cfg, n_obs=None):
+def main(cfg, n_obs=None):# noqa: D103
 
     cfg = read_json(cfg)
 
@@ -143,11 +161,11 @@ def main(cfg, n_obs=None):
 
     set_of_munipalities = np.arange(N_MUNICIPALITIES)
     person_birth_municipality = draw_categorical(
-        persons=persons, 
+        persons=persons,
         values=set_of_munipalities,
         probs=power_law_probs(N_MUNICIPALITIES, rng),
-        rng=rng, 
-        dtype="float64", 
+        rng=rng,
+        dtype="float64",
         standardize=STANDARDIZE)
 
     set_of_birth_years = np.arange(1940, 2010)
@@ -176,12 +194,11 @@ def main(cfg, n_obs=None):
 
 
     save_path = Path(cfg["SAVE_DIR"])
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    
+    if not save_path.exists():
+        save_path.mkdir(parents=True)
+
     for f, data in saving_map.items():
-        f += ".pkl"
-        filename = save_path.joinpath(f)
+        filename = save_path.joinpath(f).with_suffix(".pkl")
         with filename.open("wb") as pkl_file:
             pickle.dump(data, pkl_file)
 
@@ -194,8 +211,8 @@ if __name__ == "__main__":
 
     logging_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(
-        format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
         level=logging_level
     )
 
