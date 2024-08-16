@@ -180,3 +180,17 @@ def split_single_category(x):
 
   result = [x_class, x_prob]
   return result
+
+def transform_dtype(x, x_type):
+  """Transform a np array to the required type"""
+
+  if x_type == "object":
+      x = x.astype(str)
+  elif x_type == "float64":
+      x = np.float64(x)
+  elif x_type == "int64":
+      x = np.int64(np.round(x))
+  else:
+     raise NotImplementedError("data type %s not implemented for continuous data" % x_type)
+
+  return x

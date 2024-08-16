@@ -8,7 +8,8 @@ import math
 from .utils import (
     split_at_last_match,
     replace_numeric_in_path,
-    split_classes_and_probs
+    split_classes_and_probs,
+    transform_dtype
 )
 
 import logging
@@ -137,7 +138,9 @@ class FakeDataGenerator:
 
         pii_cols = self.meta.get("has_pii_columns")
         for pc in pii_cols:
-            data[pc] = np.arange(size)
+            x = np.arange(size)
+            x = transform_dtype(x, column_dtypes.get(pc))
+            data[pc] = x
 
         for colname, inputs in self.generation_inputs.items():
             required_dtype = column_dtypes.get(colname)
@@ -151,12 +154,8 @@ class FakeDataGenerator:
                 col_data = generate_continuous_column(
                     rng, inputs["mean"], inputs["std_dev"], n_nonulls, inputs["min"]
                 )
-                if required_dtype == "int64":
-                    col_data = np.int64(np.round(col_data))
-                elif required_dtype == "float64":
-                    col_data = np.float64(col_data)
-                else:
-                    raise NotImplementedError("data type %s not implemented for continuous data" % required_dtype)
+            
+            col_data = transform_dtype(col_data, required_dtype)
 
             if n_nulls > 0:
                 col_data = add_nans(rng, col_data, n_nulls)
