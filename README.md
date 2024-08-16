@@ -8,7 +8,9 @@ Embedding population registry data. This is the main code for the project [Model
 
 Main code for the project [Modeling life outcomes](https://research-software-directory.org/projects/modeling-life-outcomes).
 
+### Installation
 
+Your setup depends on which machine you work. See `docs/virutal_envs.md` for instructions.
 
 ## For developers
 
