@@ -21,6 +21,7 @@ CacheControl @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/CacheContro
 cachy @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/cachy/cachy-0.3.0
 certifi @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/certifi/certifi-2023.5.7
 cffi @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/cffi/cffi-1.15.1
+cfgv==3.4.0
 chardet @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/chardet/chardet-5.1.0
 charset-normalizer @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/charsetnormalizer/charset-normalizer-3.1.0
 cleo @ file:///home/jenkins/.local/easybuild/sources/p/poetry/extensions/cleo-2.0.1-py3-none-any.whl#sha256=6eb133670a3ed1f3b052d53789017b6e50fca66d1287e6e6696285f4cb8ea448
@@ -70,6 +71,7 @@ HeapDict @ file:///tmp/jenkins/build/dask/2023.9.2/foss-2023a/HeapDict/HeapDict-
 html5lib @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/html5lib/html5lib-1.1
 huggingface-hub==0.24.5
 hydra-core==1.3.2
+identify==2.6.0
 idna @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/idna/idna-3.4
 imagesize @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/imagesize/imagesize-1.4.1
 importlib-metadata @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/importlib_metadata/importlib_metadata-6.7.0
@@ -109,6 +111,7 @@ multidict==6.0.5
 netaddr @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/netaddr/netaddr-0.8.0
 netifaces @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/netifaces/netifaces-0.11.0
 networkx @ file:///tmp/jenkins/build/networkx/3.1/gfbf-2023a/networkx-3.1
+nodeenv==1.9.1
 numexpr @ file:///tmp/jenkins/build/SciPybundle/2023.07/gfbf-2023a/numexpr/numexpr-2.8.4
 numpy @ file:///tmp/jenkins/build/SciPybundle/2023.07/gfbf-2023a/numpy/numpy-1.25.1
 nvidia-cublas-cu12==12.1.3.1
@@ -120,7 +123,6 @@ nvidia-cufft-cu12==11.0.2.54
 nvidia-curand-cu12==10.3.2.106
 nvidia-cusolver-cu12==11.4.5.107
 nvidia-cusparse-cu12==12.1.0.106
-nvidia-nccl-cu12==2.19.3
 nvidia-nvjitlink-cu12==12.4.127
 nvidia-nvtx-cu12==12.1.105
 ogb==1.3.6
@@ -144,6 +146,7 @@ poetry @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/poetry/poetry-1.5
 poetry-core @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/poetry_core/poetry_core-1.6.1
 poetry-plugin-export @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/poetry_plugin_export/poetry_plugin_export-1.4.0
 pooch @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/pooch/pooch-1.7.0
+pre-commit==3.8.0
 protobuf @ file:///tmp/jenkins/build/protobufpython/4.24.0/GCCcore-12.3.0/protobuf-4.24.0
 psutil @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/psutil/psutil-5.9.5
 ptyprocess @ file:///home/jenkins/.local/easybuild/sources/p/poetry/extensions/ptyprocess-0.7.0-py2.py3-none-any.whl#sha256=4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35
@@ -176,6 +179,7 @@ requests @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/requests/reques
 requests-toolbelt @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/requeststoolbelt/requests-toolbelt-1.0.0
 rich @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/rich/rich-13.4.2
 rich-click @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/richclick/rich-click-1.6.1
+ruff==0.6.0
 safetensors==0.4.4
 scandir @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/scandir/scandir-1.10.0
 scikit-learn==1.4.2
@@ -210,14 +214,13 @@ tomli_w @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/toml
 tomlkit @ file:///home/jenkins/.local/easybuild/sources/p/poetry/extensions/tomlkit-0.11.8-py3-none-any.whl#sha256=8c726c4c202bdb148667835f68d68780b9a003a9ec34167b6c673b38eff2a171
 toolz @ file:///tmp/jenkins/build/dask/2023.9.2/foss-2023a/toolz/toolz-0.12.0
 torch @ file:///tmp/jenkins/build/PyTorch/2.1.2/foss-2023a-CUDA-12.1.1/pytorch-v2.1.2
+torch-scatter==2.1.2+pt21cu121
+torch-sparse==0.6.18+pt21cu121
 torch_geometric==2.5.2
-torch_scatter==2.1.2+pt22cu121
-torch_sparse==0.6.18+pt22cu121
 torchmetrics==1.3.2
 tornado @ file:///tmp/jenkins/build/tornado/6.3.2/GCCcore-12.3.0/tornado-6.3.2
 tqdm==4.66.2
 transformers==4.44.0
-triton==2.2.0
 trove-classifiers @ file:///home/jenkins/.local/easybuild/sources/h/hatchling/extensions/trove_classifiers-2023.5.24-py3-none-any.whl#sha256=d9d7ae14fb90bf3d50bef99c3941b176b5326509e6e9037e622562d6352629d0
 typing_extensions==4.11.0
 tzdata @ file:///tmp/jenkins/build/SciPybundle/2023.07/gfbf-2023a/tzdata/tzdata-2023.3
