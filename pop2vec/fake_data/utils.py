@@ -5,6 +5,7 @@ import os
 import re 
 from pathlib import Path 
 
+
 def check_column_names(column_names, names_to_check):
     "Check if a colum name matches exactly, or on a substring, the names to check."
     for column_name in column_names:
@@ -181,6 +182,7 @@ def split_single_category(x):
   result = [x_class, x_prob]
   return result
 
+
 def transform_dtype(x, x_type):
   """Transform a np array to the required type"""
 
@@ -191,6 +193,22 @@ def transform_dtype(x, x_type):
   elif x_type == "int64":
       x = np.int64(np.round(x))
   else:
-     raise NotImplementedError("data type %s not implemented for continuous data" % x_type)
+     raise NotImplementedError("data type %s not implemented" % x_type)
 
   return x
+
+
+
+
+
+# https://stackoverflow.com/questions/8290397/how-to-split-an-iterable-in-constant-size-chunks
+from itertools import islice
+def batched(iterable, n):
+    "Batch data into lists of length n. The last batch may be shorter."
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, n))
+        if not batch:
+            return
+        yield batch
