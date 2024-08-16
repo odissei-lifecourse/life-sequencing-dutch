@@ -15,6 +15,8 @@ from .utils import (
 import logging
 from pathlib import Path
 import pyreadstat
+from sklearn.preprocessing import StandardScaler
+
 
 class FakeDataGenerator: 
     """Class to generate fake data from summary statistics.
@@ -149,9 +151,16 @@ class FakeDataGenerator:
             n_nonulls = size - n_nulls 
 
             if inputs["type"] == "categorical":
-                col_data = rng.choice(a=inputs["classes"], size=n_nonulls, p=inputs["probs"])
+                col_data = draw_categorical(
+                    persons=n_nonulls,
+                    values=inputs["classes"], 
+                    rng=rng,
+                    probs=inputs["probs"],
+                    return_type="array"
+                    )
+                # col_data = rng.choice(a=inputs["classes"], size=n_nonulls, p=inputs["probs"])
             elif inputs["type"] == "continuous":
-                col_data = generate_continuous_column(
+                col_data = draw_continuous(
                     rng, inputs["mean"], inputs["std_dev"], n_nonulls, inputs["min"]
                 )
             
@@ -165,7 +174,7 @@ class FakeDataGenerator:
 
 
 
-def generate_continuous_column(rng, mean, std_dev, size, min_value):
+def draw_continuous(rng, mean, std_dev, size, min_value):
     """Create a column of continuous data; deal with undesired negative values.
 
     Args:
@@ -179,6 +188,52 @@ def generate_continuous_column(rng, mean, std_dev, size, min_value):
     col_data[negatives] = min_value
     return col_data
 
+
+def draw_categorical(persons, values, rng, probs=None, dtype=None, standardize=False, return_type="dict"):
+    """Draw categorical values.
+
+    Args:
+        persons (np.ndarray or int): If int, the size of the generated samples. 
+            If np.ndarray, the person identifiers. Determines the number of generated samples.
+        values (list or np.ndarray): domain of categorical values.
+        rng (np.random.default_rng): random number generator.
+        probs (list or np.ndarray, optional): probabilities of classes. If provided, must 
+            be of same length as `values`. If not provided, all classes are equally likely.
+        standardize (bool, optional): if True, values are scaled to a standard normal distribution.
+        dtype (str, optional): if provided, the draws are transformed to this data type.
+        return_type (str, optional): the type of the return value. Must be either "dict" or "array". 
+            If "dict", the keys are taken from persons.
+    
+    Returns:
+        dict[type(persons[0]), np.float64] or np.ndarray
+    
+    """
+    assert return_type in ["array", "dict"], "please provide a valid return_type"
+    assert isinstance(persons, (np.ndarray, int)), "persons needs to be an integer or a np.ndarray"
+    
+    if isinstance(persons, np.ndarray):
+        nobs = persons.shape[0]
+    else:
+        nobs = persons
+    
+    draws = rng.choice(values, size=nobs, p=probs)
+
+    if dtype:
+      draws = transform_dtype(draws, dtype)
+
+    if standardize:
+      scaler = StandardScaler()
+      draws = draws.reshape(-1, 1)
+      draws = scaler.fit_transform(draws)
+      draws = draws.squeeze()
+    
+    result = draws
+    if return_type == "dict":
+      if isinstance(persons, int):
+          raise ValueError("For creating a dict, provide an array of person identifiers instead of a single integer")
+      result = {person: y for person, y in zip(persons, draws)}
+
+    return result
 
 def add_nans(rng, data, size):
     """Add NaNs to an existing array
