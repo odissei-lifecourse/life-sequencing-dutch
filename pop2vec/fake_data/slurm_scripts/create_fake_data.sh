@@ -1,13 +1,16 @@
 #!/bin/bash
 #
 #SBATCH --job-name=create_fake_data
-#SBATCH --ntasks-per-node=50
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=48
 #SBATCH --nodes=1
-#SBATCH --time=00:30:00
-#SBATCH --mem=5GB
-#SBATCH -p rome 
+#SBATCH --time=04:20:00
+#SBATCH --mem=100GB
+#SBATCH -p fat_rome 
 #SBATCH -e %x-%j.err
 #SBATCH -o %x-%j.out
+
+# Note: low cpu utilization
 
 # function to check if $2 is in $1
 stringContain() { case $2 in *$1* ) return 0;; *) return 1;; esac ;}
@@ -32,6 +35,7 @@ initialize() {
 	    declare VENV="$REPO_DIR/.venv"
 	fi
 
+	
 	
 	# DATAPATH="/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/"
 	
