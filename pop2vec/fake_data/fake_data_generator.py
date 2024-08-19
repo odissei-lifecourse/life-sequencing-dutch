@@ -1,47 +1,51 @@
-import json
+from __future__ import annotations
 import logging
 import math
-import os
-import re
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyreadstat
 from sklearn.preprocessing import StandardScaler
+from .meta_dataset import MetaDataSet
+from .utils import extract_path_end
 from .utils import replace_numeric_in_path
-from .utils import split_at_last_match
 from .utils import split_classes_and_probs
 from .utils import transform_dtype
-from .utils import extract_path_end
+
 
 class FakeDataGenerator:
     """Class to generate fake data from summary statistics.
 
-    The class is intended to work with summary statistics that are created with `gen_spreadsheets.py`, and in particular
-    requires that each data source is associated with three summary files:
+    The class is intended to work with summary statistics that are created with `gen_spreadsheets.py`,
+    and in particular requires that each data source is associated with three summary files:
     - *_meta.json: metadata about the data source
     - *_columns.csv
     - *_covariance.csv
     where * is the name of the original data source.
 
     - For PII variables, it is assumed that each PII identifier is associated with one row.
-    - For numerical variables with a low interquartile range (IQR), the unique integers from the range are drawn with equal probability.
+    - For numerical variables with a low interquartile range (IQR), the unique integers from the range
+      are drawn with equal probability.
     """
 
     def __init__(self, override=None):
         """Initialize class.
 
         Args:
-            override (dict, optional): if given, overrides the statistics of of the metadata with the provided values.
-                This is experimental and used to fix some issues in our input data.
+            override (dict, optional): if given, overrides the statistics of of the metadata with
+            the provided values. This is experimental and used to fix some issues in our input data.
         """
-        self.meta = None
-        self.col_summary = None
-        self.override = override
+        self.meta: MetaDataSet | None = None
+        self.col_summary: pd.DataFrame | None = None
+        self.override: dict[str, dict] | None = override
 
-    def _path_end(self, path_start):
+    def _path_end(self, path_start) -> str:
         """From the path to the original file, strip the start string and return the end string."""
-        full_path = self.meta.get("path")
+        if not isinstance(self.meta, MetaDataSet):
+            msg = "Metadata not loaded"
+            raise TypeError(msg)
+
+        full_path = self.meta.path
         return str(extract_path_end(full_path, path_start))
 
     def save(self, original_root, new_root, data, replace=None):
@@ -58,23 +62,21 @@ class FakeDataGenerator:
                 needs to have keys `"level"` and `"value"`. See the function `replace_numeric_in_path` for details.
         """
         immutable_part = self._path_end(original_root)
-        filename = os.path.join(new_root, immutable_part)
-        target_dir, _ = os.path.split(filename)
-        if not os.path.isdir(target_dir):
-            os.makedirs(target_dir)
+        filename = Path(new_root + "/" + immutable_part)
+        if not filename.parent.is_dir():
+            filename.mkdir(parents=True)
 
         if replace:
             filename = replace_numeric_in_path(filename, replace["level"], replace["value"])
 
-        if ".csv" in filename:
+        if filename.suffix == ".csv":
             data.to_csv(filename, index=False)
-        elif ".sav" in filename:
+        elif filename.suffix == ".sav":
             pyreadstat.write_sav(data, filename)
         else:
-            _, filetype = split_at_last_match(filename, r"\.")
-            raise NotImplementedError("Cannot save as %s file type" % filetype)
+            msg = f"Cannot save as {filename.suffix} file type"
+            raise NotImplementedError(msg)
 
-        # XXX deal with different file formats
 
     def load_metadata(self, url, filename):
         """Load meta data and column summaries.
@@ -83,22 +85,25 @@ class FakeDataGenerator:
             url (str): local path where the summary files are stored
             filename (str): the name of the original data file
         """
-        with open(os.path.join(url, filename + "_meta.txt")) as f:
-            self.meta = dict(json.load(f))
+        json_file = str(Path(*[url, filename + "_meta.txt"]))
+        self.meta = MetaDataSet.from_json(json_file)
 
-        # convert "//" in path to "/"
-        self.meta["path"] = str(Path(self.meta["path"]))
+        csv_file = Path(*[url, filename + "_columns.csv"])
+        self.col_summary = pd.read_csv(csv_file)
 
-        self.col_summary = pd.read_csv(os.path.join(url, filename + "_columns.csv"))
 
     def fit(self):
         """Process metadata and summary statistics to define how each column should be generated."""
         results = {}
+        if not isinstance(self.col_summary, pd.DataFrame):
+            msg = f"col_summary needs to be a dataframe, found {type(self.col_summary)}"
+            raise TypeError(msg)
+
         for _, row in self.col_summary.iterrows():
             variable = row["variable_name"]
             results[variable] = detect_variable_type(row)
 
-            if variable in self.override.keys():
+            if self.override and variable in self.override:
                 override = self.override[variable]
                 if override["type"] == results[variable]["type"]:
                     for feature, value in override["stats"].items():
@@ -106,8 +111,10 @@ class FakeDataGenerator:
 
         self.generation_inputs = results
 
-    def generate(self, rng, size=None):
-        """Generate new data while
+    def generate(self, rng, size: int | None=None):
+        """Generate new data.
+
+        The function considers:
             - enforcing non-negativity of numerical variables
             - considering PII columns: each column is an integer range from 0 to `size`.
             - considering null fractions.
@@ -120,14 +127,21 @@ class FakeDataGenerator:
         Returns:
             pd.DataFrame: the generated data
         """
-        assert self.generation_inputs, "You need to `fit` before calling `generate`."
+        if not isinstance(self.generation_inputs, dict):
+            msg = "You need to `fit` before you `generate`."
+            raise TypeError(msg)
+        if not isinstance(self.meta, MetaDataSet) and not isinstance(self.col_summary, pd.DataFrame):
+            msg = "Missing metadata"
+            raise TypeError(msg)
+
         if size is None:
-            size = self.meta.get("total_nobs")
-        column_dtypes = self.meta.get("columns_with_dtypes")
+            size = self.meta.total_nobs
+
+        column_dtypes = self.meta.columns_with_dtypes
 
         data = {}
 
-        pii_cols = self.meta.get("has_pii_columns")
+        pii_cols = self.meta.has_pii_columns
         for pc in pii_cols:
             x = np.arange(size)
             x = transform_dtype(x, column_dtypes.get(pc))
@@ -143,9 +157,11 @@ class FakeDataGenerator:
                 col_data = draw_categorical(
                     persons=n_nonulls, values=inputs["classes"], rng=rng, probs=inputs["probs"], return_type="array"
                 )
-                # col_data = rng.choice(a=inputs["classes"], size=n_nonulls, p=inputs["probs"])
             elif inputs["type"] == "continuous":
                 col_data = draw_continuous(rng, inputs["mean"], inputs["std_dev"], n_nonulls, inputs["min"])
+            else:
+                msg = "No column data generated"
+                raise RuntimeError(msg)
 
             col_data = transform_dtype(col_data, required_dtype)
 
@@ -161,7 +177,8 @@ def draw_continuous(rng, mean, std_dev, size, min_value):
 
     Args:
         rng (np.random.default_rng): random number generator
-        mean, std_dev (float): mean and std for the generated data
+        mean (float): mean for the generated data
+        std_dev (float): standard deviation for the generated data
         size (int): size of the generated data
         min_value (float): minimum value to be enforced onto the generated data
     """
@@ -171,7 +188,7 @@ def draw_continuous(rng, mean, std_dev, size, min_value):
     return col_data
 
 
-def draw_categorical(persons, values, rng, probs=None, dtype=None, standardize=False, return_type="dict"):
+def draw_categorical(persons, values, rng, probs=None, dtype=None, standardize=False, return_type="dict"): #noqa: PLR0913
     """Draw categorical values.
 
     Args:
@@ -190,13 +207,14 @@ def draw_categorical(persons, values, rng, probs=None, dtype=None, standardize=F
         dict[type(persons[0]), np.float64] or np.ndarray
 
     """
-    assert return_type in ["array", "dict"], "please provide a valid return_type"
-    assert isinstance(persons, (np.ndarray, int)), "persons needs to be an integer or a np.ndarray"
+    if return_type not in ["array", "dict"]:
+        msg = "Provide a valid return_type"
+        raise RuntimeError(msg)
+    if not isinstance(persons, (np.ndarray, int)):
+        msg = "persons needs to be an integer or np.ndarray"
+        raise TypeError(msg)
 
-    if isinstance(persons, np.ndarray):
-        nobs = persons.shape[0]
-    else:
-        nobs = persons
+    nobs = persons.shape[0] if isinstance(persons, np.ndarray) else persons
 
     draws = rng.choice(values, size=nobs, p=probs)
 
@@ -214,7 +232,7 @@ def draw_categorical(persons, values, rng, probs=None, dtype=None, standardize=F
         if isinstance(persons, int):
             msg = "For creating a dict, provide an array of person identifiers instead of a single integer"
             raise ValueError(msg)
-        result = {person: y for person, y in zip(persons, draws)}
+        result = dict(zip(persons, draws))
 
     return result
 
@@ -286,7 +304,7 @@ def detect_variable_type(row, max_diff_q10_q90=10):
 
     result_dict["null_fraction"] = row["null_fraction"]
 
-    if "probs" in result_dict.keys():
+    if "probs" in result_dict:
         probs_sum = sum(result_dict["probs"])
         if not math.isclose(1, probs_sum):
             logging.debug("probs do not sum to one!")
