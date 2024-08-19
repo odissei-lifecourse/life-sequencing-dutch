@@ -5,6 +5,7 @@ import pyreadstat
 import pytest
 
 import pop2vec.fake_data.utils as su
+from pathlib import Path
 
 # from src.llm.src.new_code.pipeline import read_jsonl_file_in_chunks # this fails
 
@@ -115,3 +116,10 @@ def test_replace_numeric_in_path():
         )
 def test_split_single_category(test_input, expected):
     assert su.split_single_category(test_input) == expected
+
+
+def test_extract_path_end():
+    full_path = "/datapath//with/file"
+    start = "/datapath/"
+    expected = Path("with/file")
+    assert su.extract_path_end(full_path, start) == expected

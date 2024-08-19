@@ -12,7 +12,7 @@ from .utils import replace_numeric_in_path
 from .utils import split_at_last_match
 from .utils import split_classes_and_probs
 from .utils import transform_dtype
-
+from .utils import extract_path_end
 
 class FakeDataGenerator:
     """Class to generate fake data from summary statistics.
@@ -41,13 +41,8 @@ class FakeDataGenerator:
 
     def _path_end(self, path_start):
         """From the path to the original file, strip the start string and return the end string."""
-        full_path = str(Path(self.meta.get("path")))
-        path_start = str(Path(path_start))
-        assert path_start in full_path, "invalid start of path provided"
-        out = re.sub(path_start, "", full_path)
-        if out[0] == "/":
-            out = out[1:]
-        return out
+        full_path = self.meta.get("path")
+        return str(extract_path_end(full_path, path_start))
 
     def save(self, original_root, new_root, data, replace=None):
         """Save the data to a data root directory with the correct format.

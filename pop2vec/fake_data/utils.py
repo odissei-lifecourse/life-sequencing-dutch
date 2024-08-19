@@ -212,3 +212,24 @@ def batched(iterable, n):
         if not batch:
             return
         yield batch
+
+
+def extract_path_end(full_path, start):
+    """Extract `start` from `full_path`.
+
+    Args:
+        full_path (str or pathlib.Path): path to operate on.
+        start (str or pathlib.Path): start to extract from `full_path`.
+
+    Returns:
+        pathlib.Path
+    """
+    full_path = Path(full_path)
+    start = Path(start)
+    if str(start) not in str(full_path):
+        msg = f"{start} is not a subset of {full_path}"
+        raise RuntimeError(msg)
+    subset = [x for x in full_path.parts if x not in start.parts]
+    return Path(*subset)
+
+
