@@ -84,7 +84,9 @@ def main(cfg, n_observations=None):
         generator.fit()
         for year in years:
             data = generator.generate(rng=rng, size=n_observations)
-            replacement_dict = {"level": repeat_dict["level"], "value": year} if year else None
+            replacement_dict = None
+            if year:
+                replacement_dict = {"level": repeat_dict["level"], "value": year} 
             generator.save(
                 original_root=cfg["ORIGINAL_ROOT"],
                 new_root=cfg["NEW_ROOT"], 

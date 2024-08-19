@@ -46,9 +46,13 @@ class FakeDataGenerator:
 
     def _path_end(self, path_start):
         "From the path to the original file, strip the start string and return the end string."
-        full_path = self.meta.get("path")
+        full_path = str(Path(self.meta.get("path")))
+        path_start = str(Path(path_start))
         assert path_start in full_path, "invalid start of path provided"
-        return re.sub(path_start, "", full_path)
+        out = re.sub(path_start, "", full_path)
+        if out[0] == "/":
+            out = out[1:]
+        return out
     
 
     def save(self, original_root, new_root, data, replace=None):
