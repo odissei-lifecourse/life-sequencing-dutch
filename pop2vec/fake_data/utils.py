@@ -131,7 +131,7 @@ def replace_numeric_in_path(input_path, level, replace_value):
     replace_value (str): value for the replacement. 
 
   Example
-    replace_numeric_in_path('path/to/my2011file.csv', 0, 2015) -> 'path/to/my2015file.csv' 
+    replace_numeric_in_path('path/to/my2011file.csv', 0, 2015) -> Path('path/to/my2015file.csv')
   """
 
   path = Path(input_path)
@@ -145,8 +145,7 @@ def replace_numeric_in_path(input_path, level, replace_value):
   new_part = part[:match.start()] + str(replace_value) + part[match.end():]
   parts[index] = new_part
   
-  new_path = Path(*parts)
-  return str(new_path)
+  return Path(*parts)
 
 
 def split_classes_and_probs(cats):
