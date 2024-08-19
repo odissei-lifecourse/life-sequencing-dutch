@@ -50,13 +50,13 @@ else
    
     date
     time python -m pop2vec.fake_data.create_fake_data \
-    	--cfg pop2vec/fake_data/configs/llm_data.cfg
+	    --cfg pop2vec/fake_data/configs/llm_data.cfg
 
-	time python -m pop2vec.fake_data.create_fake_data \
-		--cfg pop2vec/fake_data/configs/original_data.cfg
+    time python -m pop2vec.fake_data.create_fake_data \
+	    --cfg pop2vec/fake_data/configs/original_data.cfg
 
-	time python -m pop2vec.fake_data.create_eval_pkl_files.py \
-		--cfg pop2vec/fake_data/configs/evaluation_data.cfg
+    time python -m pop2vec.fake_data.create_eval_pkl_files \
+	    --cfg pop2vec/fake_data/configs/evaluation_data.cfg
 
     echo "job ended" 
 fi
