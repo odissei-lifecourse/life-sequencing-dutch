@@ -62,6 +62,9 @@ else
     time python -m pop2vec.fake_data.create_eval_pkl_files \
 	    --cfg pop2vec/fake_data/configs/evaluation_data.cfg
 
+    time python -m pop2vec.fake_data.create_embeddings \
+	    --cfg pop2vec/fake_data/configs/embeddings.cfg
+
     echo "job ended" 
 fi
 
