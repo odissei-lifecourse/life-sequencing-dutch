@@ -66,11 +66,11 @@ def main(cfg, n_observations=None):
         repeat_dict = None
 
     generator = FakeDataGenerator(override=OVERRIDE_STATISTICS)
-    for src_file in tqdm(src_files):
+    for src_file in tqdm(src_files, desc="Iterating over source files"):
         url, filename = os.path.split(src_file)
         generator.load_metadata(url=url, filename=filename)
         generator.fit()
-        for year in years:
+        for year in tqdm(years, desc="Iterating over years"):
             data = generator.generate(rng=rng, size=n_observations)
             replacement_dict = None
             if repeat_dict:
