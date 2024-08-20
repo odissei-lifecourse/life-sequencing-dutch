@@ -89,16 +89,16 @@ def test_sample_from_file(wage_df, wage_sav_file, wage_csv_file, wage_csv_file_w
 def test_replace_numeric_in_path():
     mypath = "/c/datadir/dataset/yearly2011file.csv"
     year = 2015
-    expected = f"/c/datadir/dataset/yearly{year}file.csv"
+    expected = Path(f"/c/datadir/dataset/yearly{year}file.csv")
     output = su.replace_numeric_in_path(mypath, 0, year)
     assert output == expected
 
     mypath =  "/c/datadir/dataset/2011/yearlyfile.csv"
-    expected = f"/c/datadir/dataset/{year}/yearlyfile.csv"
+    expected = Path(f"/c/datadir/dataset/{year}/yearlyfile.csv")
     output = su.replace_numeric_in_path(mypath, 1, year)
     assert output == expected
 
-    failpath = mypath = "/c/datadir/dataset/yearly201xfile.csv"
+    failpath = "/c/datadir/dataset/yearly201xfile.csv"
     with pytest.raises(AssertionError):
         su.replace_numeric_in_path(failpath, 0, year)
 
