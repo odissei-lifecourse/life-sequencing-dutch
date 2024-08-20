@@ -36,6 +36,7 @@ import pickle
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from pop2vec.fake_data.fake_data_generator import draw_categorical
 from pop2vec.fake_data.utils import batched
 from pop2vec.llm.src.new_code.utils import read_json
@@ -48,11 +49,24 @@ SAMPLE_SIZE_DRY_RUN = 1000
 
 
 def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
-    """Load unique person identifiers from a set of sav files."""
+    """Load unique person identifiers from a set of sav files.
+
+    Args:
+        root (str or Path): directory containing the sav files.
+        id_col (str): column name with person identifiers.
+        sample_size (int, optional): if given, samples the first `sample_size`
+        persons from the first sav file.
+        use_ints (bool, optional): if True, convert person identifiers to integer.
+
+    """
     files = os.listdir(root)
+    if sample_size:
+        files = [files[0]]
     all_persons = []
+    if isinstance(root, str):
+        root = Path(root)
     for f in files:
-        filename = Path(root + f)
+        filename = root.joinpath(f)
         person_df = pd.read_spss(filename, usecols=[id_col])
         persons = np.array(person_df[id_col])
         if use_ints:
