@@ -32,6 +32,7 @@ Docstring generated with the help of Claude.ai.
 import argparse
 import logging
 import os
+from tqdm import tqdm
 import pickle
 from pathlib import Path
 import numpy as np
@@ -65,7 +66,7 @@ def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
     all_persons = []
     if isinstance(root, str):
         root = Path(root)
-    for f in files:
+    for f in tqdm(files, desc="loading persons"):
         filename = root.joinpath(f)
         person_df = pd.read_spss(filename, usecols=[id_col])
         persons = np.array(person_df[id_col])

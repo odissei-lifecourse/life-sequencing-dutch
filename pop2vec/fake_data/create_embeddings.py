@@ -64,7 +64,7 @@ def main(cfg, n_obs):
     persons = load_persons(root=str(Path(data_root, inpa_path)), sample_size=n_obs)
     n_obs = persons.shape[0]
 
-    for filename, config in tqdm(EMB_CONFIG.items()):
+    for filename, config in tqdm(EMB_CONFIG.items(), description="Creating embeddings"):
         dim = config["dim"]
         emb_names = config["names"]
         embeddings = {k: rng.random((n_obs, dim)).astype(np.float16) for k in emb_names}
