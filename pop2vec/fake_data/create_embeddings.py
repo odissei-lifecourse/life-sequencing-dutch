@@ -93,6 +93,9 @@ def main(cfg, n_obs):
     inpa_path = cfg["INPA_PATH"]
     save_path = cfg["SAVE_PATH"]
 
+    dry_run = bool(n_obs)
+
+
     persons = load_persons(root=str(Path(data_root, inpa_path)), sample_size=n_obs)
     n_obs = persons.shape[0]
 
@@ -104,8 +107,8 @@ def main(cfg, n_obs):
         embeddings["sequence_id"] = persons
 
         emb_path = save_path["network"] if "network" in filename else save_path["llm"]
-        
-        h5file = filename + "_dry" if n_obs else filename 
+
+        h5file = filename + "_dry" if dry_run else filename
         h5file = Path(data_root, emb_path, h5file).with_suffix(".h5")
         if not h5file.parent.is_dir():
             h5file.parent.mkdir(parents=True)
