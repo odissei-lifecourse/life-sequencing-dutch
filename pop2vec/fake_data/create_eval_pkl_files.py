@@ -49,7 +49,7 @@ USE_INT_IDS = False
 SAMPLE_SIZE_DRY_RUN = 1000
 
 
-def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
+def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False, single_file=True):
     """Load unique person identifiers from a set of sav files.
 
     Args:
@@ -58,10 +58,14 @@ def load_persons(root, id_col="RINPERSOON", sample_size=None, use_ints=False):
         sample_size (int, optional): if given, samples the first `sample_size`
         persons from the first sav file.
         use_ints (bool, optional): if True, convert person identifiers to integer.
+        single_file (bool, optional): If True, only loads persons from the first file.
+        Currently, reading only one file is enough because the set of person IDs
+        does not change over time. But this may change if we extend the
+        fake data.
 
     """
     files = os.listdir(root)
-    if sample_size:
+    if single_file:
         files = [files[0]]
     all_persons = []
     if isinstance(root, str):
