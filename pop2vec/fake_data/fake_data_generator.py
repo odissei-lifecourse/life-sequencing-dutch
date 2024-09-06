@@ -105,7 +105,7 @@ class FakeDataGenerator:
         
         Args:
             rng (np.random.default_rng): random number generator
-            n (int, optional): Size of sample to generate. If `None`, the size is taken from
+            size (int, optional): Size of sample to generate. If `None`, the size is taken from
             the data summary.
 
         Returns:
