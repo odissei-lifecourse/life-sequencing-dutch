@@ -1,7 +1,7 @@
 #!/bin/bash
-# This is how the venv on snellius (OSSC and regular) should be activated
+# This is how the venv on regular snellius should be activated. For OSSC, change the ENV_NAME if needed.
 
-declare ENV_NAME="ossc_env_aug2024"
+declare ENV_NAME=".venv"
 
-source snel_modules_2023.sh
+source requirements/snel_modules_2023.sh
 source ${ENV_NAME}/bin/activate
