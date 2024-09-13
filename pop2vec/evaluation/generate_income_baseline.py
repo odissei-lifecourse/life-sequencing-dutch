@@ -59,6 +59,8 @@ for f in tqdm(inpa_files):
     print("Average value: ", str(np.mean(income_values)), flush=True)
     print("Number of Zeros: ", str(num_zeros), flush=True)
     print("Number of Unfound: ", str(num_unfound), flush=True)
+    print("Dtype of User List: ", str(df.dtypes['RINPERSOON']))
+    print("Dtype of Income: ", str(df.dtypes['INPBELI']))
 
     baseline_by_years[year] = yearly_baseline
 
