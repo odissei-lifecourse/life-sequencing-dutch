@@ -31,17 +31,15 @@ initialize() {
 	    declare REPO_DIR="$ROOTDIR/repositories/life-sequencing-dutch"
 	    declare VENV="$REPO_DIR/.venv"
 	fi
-	
-	module purge 
-	module load 2022 
-	module load Python/3.10.4-GCCcore-11.3.0
-	module load SciPy-bundle/2022.05-foss-2022a
-	source "$VENV/bin/activate" 
+
 	
 	# DATAPATH="/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/"
 	
 	echo "job started" 
 	cd $REPO_DIR
+	source requirements/snel_modules_2023.sh	
+	source .venv/bin/activate
+
 }
 
 
@@ -51,8 +49,8 @@ else
     initialize
    
     date
-    time python -m src.others.synthetic_data_generation.create_fake_data \
-    --cfg src/others/synthetic_data_generation/fake_data_cfg.json 
+    time python -m pop2vec.fake_data.create_fake_data \
+    --cfg pop2vec/fake_data/fake_data_cfg.json 
 
     echo "job ended" 
 fi
