@@ -258,7 +258,7 @@ def detect_variable_type(row, max_diff_q10_q90=10):
     A column is detected as categorical if one of two conditions hold
     - it has at least one category reported
     - it has no category reported, but the summary statistics
-      suggest only a limited number of possible classes.
+      suggest that the original column is a categorical with numerical classes.
 
     Because the min is not available in the summaries, the function
     assigns p10 in the actual data to be the min in the data to be generated.
@@ -271,6 +271,12 @@ def detect_variable_type(row, max_diff_q10_q90=10):
 
     Returns:
         dict: instructions to generate random variables.
+
+    Notes:
+        The second case for categorical variables stems from the fact that
+        currently our summary statistics do not have information on the number
+        of distinct classes. If this was the case, we could define a threshold
+        below which we assume the variable is categorical.
 
     """
     category_0 = row["category_top_0"]
