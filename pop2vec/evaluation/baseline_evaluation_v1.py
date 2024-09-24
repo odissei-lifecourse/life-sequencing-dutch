@@ -11,7 +11,9 @@ import copy
 
 
 END_YEAR = 2021
-ROW_LIMIT = 0 # 2000
+ROW_LIMIT = 0 #2000
+SAMPLE_SIZE = 50000
+
 def load_income_data(income_dir, predictor_year):
     """Load income data from multiple SAV files."""
     # Load all income files starting from predictor_year+1 to the last available year
@@ -76,14 +78,7 @@ def run_cross_validation(df, predictors, target, model, kf):
     predictors = copy.deepcopy(predictors)
     fold_results = []
     fold = 1
-    # Check which cells contain NaN
-    nan_locations = df.isnull()
 
-    # Display rows with NaN values
-    rows_with_nan = df[nan_locations.any(axis=1)]
-    # print("*"*100)
-    # print(rows_with_nan)
-    # print("*"*100)
     new_df = df[predictors + [target]].dropna()
     for train_index, test_index in kf.split(new_df):
         train_data, test_data = new_df.iloc[train_index].copy(), new_df.iloc[test_index].copy()
@@ -117,26 +112,45 @@ def run_cross_validation(df, predictors, target, model, kf):
         coefficients = model.coef_
         intercept = model.intercept_
 
-        fold_results.append({
+        # Add separate columns for each coefficient
+        fold_result = {
             "Fold": fold,
             "MSE": mse,
             "R2": r2,
-            "Intercept": intercept,
-            "Coefficients": coefficients
-        })
+            "Intercept": intercept
+        }
+        for i, coef in enumerate(coefficients):
+            fold_result[f"Coefficient_{predictors[i]}"] = coef  # Separate columns for each coefficient
+
+        fold_results.append(fold_result)
         fold += 1
 
     mean_mse = np.mean([result['MSE'] for result in fold_results])
     mean_r2 = np.mean([result['R2'] for result in fold_results])
-    mean_coefficients = np.mean([result['Coefficients'] for result in fold_results], axis=0)
+    mean_coefficients = np.mean(
+      [[fold_result.get(f"Coefficient_{predictors[i]}", 0) for i in range(len(predictors))] for fold_result in fold_results],
+      axis=0
+    )
     mean_intercept = np.mean([result['Intercept'] for result in fold_results])
 
     return fold_results, mean_mse, mean_r2, mean_coefficients, mean_intercept, len(new_df)
 
+def custom_format(x):
+    f = lambda x: f'{x:.1e}' if abs(x) >= 10000 else f'{x:.2f}'
+    if isinstance(x, str):
+      return x
+    elif isinstance(x, (int, float)):
+      return f(x)
+    else:
+      print(f"Found non-string non-numeric. x= {x}, type = {type(x)}")
+      return x 
+
 def save_results_to_csv(output_dir, filename, results_df):
     """Save the results DataFrame to CSV."""
     output_path = os.path.join(output_dir, filename)
-    results_df.to_csv(output_path, index=False)
+    # Apply custom formatting to the entire DataFrame
+    formatted_df = results_df.applymap(custom_format)
+    formatted_df.to_csv(output_path, index=False)
     print(f"Results saved to {output_path}")
 
 def run_primary_experiment(df, output_dir, predictor_year):
@@ -147,13 +161,10 @@ def run_primary_experiment(df, output_dir, predictor_year):
     all_results = []
 
     start_year = predictor_year + 1
-    # print(range(start_year, END_YEAR+1))
-    # print(df.columns)
     for year in range(start_year, END_YEAR+1):
         target = f'INPBELI_{year}'
         if target not in df.columns:
             continue
-
 
         fold_results, mean_mse, mean_r2, mean_coefficients, mean_intercept, _ = run_cross_validation(
             df, predictors, target, model, kf
@@ -168,9 +179,12 @@ def run_primary_experiment(df, output_dir, predictor_year):
             "MSE": [mean_mse],
             "R2": [mean_r2],
             "Intercept": [mean_intercept],
-            "Coefficients": [mean_coefficients],
-            "Year": [year]
         })
+
+        # Add separate columns for mean coefficients
+        for i, coef in enumerate(mean_coefficients):
+            mean_row[f"Coefficient_{predictors[i]}"] = coef
+
         fold_results_df = pd.concat([fold_results_df, mean_row], ignore_index=True)
 
         all_results.append(fold_results_df)
@@ -198,20 +212,24 @@ def run_additional_experiments(df, output_dir, predictor_year):
             if target not in df.columns:
                 continue
 
-            _, mean_mse, mean_r2, mean_coefficients, mean_intercept, dataset_size = run_cross_validation(
+            fold_results, mean_mse, mean_r2, mean_coefficients, mean_intercept, dataset_size = run_cross_validation(
                 df, predictors, target, model, kf
             )
 
             # Save only the mean result for each year
-            all_results.append({
+            result_row = {
                 "Experiment": experiment_name,
                 "Year": year,
                 "MSE": mean_mse,
                 "R2": mean_r2,
                 "Intercept": mean_intercept,
-                "Coefficients": mean_coefficients,
                 "dataset_size": dataset_size,
-            })
+            }
+            # Add separate columns for mean coefficients
+            for i, coef in enumerate(mean_coefficients):
+                result_row[f"Coefficient_{predictors[i]}"] = coef
+
+            all_results.append(result_row)
 
     final_results_df = pd.DataFrame(all_results)
     save_results_to_csv(output_dir, "additional_experiments_results.csv", final_results_df)
@@ -234,7 +252,7 @@ def main():
 
     # Load income and background data
     income_data, income_predictor_df = load_income_data(income_dir, predictor_year)
-    background_data = load_background_data(background_path, keep_n=50000)
+    background_data = load_background_data(background_path, keep_n=SAMPLE_SIZE)
     # Merge past income and background data on RINPERSOON
     merged_df = pd.merge(
       background_data, income_predictor_df, on='RINPERSOON', how='inner'
