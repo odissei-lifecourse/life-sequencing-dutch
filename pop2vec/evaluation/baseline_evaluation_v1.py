@@ -37,7 +37,7 @@ def load_income_data(income_dir, predictor_year):
     end_year = END_YEAR
     income_files = os.listdir(income_dir)
     income_file_dict = {extract_year(file): file for file in income_files}
-    if len(income_file_dict) != len(income_dir):
+    if len(income_file_dict) != len(income_files):
         msg = f"failed to extract some years from {income_files}"
         raise RuntimeError(msg)
     income_data = {}
