@@ -11,7 +11,7 @@ import copy
 import re
 import warnings
 
-
+USER="ossc"
 END_YEAR = 2021
 ROW_LIMIT =  0 #2000
 SAMPLE_SIZE = 50000
@@ -35,12 +35,13 @@ def load_income_data(income_dir, predictor_year):
     # Load all income files starting from predictor_year+1 to the last available year
     start_year = predictor_year + 1
     end_year = END_YEAR
-    income_files = os.listdir(income_dir) 
+    income_files = os.listdir(income_dir)
+    income_file_dict = {extract_year(file): file for file in income_files}
+    if len(income_file_dict) != len(income_dir):
+        msg = f"failed to extract some years from {income_files}"
+        raise RuntimeError(msg)
     income_data = {}
-    for file in income_files:
-        year = extract_year(file)  
-        if year is None:
-          continue
+    for year, file in income_file_dict.items():
         if start_year <= year <= end_year:
           print(f"reading data for {year}")
           file_path = os.path.join(income_dir, file)
@@ -51,7 +52,7 @@ def load_income_data(income_dir, predictor_year):
           income_data[year] = df.rename(columns={'INPBELI': f'INPBELI_{year}'})
 
     # Load the predictor year income file (used as predictor)
-    predictor_file = os.path.join(income_dir, f'INPA{predictor_year}TABV4.sav')
+    predictor_file = os.path.join(income_dir, income_file_dict[predictor_year]) 
     income_predictor_df, _ = pyreadstat.read_sav(
       predictor_file, row_limit=ROW_LIMIT, usecols=['RINPERSOON', 'INPBELI']
     )
@@ -250,13 +251,17 @@ def run_additional_experiments(df, output_dir, predictor_year):
 def main():
     """Main function to load data, run experiments, and save results."""
     # Default paths
-    default_data_dir = '/projects/0/prjs1019/data/'
+    data_dir_dict = {
+            "ossc": "/gpfs/ostor/ossc9424/homedir/data/",
+            "snellius": "/projects/0/prjs1019/data/"
+            }
+    default_data_dir = data_dir_dict[USER]
     # Command-line arguments
     data_dir = sys.argv[1] if len(sys.argv) > 1 else default_data_dir
     predictor_year = int(sys.argv[2]) if len(sys.argv) > 2 else 2016
     
     income_dir = data_dir + 'cbs_data/InkomenBestedingen/INPATAB'
-    background_path = data_dir + 'llm/raw/data/background.csv'
+    background_path = data_dir + 'llm/raw/background.csv'
     
     
     output_dir = 'data/temp_output'
