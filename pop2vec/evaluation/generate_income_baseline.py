@@ -1,9 +1,10 @@
-import pandas as pd
-import pickle
-from tqdm import tqdm
 import os
+import pickle
 import re
 import numpy as np
+import pandas as pd
+import pyreadstat
+from tqdm import tqdm
 
 source_dir = "/gpfs/ostor/ossc9424/homedir/cbs_data/real/InkomenBestedingen/INPATAB/"
 target_dir = "data/processed/"
@@ -15,8 +16,7 @@ inpa_files = os.listdir(source_dir)
 
 for f in tqdm(inpa_files):
     filename = os.path.join(source_dir, f)
-    df = pd.read_spss(filename,
-                      usecols=['RINPERSOON', 'INPBELI'])
+    df, _ = pyreadstat.read_sav(filename, usecols=["RINPERSOON", "INPBELI"])
 
     # make sure we record the year correctly and only have 1 file per year
     year_matches = re.findall(r"\d{4}", f)
@@ -24,8 +24,8 @@ for f in tqdm(inpa_files):
     year = int(year_matches[0])
     years = [y for y in years if y != year]
 
-    user_list = list(df['RINPERSOON'])
-    income_list = list(df['INPBELI'])
+    user_list = list(df["RINPERSOON"])
+    income_list = list(df["INPBELI"])
 
     yearly_baseline = {}
     num_zeros = 0
@@ -59,8 +59,8 @@ for f in tqdm(inpa_files):
     print("Average value: ", str(np.mean(income_values)), flush=True)
     print("Number of Zeros: ", str(num_zeros), flush=True)
     print("Number of Unfound: ", str(num_unfound), flush=True)
-    print("Dtype of User List: ", str(df.dtypes['RINPERSOON']))
-    print("Dtype of Income: ", str(df.dtypes['INPBELI']))
+    print("Dtype of User List: ", str(df.dtypes["RINPERSOON"]))
+    print("Dtype of Income: ", str(df.dtypes["INPBELI"]))
 
     baseline_by_years[year] = yearly_baseline
 
