@@ -25,10 +25,11 @@ def extract_year(filename):
     if len(matches) > 1:
         msg = f"Multiple matches found in filename '{filename}': {matches}"
         raise ValueError(msg)
-    if len(matches) == 0:
+    elif len(matches) == 0:
         warnings.warn(f"No year found in filename '{filename}'. Ignoring this file")
         return None  # or you can return a default value if you prefer
-    return int(matches[0])
+    else:
+        return int(matches[0])
 
 
 def load_income_data(income_dir, predictor_year):
@@ -164,10 +165,11 @@ def custom_format(x):
     f = lambda x: (f"{x:.2e}".replace("+0", "+").replace("-0", "-").replace("+", "")) if abs(x) >= 10000 else f"{x:.2f}"
     if isinstance(x, str):
         return x
-    if isinstance(x, (int, float)):
+    elif isinstance(x, (int, float)):
         return f(x)
-    warnings.warn(f"Found non-string non-numeric. x= {x}, type = {type(x)}")
-    return x
+    else:
+        warnings.warn(f"Found non-string non-numeric. x= {x}, type = {type(x)}")
+        return x
 
 
 def save_results_to_csv(output_dir, filename, results_df):
@@ -201,7 +203,11 @@ def run_primary_experiment(df, output_dir, predictor_year, train_only_perf=False
     cols = ["Year", "Fold"] + [col for col in final_results_df.columns if col not in ["Year", "Fold"]]
     final_results_df = final_results_df[cols]
 
-    save_results_to_csv(output_dir, "primary_experiment_results.csv", final_results_df)
+    filename = "primary_experiment_results.csv"
+    if train_only_perf:
+        filename += "_train_only"
+    filename += ".csv"
+    save_results_to_csv(output_dir, filename, final_results_df)
 
 
 def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=False):
@@ -237,7 +243,12 @@ def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=F
     final_results_df = pd.DataFrame(all_results)
     cols = ["Experiment", "Year"] + [col for col in final_results_df.columns if col not in ["Experiment", "Year"]]
     final_results_df = final_results_df[cols]
-    save_results_to_csv(output_dir, "additional_experiments_results.csv", final_results_df)
+
+    filename = "additional_experiments_results.csv"
+    if train_only_perf:
+        filename += "_train_only"
+    filename += ".csv"
+    save_results_to_csv(output_dir, filename, final_results_df)
 
 
 def get_mean_gender_income(df, start_year=2017):
