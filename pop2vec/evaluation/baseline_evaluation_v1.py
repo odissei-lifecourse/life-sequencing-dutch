@@ -1,3 +1,4 @@
+import argparse
 import copy
 import os
 import re
@@ -16,7 +17,6 @@ USER = "ossc"
 END_YEAR = 2022
 ROW_LIMIT =  0 #2000
 SAMPLE_SIZE = 50000
-TRAIN_ONLY = False
 NA_IDENTIFIER = 9999999999.0
 
 
@@ -272,17 +272,17 @@ def get_mean_gender_income(df, start_year=2017):
   df = df.applymap(custom_format)
   df.to_csv('data/temp_output/gender_means.csv')
 
-def main():
+def main(args):
     """Main function to load data, run experiments, and save results."""
     # Default paths
     data_dir_dict = {
-      "ossc": "/gpfs/ostor/ossc9424/homedir/data/", 
+      "ossc": "/gpfs/ostor/ossc9424/homedir/data/",
       "snellius": "/projects/0/prjs1019/data/"
     }
     default_data_dir = data_dir_dict[USER]
     # Command-line arguments
-    data_dir = sys.argv[1] if len(sys.argv) > 1 else default_data_dir
-    predictor_year = int(sys.argv[2]) if len(sys.argv) > 2 else 2016
+    data_dir = args.data_dir if args.data_dir else default_data_dir
+    predictor_year = args.predictor_year
 
     income_dir = data_dir + "cbs_data/InkomenBestedingen/INPATAB"
     background_path = data_dir + "llm/raw/background.csv"
@@ -310,13 +310,24 @@ def main():
 
     get_mean_gender_income(merged_df)
     print("running primary experiment ....")
-    run_primary_experiment(merged_df, output_dir, predictor_year, TRAIN_ONLY)
+    run_primary_experiment(merged_df, output_dir, predictor_year, args.train_only)
 
     print("running additional experiment ....")
-    run_additional_experiments(merged_df, output_dir, predictor_year, TRAIN_ONLY)
+    run_additional_experiments(merged_df, output_dir, predictor_year, args.train_only)
     print("all done")
 
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+            "--train-only", dest="train_only",
+            action=argparse.BooleanOptionalAction,
+            help="If given, results refer only to training set")
+    parser.add_argument(
+            "--predictor-year", dest="predictor_year",
+            type=int, default=2016,
+            help="Year from which the income feature to take")
+
+    args = parser.parse_args()
+    main(args)
