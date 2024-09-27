@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 USER = "ossc"
 END_YEAR = 2022
-ROW_LIMIT =  0 #2000
+ROW_LIMIT = 0  # 2000
 SAMPLE_SIZE = 50000
 NA_IDENTIFIER = 9999999999.0
 
@@ -25,11 +25,10 @@ def extract_year(filename):
     if len(matches) > 1:
         msg = f"Multiple matches found in filename '{filename}': {matches}"
         raise ValueError(msg)
-    elif len(matches) == 0:
+    if len(matches) == 0:
         warnings.warn(f"No year found in filename '{filename}'. Ignoring this file")
         return None  # or you can return a default value if you prefer
-    else:
-        return int(matches[0])
+    return int(matches[0])
 
 
 def load_income_data(income_dir, predictor_year):
@@ -65,7 +64,7 @@ def load_background_data(background_path, keep_n=None):
     df = df.dropna()
     if keep_n and keep_n < len(df):
         df = df.sample(n=keep_n)  # , random_state=42)
-    df['gender'] -= 1
+    df["gender"] -= 1
     return df
 
 
@@ -84,12 +83,8 @@ def normalize_data(train_data, test_data, numeric_predictors):
     """Normalize the numerical predictors in the training and testing sets."""
     scaler = StandardScaler()
     if len(numeric_predictors) > 0:
-      train_data[numeric_predictors] = scaler.fit_transform(
-        train_data[numeric_predictors]
-      )
-      test_data[numeric_predictors] = scaler.transform(
-        test_data[numeric_predictors]
-      )
+        train_data[numeric_predictors] = scaler.fit_transform(train_data[numeric_predictors])
+        test_data[numeric_predictors] = scaler.transform(test_data[numeric_predictors])
 
     return train_data, test_data
 
@@ -127,10 +122,9 @@ def run_cross_validation(df, predictors, target, model, kf, year, train_only_per
         X_test = test_data[predictors]
         y_test = test_data[target]
 
-
         model.fit(X_train, y_train)
         if train_only_perf:
-          X_test, y_test = X_train, y_train
+            X_test, y_test = X_train, y_train
 
         y_pred = model.predict(X_test)
 
@@ -170,11 +164,10 @@ def custom_format(x):
     f = lambda x: (f"{x:.2e}".replace("+0", "+").replace("-0", "-").replace("+", "")) if abs(x) >= 10000 else f"{x:.2f}"
     if isinstance(x, str):
         return x
-    elif isinstance(x, (int, float)):
+    if isinstance(x, (int, float)):
         return f(x)
-    else:
-        warnings.warn(f"Found non-string non-numeric. x= {x}, type = {type(x)}")
-        return x
+    warnings.warn(f"Found non-string non-numeric. x= {x}, type = {type(x)}")
+    return x
 
 
 def save_results_to_csv(output_dir, filename, results_df):
@@ -202,11 +195,7 @@ def run_primary_experiment(df, output_dir, predictor_year, train_only_perf=False
         if target not in df.columns:
             warnings.warn(f"Could not find {target} column in dataframe! Must check!")
             continue
-        all_results.append(
-          run_cross_validation(
-            df, predictors, target, model, kf, year, train_only_perf
-          )
-        )
+        all_results.append(run_cross_validation(df, predictors, target, model, kf, year, train_only_perf))
 
     final_results_df = pd.concat(all_results, ignore_index=True)
     cols = ["Year", "Fold"] + [col for col in final_results_df.columns if col not in ["Year", "Fold"]]
@@ -240,9 +229,7 @@ def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=F
                 warnings.warn(f"Could not find {target} column in dataframe! Must check!")
                 continue
 
-            fold_results = run_cross_validation(
-              df, predictors, target, model, kf, year, train_only_perf
-            )
+            fold_results = run_cross_validation(df, predictors, target, model, kf, year, train_only_perf)
             mean_row = fold_results[fold_results["Fold"] == "mean"].iloc[0].to_dict()
             mean_row["Experiment"] = experiment_name
             all_results.append(mean_row)
@@ -252,33 +239,32 @@ def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=F
     final_results_df = final_results_df[cols]
     save_results_to_csv(output_dir, "additional_experiments_results.csv", final_results_df)
 
+
 def get_mean_gender_income(df, start_year=2017):
-  results = []
-  for year in range(start_year, END_YEAR+1):
-    male_mean = np.nanmean(df[df['gender']==0][f'INPBELI_{year}'])
-    female_mean = np.nanmean(df[df['gender']==1][f'INPBELI_{year}'])
-    results.append(
-      {
-        'year':year,
-        'mean':np.nanmean(df[f'INPBELI_{year}']),
-        'male_mean':male_mean,
-        'female_mean':female_mean,
-        'm-f': male_mean - female_mean,
-        'male_count':len(df[df['gender']==0]),
-        'female_count':len(df[df['gender']==1]),
-      }
-    )
-  df = pd.DataFrame(results)
-  df = df.applymap(custom_format)
-  df.to_csv('data/temp_output/gender_means.csv')
+    results = []
+    for year in range(start_year, END_YEAR + 1):
+        male_mean = np.nanmean(df[df["gender"] == 0][f"INPBELI_{year}"])
+        female_mean = np.nanmean(df[df["gender"] == 1][f"INPBELI_{year}"])
+        results.append(
+            {
+                "year": year,
+                "mean": np.nanmean(df[f"INPBELI_{year}"]),
+                "male_mean": male_mean,
+                "female_mean": female_mean,
+                "m-f": male_mean - female_mean,
+                "male_count": len(df[df["gender"] == 0]),
+                "female_count": len(df[df["gender"] == 1]),
+            }
+        )
+    df = pd.DataFrame(results)
+    df = df.applymap(custom_format)
+    df.to_csv("data/temp_output/gender_means.csv")
+
 
 def main(args):
     """Main function to load data, run experiments, and save results."""
     # Default paths
-    data_dir_dict = {
-      "ossc": "/gpfs/ostor/ossc9424/homedir/data/",
-      "snellius": "/projects/0/prjs1019/data/"
-    }
+    data_dir_dict = {"ossc": "/gpfs/ostor/ossc9424/homedir/data/", "snellius": "/projects/0/prjs1019/data/"}
     default_data_dir = data_dir_dict[USER]
     # Command-line arguments
     data_dir = args.data_dir if args.data_dir else default_data_dir
@@ -317,17 +303,21 @@ def main(args):
     print("all done")
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-            "--train-only", dest="train_only",
-            action=argparse.BooleanOptionalAction,
-            help="If given, results refer only to training set")
+        "--train-only",
+        dest="train_only",
+        action=argparse.BooleanOptionalAction,
+        help="If given, results refer only to training set",
+    )
     parser.add_argument(
-            "--predictor-year", dest="predictor_year",
-            type=int, default=2016,
-            help="Year from which the income feature to take")
+        "--predictor-year",
+        dest="predictor_year",
+        type=int,
+        default=2016,
+        help="Year from which the income feature to take",
+    )
 
     args = parser.parse_args()
     main(args)
