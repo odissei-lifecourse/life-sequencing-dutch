@@ -1,0 +1,3 @@
+ArrayTaskID     SampleName      TrainOnly
+1               train           1
+2               all             0
