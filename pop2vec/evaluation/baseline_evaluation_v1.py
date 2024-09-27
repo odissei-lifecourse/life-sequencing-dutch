@@ -16,7 +16,7 @@ USER = "ossc"
 END_YEAR = 2022
 ROW_LIMIT =  0 #2000
 SAMPLE_SIZE = 50000
-TRAIN_ONLY = True
+TRAIN_ONLY = False
 NA_IDENTIFIER = 9999999999.0
 
 
@@ -35,7 +35,7 @@ def extract_year(filename):
 def load_income_data(income_dir, predictor_year):
     """Load income data from multiple SAV files."""
     # Load all income files starting from predictor_year+1 to the last available year
-    start_year = predictor_year + 1
+    start_year = predictor_year
     end_year = END_YEAR
     income_files = os.listdir(income_dir)
     income_file_dict = {extract_year(file): file for file in income_files}
@@ -54,9 +54,7 @@ def load_income_data(income_dir, predictor_year):
             income_data[year] = df.rename(columns={"INPBELI": f"INPBELI_{year}"})
 
     # Load the predictor year income file (used as predictor)
-    predictor_file = os.path.join(income_dir, income_file_dict[predictor_year])
-    income_predictor_df, _ = pyreadstat.read_sav(predictor_file, row_limit=ROW_LIMIT, usecols=["RINPERSOON", "INPBELI"])
-    income_predictor_df = income_predictor_df.dropna()
+    income_predictor_df = income_data.pop(predictor_year)
     return income_data, income_predictor_df
 
 
