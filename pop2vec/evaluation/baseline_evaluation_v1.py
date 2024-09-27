@@ -293,7 +293,7 @@ def main(args):
     background_data = load_background_data(background_path, keep_n=SAMPLE_SIZE)
     # Merge past income and background data on RINPERSOON
     merged_df = pd.merge(background_data, income_predictor_df, on="RINPERSOON", how="inner")
-    merged_df = merged_df.rename(columns={"INPBELI": "INPBELI_PAST"})
+    merged_df = merged_df.rename(columns={f"INPBELI_{predictor_year}": "INPBELI_PAST"})
     print(f"merged df size: {len(merged_df)}")
 
     # Add income data from years after the predictor year
