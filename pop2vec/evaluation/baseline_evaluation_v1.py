@@ -17,7 +17,7 @@ USER = "ossc"
 END_YEAR = 2022
 ROW_LIMIT = 0  # 2000
 SAMPLE_SIZE = 50000
-NA_IDENTIFIER = 9999999999.0
+NA_IDENTIFIERS = [9999999999.0, 0]
 
 
 def extract_year(filename):
@@ -49,7 +49,7 @@ def load_income_data(income_dir, predictor_year):
             file_path = os.path.join(income_dir, file)
             df, meta = pyreadstat.read_sav(file_path, row_limit=ROW_LIMIT, usecols=["RINPERSOON", "INPBELI"])
             df = df.dropna()
-            na_mask = df["INPBELI"] == NA_IDENTIFIER
+            na_mask = df["INPBELI"].isin(NA_IDENTIFIERS)
             df = df.loc[~na_mask, :]
             income_data[year] = df.rename(columns={"INPBELI": f"INPBELI_{year}"})
 
