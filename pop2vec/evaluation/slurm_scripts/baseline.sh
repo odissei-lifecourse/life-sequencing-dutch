@@ -12,8 +12,6 @@
 
 echo "job started"
 
-data_dir="/projects/0/prjs1019/data/"
-
 # assumes you're in the project repository
 config="pop2vec/evaluation/slurm_scripts/base_eval_config.txt"
 
@@ -24,9 +22,9 @@ date
 source requirements/load_venv.sh
 
 if [ "$train_only" -eq "1" ]; then
-    time python -m pop2vec.evaluation.baseline_evaluation_v1 --data-dir $data_dir --train-only
+    time python -m pop2vec.evaluation.baseline_evaluation_v1 --train-only
 elif [ "$train_only" -eq "0" ]; then
-    time python -m pop2vec.evaluation.baseline_evaluation_v1 --data-dir $data_dir
+    time python -m pop2vec.evaluation.baseline_evaluation_v1
 fi
 
     
