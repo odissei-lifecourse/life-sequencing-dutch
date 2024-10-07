@@ -1,16 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name=create_fake_data
+#SBATCH --job-name=create_embeddings
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=48
 #SBATCH --nodes=1
-#SBATCH --time=04:20:00
-#SBATCH --mem=100GB
-#SBATCH -p fat_rome
+#SBATCH --time=02:00:00
+#SBATCH --mem=120GB
+#SBATCH -p fat_rome 
 #SBATCH -e %x-%j.err
 #SBATCH -o %x-%j.out
 
-# Note: low cpu utilization
 
 # function to check if $2 is in $1
 stringContain() { case $2 in *$1* ) return 0;; *) return 1;; esac ;}
@@ -34,16 +33,14 @@ initialize() {
 	    declare REPO_DIR="$ROOTDIR/repositories/life-sequencing-dutch"
 	    declare VENV="$REPO_DIR/.venv"
 	fi
-
 	
+	source $REPO_DIR/requirements/snel_modules_2023.sh
+	source "$VENV/bin/activate" 
 	
 	# DATAPATH="/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/"
 	
 	echo "job started" 
 	cd $REPO_DIR
-	source requirements/snel_modules_2023.sh	
-	source .venv/bin/activate
-
 }
 
 
@@ -53,15 +50,9 @@ else
     initialize
    
     date
-    time python -m pop2vec.fake_data.create_fake_data \
-	    --cfg pop2vec/fake_data/configs/llm_data.cfg
 
-    time python -m pop2vec.fake_data.create_fake_data \
-	    --cfg pop2vec/fake_data/configs/original_data.cfg
-
-    time python -m pop2vec.fake_data.create_eval_pkl_files \
-	    --cfg pop2vec/fake_data/configs/evaluation_data.cfg
-
+    time python -m pop2vec.fake_data.create_embeddings \
+	    --cfg pop2vec/fake_data/configs/embeddings.cfg
 
     echo "job ended" 
 fi

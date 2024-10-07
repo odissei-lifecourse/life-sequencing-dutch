@@ -249,7 +249,7 @@ def debug_log_hdf5(data_dict, h5f):
     else:
       logging.debug("%s, %s", key, val.shape)
 
-def write_to_hdf5(write_path, data_dict, dtype='i4'):
+def write_to_hdf5(write_path, data_dict, dtype='i4', mode="a"):
   """Write processed data to an HDF5 file.
 
   Args:
@@ -258,7 +258,7 @@ def write_to_hdf5(write_path, data_dict, dtype='i4'):
   """
   if len(data_dict) == 0:
     return
-  with h5py.File(write_path, 'a') as h5f:
+  with h5py.File(write_path, mode) as h5f:
     if 'sequence_id' not in h5f:
       init_hdf5_datasets(h5f, data_dict, dtype)
 

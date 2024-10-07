@@ -3,6 +3,8 @@ import pyreadstat
 import pandas as pd 
 import os 
 import re 
+from pathlib import Path 
+
 
 def check_column_names(column_names, names_to_check):
     "Check if a colum name matches exactly, or on a substring, the names to check."
@@ -106,7 +108,7 @@ def get_unique_source_files(root):
     src_file, _ = split_at_last_match(f, "_")
     src_files.add(src_file)
 
-  return src_files
+  return list(src_files)
 
 
 
@@ -116,3 +118,117 @@ def split_at_last_match(s, p):
   first = s[:last_match.end()-1]
   second = s[last_match.end():]
   return first, second
+
+
+def replace_numeric_in_path(input_path, level, replace_value):
+  """Replace a 4-digit numeric a path
+  
+  Args:
+    input_path (str or pathlib.Path): path to operate on.
+    level (int): level at which to replace on. Level is relative to the filename in a directory.
+      Thus, a change in the filename requires level=0. A change in the parent directory of the file
+      requires level=1, etc. See example.
+    replace_value (str): value for the replacement. 
+
+  Example
+    replace_numeric_in_path('path/to/my2011file.csv', 0, 2015) -> Path('path/to/my2015file.csv')
+  """
+
+  path = Path(input_path)
+  parts = list(path.parts)
+  
+  index = -1 - level
+  part = parts[index]
+  match = re.search(r'\d{4}', part)
+  assert match, f"found none or multiple 4-digit numeric elements in {path}"
+  
+  new_part = part[:match.start()] + str(replace_value) + part[match.end():]
+  parts[index] = new_part
+  
+  return Path(*parts)
+
+
+def split_classes_and_probs(cats):
+  """Split a string of categories and probabilities
+  
+  Summary statistics of categorical variables are stored as "class--prob". 
+  Sometimes, the class is "--", preventing a simple splitting. This function
+  deals with this.  
+  """
+  cats_splitted = []
+
+  for cat in cats:
+    if "---" in cat:
+        splitted = split_single_category(cat) 
+    else:
+        splitted = cat.split("--")
+    cats_splitted.append(splitted)
+
+  return cats_splitted
+
+
+def split_single_category(x):
+  """Split a pair of a class value and a probability
+  
+  Example: "abc--0.44" -> ["abc", 0.44]
+  """
+  prob = re.findall(r'\d+\.\d+', x)[0]
+  string_part = x.split(prob)[0]
+
+  x_prob = float(prob)
+  x_class = string_part[:-2]
+
+  result = [x_class, x_prob]
+  return result
+
+
+def transform_dtype(x, x_type):
+  """Transform a np array to the required type"""
+
+  if x_type == "object":
+      x = x.astype(str)
+  elif x_type == "float64":
+      x = np.float64(x)
+  elif x_type == "int64":
+      x = np.int64(np.round(x))
+  else:
+     raise NotImplementedError("data type %s not implemented" % x_type)
+
+  return x
+
+
+
+
+
+# https://stackoverflow.com/questions/8290397/how-to-split-an-iterable-in-constant-size-chunks
+from itertools import islice
+def batched(iterable, n):
+    "Batch data into lists of length n. The last batch may be shorter."
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, n))
+        if not batch:
+            return
+        yield batch
+
+
+def extract_path_end(full_path, start):
+    """Extract `start` from `full_path`.
+
+    Args:
+        full_path (str or pathlib.Path): path to operate on.
+        start (str or pathlib.Path): start to extract from `full_path`.
+
+    Returns:
+        pathlib.Path
+    """
+    full_path = Path(full_path)
+    start = Path(start)
+    if str(start) not in str(full_path):
+        msg = f"{start} is not a subset of {full_path}"
+        raise RuntimeError(msg)
+    subset = [x for x in full_path.parts if x not in start.parts]
+    return Path(*subset)
+
+
