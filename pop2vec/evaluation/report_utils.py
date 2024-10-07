@@ -18,7 +18,7 @@ import logging
 from pop2vec.evaluation.nearest_neighbor import build_index, get_nearest_neighbor_e2e
 
 # Computes/Loads any values that are used to evaluate all embedding sets, such as income at age 30 or marriage
-def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False):
+def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False, dry_run=False):
     """
     Load data necessary to evaluate all embedding sets.
 
@@ -34,7 +34,12 @@ def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False)
         a list of variables. 
     """
 
-    input_conn = sqlite3.connect("data/processed/background_db.sqlite")
+    if dry_run:
+        root = "/gpfs/work3/0/prjs1019/data/evaluation/"
+    else:
+        root = "/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/"
+
+    input_conn = sqlite3.connect(root + "background_db.sqlite")
     input_c = input_conn.cursor()
 
     if var_type == 'background':
@@ -149,7 +154,7 @@ def precompute_global(var_type, years, income_baseline_year=2016, is_eval=False)
     # ------------------------------------------------------------------------------------------------------------------#
     if var_type == 'death':
 
-        with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/death_years_by_person.pkl",
+        with open(root + "death_years_by_person.pkl",
                   'rb') as pkl_file:
             death_years_by_person = dict(pickle.load(pkl_file))
 
@@ -194,7 +199,10 @@ def precompute_local(embedding_set, nested_query_keys=None, only_embedding=False
     """
     root = embedding_set['root']
     url = embedding_set['url']
-    embedding_type = embedding_set["emb_type"]
+    try:
+        embedding_type = embedding_set["emb_type"]
+    except:
+        embedding_type = 'untyped'
     truth_type = embedding_set['truth']
 
     year = embedding_set['year']

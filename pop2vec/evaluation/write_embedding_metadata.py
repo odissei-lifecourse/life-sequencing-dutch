@@ -2,7 +2,9 @@
 import pickle
 import argparse
 
-network_emb_root = "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings"
+network_emb_root = "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/"
+network_dry_root = "/gpfs/work3/0/prjs1019/data/graph/embeddings/"
+
 llm_emb_root_old = "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/"
 llm_emb_root = "/gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/"
 eval_root = "/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/embedding_subsets/"
@@ -19,10 +21,21 @@ if __name__ == "__main__":
         help="Savename for this collection of embeddings"
     )
 
+    parser.add_argument(
+        "--dry_run",
+        default=False,
+        type=bool,
+    )
+
     args = parser.parse_args()
 
-    save_url = "/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/embedding_meta/" + args.collection_name + ".pkl"
+    if args.dry_run:
+        save_url = "/gpfs/work3/0/prjs1019/data/evaluation/embedding_meta/" + args.collection_name + ".pkl"
+    else:
+        save_url = "/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/embedding_meta/" + args.collection_name + ".pkl"
 
+    print(args.collection_name)
+    print(save_url)
     if args.collection_name == "network_embedding_set":
 
         embedding_sets = [
@@ -45,6 +58,19 @@ if __name__ == "__main__":
              "truth": "full"
              }
             ]
+
+    elif args.collection_name == "network_dry_run_set":
+        embedding_sets = [
+            {
+                'name': 'Net 2010 dry run',
+                'year': 2010,
+                'type': 'NET',
+                'root': network_dry_root,
+                'url': 'lr_steve_full_network_2010_30.h5',
+                'emb_type': 'embeddings',
+                "truth": "full"
+            },
+        ]
 
     elif args.collection_name == "network_eval_set":
 
@@ -91,7 +117,7 @@ if __name__ == "__main__":
              "truth": "full"
              }
         ]
-    
+
     elif args.collection_name == "llm_eval_set": 
         embedding_sets = [
            {
@@ -111,7 +137,7 @@ if __name__ == "__main__":
                 "url": "2017_medium_v0.0.1.h5",
                 "emb_type": "cls_emb",
                 "truth": "full"
-            },             
+            },
             {
                 "name": "Mean m2 v2",
                 "year": 2016, 

@@ -31,6 +31,10 @@ input_map = {
         "emb_url": "/gpfs/ostor/ossc9424/homedir/Dakota_network/embeddings/",
         "emb_types": EMB_TYPES_NETWORK
     }
+    "network_dry": {
+        "emb_url": "/gpfs/work3/0/prjs1019/data/evaluation/embedding_meta/"
+        "emb"
+    }
 }
 
 
@@ -144,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", dest="dry_run", action=argparse.BooleanOptionalAction)
     parser.add_argument("--debug", action=argparse.BooleanOptionalAction)
     parser.add_argument("--model", 
-                        choices=["llm_new", "llm_old", "network"],
+                        choices=["llm_new", "llm_old", "network", "network_dry"],
                         type=str, 
                         help="Which model embeddings to use")
 

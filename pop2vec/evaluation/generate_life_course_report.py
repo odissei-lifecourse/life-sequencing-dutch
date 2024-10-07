@@ -33,10 +33,10 @@ if __name__ == '__main__':
     # 7 = Prediction - Highest Education Level
     # 8 = Prediction - Death
 
-    income_baseline_year = 2016
+    income_baseline_year = 2010
     report_parts = [3, 5.1]
     regen_images = True
-    is_eval = True 
+    is_eval = False
     years = list(range(2011, 2022))
 
     parser = argparse.ArgumentParser(description='')
@@ -73,6 +73,12 @@ if __name__ == '__main__':
         default="linear_regression",
         help="Model type to use for prediction"
     )
+    parser.add_argument(
+        "--dry_run",
+        type=bool,
+        default=False,
+        help="Whether to use dry run filepaths or not"
+    )
 
     args = parser.parse_args()
 
@@ -86,18 +92,35 @@ if __name__ == '__main__':
         level=logging.DEBUG
     )
 
+    if args.dry_run:
+        root = '/gpfs/work3/0/prjs1019/data/evaluation/'
+    else:
+        root = '/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/'
+
     # Load embedding set written by write_embedding_metadata.py
-    load_url = 'embedding_meta/' + args.collection_name + '.pkl'
+    load_url = root + 'embedding_meta/' + args.collection_name + '.pkl'
+
     with open(load_url, 'rb') as pkl_file:
         embedding_sets = list(pickle.load(pkl_file))
 
     baseline_dict = report_utils.precompute_global(
-        'background', years, 
+        'background',
+        years,
         income_baseline_year=income_baseline_year,
-        is_eval=is_eval)
-    income_by_year = report_utils.precompute_global('income', years, is_eval=is_eval)
-    marriages_by_year = report_utils.precompute_global('marriage', years, is_eval=is_eval)
+        is_eval=is_eval,
+        dry_run=args.dry_run)
 
+    income_by_year = report_utils.precompute_global(
+        'income',
+        years,
+        is_eval=is_eval,
+        dry_run=args.dry_run)
+
+    marriages_by_year = report_utils.precompute_global(
+        'marriage',
+        years,
+        is_eval=is_eval,
+        dry_run=args.dry_run)
 
 
     logging.info("Beginning report generation for embedding set: %s", args.collection_name)
@@ -138,6 +161,8 @@ if __name__ == '__main__':
 
         embeddings_per_task = {}
         for task, query_keys in embedding_map.items():
+            if args.dry_run:
+                query_keys=None
             logging.debug("loading embeddings for %s" % task)
             embedding_dict = report_utils.precompute_local(
                 emb,
@@ -262,8 +287,10 @@ if __name__ == '__main__':
             # Predict using embeddings + baseline
             #result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
             #    embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
-                single_model, embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
+
+            # result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
+            #     single_model, embedding_dict, income_by_year, relevant_years, dtype='single', baseline=baseline_dict)
+            result_with_baseline = None
 
             if result_with_baseline is not None:
 
@@ -300,16 +327,18 @@ if __name__ == '__main__':
             embedding_dict = embeddings_per_task["marriage"]
 
             # Predict using just embeddings
-            result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
-               embedding_dict, marriages_by_year, relevant_years, dtype='pair')
-            # result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
-            #     pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair')
+            # result_dict, test_counts_by_year = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair')
+            result_dict, test_counts_by_year = report_utils.one_model_per_year_variable_prediction(
+                pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair')
 
             # Predict using embeddings + baseline
-            result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
-               embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+            # result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.linear_variable_prediction(
+            #    embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
             # result_with_baseline, test_counts_with_baseline, only_baseline = report_utils.one_model_per_year_variable_prediction(
             #     pair_model, embedding_dict, marriages_by_year, relevant_years, dtype='pair', baseline=baseline_dict)
+
+            result_with_baseline = None
 
             if result_with_baseline is not None:
 

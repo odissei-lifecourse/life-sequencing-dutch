@@ -3,10 +3,27 @@ import sys
 import sqlite3
 import pickle
 import random
-import numpy as np 
+import argparse
+import numpy as np
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--dry_run",
+    default=False,
+    type=bool,
+)
+
+args = parser.parse_args()
+dry_run = args.dry_run
+
+if dry_run:
+    root = "/gpfs/work3/0/prjs1019/data/evaluation/"
+else:
+    root = "/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/"
 
 # Open a connection to the output database
-output_filename = "data/processed/background_db.sqlite"
+output_filename = root + "background_db.sqlite"
 
 sqlite3.register_adapter(np.int64, lambda val: int(val))
 sqlite3.register_adapter(np.int32, lambda val: int(val))
@@ -22,9 +39,9 @@ output_c = output_conn.cursor()
 ########################################################################################################################
 
 records_to_insert = []
-input_file = "data/processed/income_baseline_by_year.pkl"
+input_file = root + "income_baseline_by_year.pkl"
 
-with open("data/processed/income_eval_subset.pkl", 'rb') as pkl_file:
+with open(root + "income_eval_subset.pkl", 'rb') as pkl_file:
     income_eval_set = set(pickle.load(pkl_file))
 
 with open(input_file, 'rb') as pkl_file:
@@ -69,22 +86,22 @@ output_conn.commit()
 
 ########################################################################################################################
 
-with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
+with open(root + "marriages_by_year.pkl", "rb") as pkl_file:
     marriage_data = dict(pickle.load(pkl_file))
 
-with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
+with open(root + "id_to_gender_map.pkl", "rb") as pkl_file:
     gender_map = dict(pickle.load(pkl_file))
 
-with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
+with open(root + "full_male_list.pkl", "rb") as pkl_file:
     full_male_list = list(pickle.load(pkl_file))
 
-with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
+with open(root + "full_female_list.pkl", "rb") as pkl_file:
     full_female_list = list(pickle.load(pkl_file))
 
-with open("data/processed/marriage_eval_subset.pkl", "rb") as pkl_file:
+with open(root + "marriage_eval_subset.pkl", "rb") as pkl_file:
     marriage_eval_set = set(pickle.load(pkl_file))
 
-with open("data/processed/marriage_rank_subset.pkl", "rb") as pkl_file:
+with open(root + "marriage_rank_subset.pkl", "rb") as pkl_file:
     marriage_rank_set = set(pickle.load(pkl_file))
 
 # We batch all the inserts and write everything at once at the end of the loop.
@@ -114,6 +131,8 @@ for year in marriage_data:
 
         if person in marriage_eval_set or person in marriage_rank_set:
             record += (1,)
+        elif partner in marriage_eval_set or partner in marriage_rank_set:
+            record += (1,)
         else:
             record += (0,)
 
@@ -138,15 +157,15 @@ output_conn.commit()
 full_set = income_eval_set 
 
 # 1. Birth Year (Age)
-with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_year.pkl", 'rb') as pkl_file:
+with open(root + "person_birth_year.pkl", 'rb') as pkl_file:
     person_birth_year = dict(pickle.load(pkl_file))
 
 # 2. Gender
-with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_gender.pkl", 'rb') as pkl_file:
+with open(root + "person_gender.pkl", 'rb') as pkl_file:
     person_gender = dict(pickle.load(pkl_file))
 
 # 3. Birth City
-with open("/gpfs/ostor/ossc9424/homedir/Life_Course_Evaluation/data/processed/person_birth_municipality.pkl", 'rb') as pkl_file:
+with open(root + "person_birth_municipality.pkl", 'rb') as pkl_file:
     person_birth_city = dict(pickle.load(pkl_file))
 
 # We batch all the inserts and write everything at once at the end of the loop.

@@ -3,21 +3,32 @@ import random
 import sqlite3
 import numpy as np
 
-with open("data/processed/marriages_by_year.pkl", "rb") as pkl_file:
+dry_run = True
+
+if dry_run:
+    root = "/gpfs/work3/0/prjs1019/data/evaluation/"
+else:
+    root = "data/processed/"
+
+with open(root + "marriages_by_year.pkl", "rb") as pkl_file:
     marriage_data = dict(pickle.load(pkl_file))
 
-with open("data/processed/id_to_gender_map.pkl", "rb") as pkl_file:
+with open(root + "id_to_gender_map.pkl", "rb") as pkl_file:
     gender_map = dict(pickle.load(pkl_file))
 
-with open("data/processed/full_male_list.pkl", "rb") as pkl_file:
+with open(root + "full_male_list.pkl", "rb") as pkl_file:
     full_male_list = list(pickle.load(pkl_file))
 
-with open("data/processed/full_female_list.pkl", "rb") as pkl_file:
+with open(root + "full_female_list.pkl", "rb") as pkl_file:
     full_female_list = list(pickle.load(pkl_file))
 
 marriage_model_sets = {}
 marriage_eval_sets = {}
 marriage_rank_sets = {}
+
+total_marriage_model_set = set()
+total_marriage_eval_set = set()
+total_marriage_rank_set = set()
 
 records_to_insert = []
 
@@ -56,61 +67,88 @@ for year in marriage_data:
 
     # 4000 for model training
     model_group = isolated_group[:4000]
+    # 1000 for rank
+    rank_group = random.sample(model_group, 1000)
     # 1000 for eval
     eval_group = isolated_group[4000:]
+
+    for pair in model_group:
+        total_marriage_model_set.add(pair[0])
+        total_marriage_model_set.add(pair[1])
+
+    for pair in eval_group:
+        total_marriage_eval_set.add(pair[0])
+        total_marriage_eval_set.add(pair[1])
+
+    for pair in rank_group:
+        total_marriage_rank_set.add(pair[0])
+        total_marriage_rank_set.add(pair[1])
 
     # Add the people to the corresponding sets
     marriage_model_sets[year] = set(model_group)
     marriage_eval_sets[year] = set(eval_group)
-    marriage_rank_sets[year] = set(random.sample(model_group, 1000))
+    marriage_rank_sets[year] = set(rank_group)
 
-# Open a connection to the output database
-output_filename = "data/processed/background_db.sqlite"
-
-sqlite3.register_adapter(np.int64, lambda val: int(val))
-sqlite3.register_adapter(np.int32, lambda val: int(val))
-
-output_conn = sqlite3.connect(output_filename)
-output_c = output_conn.cursor()
-
-# We batch all the inserts and write everything at once at the end of the loop.
-table_name = "person_marriages"
-output_c.execute("""CREATE TABLE """ + table_name +
-                 """ (rinpersoon NOT NULL, partner NOT NULL, year NOT NULL, fake_partner, is_eval)""")
-
-# Execute an insert statement with the values for this run.
-insert_setup = """INSERT INTO person_marriages VALUES (?,?,?,?,?)"""
-output_conn.executemany(insert_setup, records_to_insert)
-
-index_command = ("CREATE INDEX idx_marriage_pair ON person_marriages (rinpersoon, partner)")
-output_c.execute(index_command)
-
-for year in marriage_data:
-    eval_pairs = marriage_eval_sets[year]
-    rank_pairs = marriage_rank_sets[year]
-
-    for pair in eval_pairs:
-        person = pair[0]
-        partner = pair[1]
-
-        update_command = ("UPDATE person_marriages SET is_eval = 1 WHERE rinpersoon = " +
-                       str(person) + " AND partner = " + str(partner) + ";")
-        output_c.execute(update_command)
-
-# Save (commit) the changes
-output_conn.commit()
-
-# Print how many eval sets we inserted
-select_command = ('SELECT * FROM person_marriages WHERE is_eval = 1')
-results = output_c.execute(select_command)
-print('Total Number of Evaluation Pairs:', len(list(results)))
+# # Open a connection to the output database
+# output_filename = "data/processed/background_db.sqlite"
+#
+# sqlite3.register_adapter(np.int64, lambda val: int(val))
+# sqlite3.register_adapter(np.int32, lambda val: int(val))
+#
+# output_conn = sqlite3.connect(output_filename)
+# output_c = output_conn.cursor()
+#
+# # We batch all the inserts and write everything at once at the end of the loop.
+# table_name = "person_marriages"
+# output_c.execute("""CREATE TABLE """ + table_name +
+#                  """ (rinpersoon NOT NULL, partner NOT NULL, year NOT NULL, fake_partner, is_eval)""")
+#
+# # Execute an insert statement with the values for this run.
+# insert_setup = """INSERT INTO person_marriages VALUES (?,?,?,?,?)"""
+# output_conn.executemany(insert_setup, records_to_insert)
+#
+# index_command = ("CREATE INDEX idx_marriage_pair ON person_marriages (rinpersoon, partner)")
+# output_c.execute(index_command)
+#
+# for year in marriage_data:
+#     eval_pairs = marriage_eval_sets[year]
+#     rank_pairs = marriage_rank_sets[year]
+#
+#     for pair in eval_pairs:
+#         person = pair[0]
+#         partner = pair[1]
+#
+#         update_command = ("UPDATE person_marriages SET is_eval = 1 WHERE rinpersoon = " +
+#                        str(person) + " AND partner = " + str(partner) + ";")
+#         output_c.execute(update_command)
+#
+# # Save (commit) the changes
+# output_conn.commit()
+#
+# # Print how many eval sets we inserted
+# select_command = ('SELECT * FROM person_marriages WHERE is_eval = 1')
+# results = output_c.execute(select_command)
+# print('Total Number of Evaluation Pairs:', len(list(results)))
 
 # Save the sets of pairs
-with open("data/processed/marriage_model_subset_by_year.pkl", "wb") as pkl_file:
+print("Writing marriage model subset...", flush=True)
+with open(root + "marriage_model_subset_by_year.pkl", "wb") as pkl_file:
     pickle.dump(marriage_model_sets, pkl_file)
 
-with open("data/processed/marriage_eval_subset_by_year.pkl", "wb") as pkl_file:
+print("Writing marriage eval subset...", flush=True)
+with open(root + "marriage_eval_subset_by_year.pkl", "wb") as pkl_file:
     pickle.dump(marriage_eval_sets, pkl_file)
 
-with open("data/processed/marriage_rank_subset_by_year.pkl", "wb") as pkl_file:
+print("Writing marriage rank subset...", flush=True)
+with open(root + "marriage_rank_subset_by_year.pkl", "wb") as pkl_file:
     pickle.dump(marriage_rank_sets, pkl_file)
+
+# Save the overall sets of people
+with open(root + "marriage_rank_subset.pkl", "wb") as pkl_file:
+    pickle.dump(total_marriage_rank_set, pkl_file)
+
+with open(root + "marriage_model_subset.pkl", "wb") as pkl_file:
+    pickle.dump(total_marriage_model_set, pkl_file)
+
+with open(root + "marriage_eval_subset.pkl", "wb") as pkl_file:
+    pickle.dump(total_marriage_eval_set, pkl_file)

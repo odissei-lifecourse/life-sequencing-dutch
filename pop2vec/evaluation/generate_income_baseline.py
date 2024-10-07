@@ -1,13 +1,18 @@
-import os
+import pandas as pd
 import pickle
+from tqdm import tqdm
+import os
 import re
 import numpy as np
-import pandas as pd
-import pyreadstat
-from tqdm import tqdm
 
-source_dir = "/gpfs/ostor/ossc9424/homedir/cbs_data/real/InkomenBestedingen/INPATAB/"
-target_dir = "data/processed/"
+dry_run = True
+
+if dry_run:
+    source_dir = "/gpfs/work3/0/prjs1019/data/cbs_data/InkomenBestedingen/INPATAB/"
+    target_dir = "/gpfs/work3/0/prjs1019/data/evaluation/"
+else:
+    source_dir = "/gpfs/ostor/ossc9424/homedir/cbs_data/real/InkomenBestedingen/INPATAB/"
+    target_dir = "data/processed/"
 
 baseline_by_years = {}
 years = [x for x in range(2011, 2023)]
@@ -16,7 +21,8 @@ inpa_files = os.listdir(source_dir)
 
 for f in tqdm(inpa_files):
     filename = os.path.join(source_dir, f)
-    df, _ = pyreadstat.read_sav(filename, usecols=["RINPERSOON", "INPBELI"])
+    df = pd.read_spss(filename,
+                      usecols=['RINPERSOON', 'INPBELI'])
 
     # make sure we record the year correctly and only have 1 file per year
     year_matches = re.findall(r"\d{4}", f)
@@ -24,8 +30,8 @@ for f in tqdm(inpa_files):
     year = int(year_matches[0])
     years = [y for y in years if y != year]
 
-    user_list = list(df["RINPERSOON"])
-    income_list = list(df["INPBELI"])
+    user_list = list(df['RINPERSOON'])
+    income_list = list(df['INPBELI'])
 
     yearly_baseline = {}
     num_zeros = 0
@@ -35,7 +41,7 @@ for f in tqdm(inpa_files):
         try:
             user = int(user_list[i])
             income = income_list[i]
-            if income == "9999999999":
+            if income == 9999999999.0:
                 num_unfound += 1
                 continue
 
@@ -59,8 +65,8 @@ for f in tqdm(inpa_files):
     print("Average value: ", str(np.mean(income_values)), flush=True)
     print("Number of Zeros: ", str(num_zeros), flush=True)
     print("Number of Unfound: ", str(num_unfound), flush=True)
-    print("Dtype of User List: ", str(df.dtypes["RINPERSOON"]))
-    print("Dtype of Income: ", str(df.dtypes["INPBELI"]))
+    print("Dtype of User List: ", str(df.dtypes['RINPERSOON']))
+    print("Dtype of Income: ", str(df.dtypes['INPBELI']))
 
     baseline_by_years[year] = yearly_baseline
 
