@@ -9,13 +9,15 @@ import pandas as pd
 import pyreadstat
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_absolute_percentage_error
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
+from pop2vec.evaluation.baseline_v1_utils import target_transformation, TRANSFORMATION_FUNCTIONS 
 
-USER = "ossc"
+
+USER = "snellius"#"ossc"
 END_YEAR = 2022
-ROW_LIMIT = 0  # 2000
+ROW_LIMIT = 2000
 SAMPLE_SIZE = 50000
 NA_IDENTIFIERS = [9999999999.0, 0]
 
@@ -89,14 +91,27 @@ def normalize_data(train_data, test_data, numeric_predictors):
 
     return train_data, test_data
 
-
-def run_cross_validation(df, predictors, target, model, kf, year, train_only_perf=False):
+def run_cross_validation(
+  df, 
+  predictors, 
+  target, 
+  model, 
+  kf, 
+  year, 
+  train_only_perf=False, 
+  transformation=None
+):
     """Run cross-validation, returning fold results and mean performance."""
     predictors = copy.deepcopy(predictors)
     fold_results = []
     fold = 1
 
     new_df = df[predictors + [target]].dropna()
+    if transformation:
+      new_df[target], transformation_info = target_transformation(
+        new_df[target].to_numpy(),
+        transformation,
+      )
     for train_index, test_index in kf.split(new_df):
         train_data, test_data = new_df.iloc[train_index].copy(), new_df.iloc[test_index].copy()
 
@@ -128,9 +143,22 @@ def run_cross_validation(df, predictors, target, model, kf, year, train_only_per
             X_test, y_test = X_train, y_train
 
         y_pred = model.predict(X_test)
-
+        if(transformation):
+          y_pred = target_transformation(
+            target_array=y_pred, 
+            transformation_type=transformation, 
+            inverse=True, 
+            transformation_info=transformation_info,
+          )
+          y_test = target_transformation(
+            target_array=y_test.to_numpy(), 
+            transformation_type=transformation, 
+            inverse=True, 
+            transformation_info=transformation_info,
+          )
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
+        mape = mean_absolute_percentage_error(y_test, y_pred)
         coefficients = model.coef_
         intercept = model.intercept_
 
@@ -139,6 +167,7 @@ def run_cross_validation(df, predictors, target, model, kf, year, train_only_per
             "Fold": fold,
             "MSE": mse,
             "R2": r2,
+            "MAPE": mape,
             "Intercept": intercept,
             "Year": year,
         }
@@ -152,6 +181,7 @@ def run_cross_validation(df, predictors, target, model, kf, year, train_only_per
         "Fold": "mean",
         "MSE": np.mean([result["MSE"] for result in fold_results]),
         "R2": np.mean([result["R2"] for result in fold_results]),
+        "MAPE": np.mean([result["MAPE"] for result in fold_results]),
         "Intercept": np.mean([result["Intercept"] for result in fold_results]),
         "Year": year,
     }
@@ -184,7 +214,7 @@ def save_results_to_csv(output_dir, filename, results_df):
     print(f"Results saved to {output_path} and {output_path_formatted}")
 
 
-def run_primary_experiment(df, output_dir, predictor_year, train_only_perf=False):
+def run_primary_experiment(df, output_dir, predictor_year, train_only_perf=False, transformation=None):
     """Run the main experiment with all predictors, saving results for each fold."""
     predictors = ["birth_year", "gender", "birth_municipality", "INPBELI_PAST"]
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -197,20 +227,20 @@ def run_primary_experiment(df, output_dir, predictor_year, train_only_perf=False
         if target not in df.columns:
             warnings.warn(f"Could not find {target} column in dataframe! Must check!")
             continue
-        all_results.append(run_cross_validation(df, predictors, target, model, kf, year, train_only_perf))
+        all_results.append(run_cross_validation(df, predictors, target, model, kf, year, train_only_perf, transformation))
 
     final_results_df = pd.concat(all_results, ignore_index=True)
     cols = ["Year", "Fold"] + [col for col in final_results_df.columns if col not in ["Year", "Fold"]]
     final_results_df = final_results_df[cols]
 
-    filename = "primary_experiment_results.csv"
+    filename = f"primary_results_{transformation}"
     if train_only_perf:
         filename += "_train_only"
     filename += ".csv"
     save_results_to_csv(output_dir, filename, final_results_df)
 
 
-def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=False):
+def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=False, transformation=None):
     """Run four additional experiments with different subsets of features."""
     experiments = [
         (["INPBELI_PAST"], "Experiment 1: Only INPBELI_PAST"),
@@ -235,7 +265,7 @@ def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=F
                 warnings.warn(f"Could not find {target} column in dataframe! Must check!")
                 continue
 
-            fold_results = run_cross_validation(df, predictors, target, model, kf, year, train_only_perf)
+            fold_results = run_cross_validation(df, predictors, target, model, kf, year, train_only_perf, transformation)
             mean_row = fold_results[fold_results["Fold"] == "mean"].iloc[0].to_dict()
             mean_row["Experiment"] = experiment_name
             all_results.append(mean_row)
@@ -244,7 +274,7 @@ def run_additional_experiments(df, output_dir, predictor_year, train_only_perf=F
     cols = ["Experiment", "Year"] + [col for col in final_results_df.columns if col not in ["Experiment", "Year"]]
     final_results_df = final_results_df[cols]
 
-    filename = "additional_experiments_results.csv"
+    filename = f"additional_results_{transformation}"
     if train_only_perf:
         filename += "_train_only"
     filename += ".csv"
@@ -278,7 +308,7 @@ def main(args):
     data_dir_dict = {"ossc": "/gpfs/ostor/ossc9424/homedir/data/", "snellius": "/projects/0/prjs1019/data/"}
     default_data_dir = data_dir_dict[USER]
     # Command-line arguments
-    data_dir = args.data_dir if args.data_dir else default_data_dir
+    data_dir = args.data_dir if 'data_dir' in args else default_data_dir
     predictor_year = args.predictor_year
 
     income_dir = data_dir + "cbs_data/InkomenBestedingen/INPATAB"
@@ -306,11 +336,13 @@ def main(args):
         )
 
     get_mean_gender_income(merged_df)
-    print("running primary experiment ....")
-    run_primary_experiment(merged_df, output_dir, predictor_year, args.train_only)
+    for f in TRANSFORMATION_FUNCTIONS:
 
-    print("running additional experiment ....")
-    run_additional_experiments(merged_df, output_dir, predictor_year, args.train_only)
+      print(f"transformation_function = {f}\n, running primary experiment ....")
+      run_primary_experiment(merged_df, output_dir, predictor_year, args.train_only, f)
+
+      print(f"transformation_function = {f}\n, running additional experiment ....")
+      run_additional_experiments(merged_df, output_dir, predictor_year, args.train_only, f)
     print("all done")
 
 
