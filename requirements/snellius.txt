@@ -5,6 +5,7 @@ antlr4-python3-runtime==4.9.3
 async-timeout==4.0.3
 axial-positional-embedding==0.2.1
 cfgv==3.4.0
+duckdb==1.1.1
 einops==0.8.0
 fpdf==1.7.2
 frozenlist==1.4.1

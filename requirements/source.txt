@@ -46,6 +46,7 @@ docopt @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/docop
 docrep @ file:///tmp/jenkins/build/dask/2023.9.2/foss-2023a/docrep/docrep-0.3.2
 docutils @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/docutils/docutils-0.20.1
 doit @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/doit/doit-0.36.0
+duckdb==1.1.1
 dulwich @ file:///tmp/jenkins/build/poetry/1.5.1/GCCcore-12.3.0/dulwich/dulwich-0.21.5
 ecdsa @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/ecdsa/ecdsa-0.18.0
 editables @ file:///tmp/jenkins/build/hatchling/1.18.0/GCCcore-12.3.0/editables/editables-0.3
