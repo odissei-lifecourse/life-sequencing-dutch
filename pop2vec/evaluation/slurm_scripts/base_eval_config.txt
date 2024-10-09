@@ -1,0 +1,9 @@
+ArrayTaskID					SampleName						TrainOnly				Output-dir																Embeddings-path														embedding-type
+1															train-baseline						1									data/eval_output/train-baseline					None																			None
+2															test-baseline							0									data/eval_output/test-baseline						None																			None
+3															train-cls											1									data/eval_output/train-cls										/projects/0/prjs1019/data/llm/embeddings/2017_medium2x_v0.0.h5	cls_emb
+4															test-cls												0									data/eval_output/test-cls											/projects/0/prjs1019/data/llm/embeddings/2017_medium2x_v0.0.h5	cls_emb
+5															train-mean										1									data/eval_output/train-mean									/projects/0/prjs1019/data/llm/embeddings/2017_medium2x_v0.0.h5	mean_emb
+6															test-mean											0									data/eval_output/test-mean										/projects/0/prjs1019/data/llm/embeddings/2017_medium2x_v0.0.h5	mean_emb
+7															train-network							1									data/eval_output/train-network						/projects/0/prjs1019/data/graph/embeddings/lr_steve_full_network_2010_30.h5	embeddings
+8															test-network								0									data/eval_output/test-network							/projects/0/prjs1019/data/graph/embeddings/lr_steve_full_network_2010_30.h5	embeddings
