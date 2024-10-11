@@ -23,7 +23,7 @@ END_YEAR = 2022
 ROW_LIMIT = 2000
 SAMPLE_SIZE = 50000
 NA_IDENTIFIERS = [9999999999.0, 0]
-
+TARGET_COLUMN = "INPPERSPRIM"
 
 def extract_year(filename):
     matches = re.findall(r"\d{4}", filename)  # Extract all 4-digit numbers
@@ -53,12 +53,13 @@ def load_income_data(income_dir, predictor_year):
             print(f"Reading data for {year}")
             file_path = os.path.join(income_dir, file)
             df, meta = pyreadstat.read_sav(
-                file_path, row_limit=ROW_LIMIT, usecols=["RINPERSOON", "INPBELI"]
+                file_path, row_limit=ROW_LIMIT, usecols=["RINPERSOON", TARGET_COLUMN]
             )
+            df[TARGET_COLUMN] = df[TARGET_COLUMN].astype(int)
             df = df.dropna()
-            na_mask = df["INPBELI"].isin(NA_IDENTIFIERS)
+            na_mask = df[TARGET_COLUMN].isin(NA_IDENTIFIERS)
             df = df.loc[~na_mask, :]
-            income_data[year] = df.rename(columns={"INPBELI": f"INPBELI_{year}"})
+            income_data[year] = df.rename(columns={TARGET_COLUMN: f"{TARGET_COLUMN}_{year}"})
 
     # Load the predictor year income file (used as predictor)
     income_predictor_df = income_data.pop(predictor_year)
@@ -67,7 +68,7 @@ def load_income_data(income_dir, predictor_year):
 
 def load_background_data(background_path, keep_n=None):
     """Load background data from CSV."""
-    df = pd.read_csv(background_path, dtype={"RINPERSOON": "object"})
+    df = pd.read_csv(background_path, dtype={"RINPERSOON": "int"})
     df = df.rename(columns={"year": "birth_year", "municipality": "birth_municipality"})
     df = df.dropna()
     if keep_n and keep_n < len(df):
@@ -159,7 +160,7 @@ def run_cross_validation(
                 predictors.append("birth_municipality_encoded")
 
         # Standardize numerical predictors
-        numerical_predictors = ["birth_year", "INPBELI_PAST", "birth_municipality_encoded"] + [
+        numerical_predictors = ["birth_year", f"{TARGET_COLUMN}_PAST", "birth_municipality_encoded"] + [
             col for col in embedding_columns if col in predictors
         ]
         train_data, test_data = normalize_data(
@@ -281,14 +282,14 @@ def run_primary_experiment(
 ):
     """Run the main experiment with all predictors, saving results for each fold."""
     embedding_columns = [col for col in df.columns if col.startswith("embedding_")] if use_embeddings else []
-    predictors = ["birth_year", "gender", "birth_municipality", "INPBELI_PAST"] + embedding_columns
+    predictors = ["birth_year", "gender", "birth_municipality", f"{TARGET_COLUMN}_PAST"] + embedding_columns
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     model = LinearRegression()
     all_results = []
 
     start_year = predictor_year + 1
     for year in range(start_year, END_YEAR + 1):
-        target = f"INPBELI_{year}"
+        target = f"{TARGET_COLUMN}_{year}"
         if target not in df.columns:
             warnings.warn(f"Could not find {target} column in dataframe! Must check!")
             continue
@@ -325,11 +326,11 @@ def run_additional_experiments(
 
     # Base experiments without embeddings
     experiments = [
-        (["INPBELI_PAST"], "Experiment 1: Only INPBELI_PAST"),
-        (["INPBELI_PAST", "birth_year"], "Experiment 2: INPBELI_PAST and birth_year"),
-        (["INPBELI_PAST", "gender"], "Experiment 3: INPBELI_PAST and gender"),
-        (["INPBELI_PAST", "birth_municipality"], "Experiment 4: INPBELI_PAST and birth_municipality"),
-        (["birth_year", "gender", "birth_municipality"], "Experiment 5: All excluding INPBELI_PAST"),
+        ([f"{TARGET_COLUMN}_PAST"], f"Experiment 1: Only {TARGET_COLUMN}_PAST"),
+        ([f"{TARGET_COLUMN}_PAST", "birth_year"], f"Experiment 2: {TARGET_COLUMN}_PAST and birth_year"),
+        ([f"{TARGET_COLUMN}_PAST", "gender"], f"Experiment 3: {TARGET_COLUMN}_PAST and gender"),
+        ([f"{TARGET_COLUMN}_PAST", "birth_municipality"], f"Experiment 4: {TARGET_COLUMN} and birth_municipality"),
+        (["birth_year", "gender", "birth_municipality"], f"Experiment 5: All excluding {TARGET_COLUMN}_PAST"),
         (["gender", "birth_year"], "Experiment 6: birth_year and gender"),
         (["gender"], "Experiment 7: gender"),
         (["birth_year"], "Experiment 8: birth_year"),
@@ -342,7 +343,7 @@ def run_additional_experiments(
             (["embedding", "birth_year"], "Experiment 10: Embeddings and birth_year"),
             (["embedding", "gender"], "Experiment 11: Embeddings and gender"),
             (["embedding", "birth_municipality"], "Experiment 12: Embeddings and birth_municipality"),
-            (["embedding", "INPBELI_PAST"], "Experiment 13: Embeddings and INPBELI_PAST"),
+            (["embedding", f"{TARGET_COLUMN}_PAST"], "Experiment 13: Embeddings and {TARGET_COLUMN}_PAST"),
         ]
         experiments.extend(additional_experiments)
 
@@ -359,7 +360,7 @@ def run_additional_experiments(
             predictors = [item for sublist in predictors for item in (sublist if isinstance(sublist, list) else [sublist])]
 
         for year in range(start_year, END_YEAR + 1):
-            target = f"INPBELI_{year}"
+            target = f"{TARGET_COLUMN}_{year}"
             if target not in df.columns:
                 warnings.warn(f"Could not find {target} column in dataframe! Must check!")
                 continue
@@ -395,12 +396,12 @@ def run_additional_experiments(
 def get_mean_gender_income(df, output_dir, start_year=2017):
     results = []
     for year in range(start_year, END_YEAR + 1):
-        male_mean = np.nanmean(df[df["gender"] == 0][f"INPBELI_{year}"])
-        female_mean = np.nanmean(df[df["gender"] == 1][f"INPBELI_{year}"])
+        male_mean = np.nanmean(df[df["gender"] == 0][f"{TARGET_COLUMN}_{year}"])
+        female_mean = np.nanmean(df[df["gender"] == 1][f"{TARGET_COLUMN}_{year}"])
         results.append(
             {
                 "year": year,
-                "mean": np.nanmean(df[f"INPBELI_{year}"]),
+                "mean": np.nanmean(df[f"{TARGET_COLUMN}_{year}"]),
                 "male_mean": male_mean,
                 "female_mean": female_mean,
                 "m-f": male_mean - female_mean,
@@ -437,14 +438,14 @@ def main(args):
     background_data = load_background_data(background_path, keep_n=SAMPLE_SIZE)
     # Merge past income and background data on RINPERSOON
     merged_df = pd.merge(background_data, income_predictor_df, on="RINPERSOON", how="inner")
-    merged_df = merged_df.rename(columns={f"INPBELI_{predictor_year}": "INPBELI_PAST"})
+    merged_df = merged_df.rename(columns={f"{TARGET_COLUMN}_{predictor_year}": f"{TARGET_COLUMN}_PAST"})
     print(f"Merged df size: {len(merged_df)}")
 
     # Add income data from years after the predictor year
     for year, income_df in income_data.items():
         merged_df = pd.merge(
             merged_df,
-            income_df[["RINPERSOON", f"INPBELI_{year}"]],
+            income_df[["RINPERSOON", f"{TARGET_COLUMN}_{year}"]],
             on="RINPERSOON",
             how="left",
         )
