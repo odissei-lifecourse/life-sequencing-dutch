@@ -452,6 +452,7 @@ def main(args):
         embeddings_df = get_embedding_df(embeddings_path, embedding_type)
 
         # Merge embeddings with merged_df
+        print(f"Shape of embeddings_df before merge: {embeddings_df.shape}", flush=True)
         merged_df = pd.merge(merged_df, embeddings_df, on="RINPERSOON", how="inner")
         print(f"Merged (After embedding loading) df size: {len(merged_df)}")
 
