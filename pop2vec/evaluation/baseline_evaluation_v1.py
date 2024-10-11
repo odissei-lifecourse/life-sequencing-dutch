@@ -8,14 +8,13 @@ import numpy as np
 import pandas as pd
 import pyreadstat
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.metrics import mean_squared_error
-from sklearn.metrics import r2_score, mean_absolute_percentage_error
+from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
-from pop2vec.evaluation.baseline_v1_utils import (
-    target_transformation,
-    TRANSFORMATION_FUNCTIONS,
-)
+from pop2vec.evaluation.baseline_v1_utils import TRANSFORMATION_FUNCTIONS
+from pop2vec.evaluation.baseline_v1_utils import target_transformation
 from pop2vec.evaluation.report_utils import load_hdf5
 
 USER = "snellius"  # "ossc"
@@ -24,6 +23,7 @@ ROW_LIMIT = 2000
 SAMPLE_SIZE = 50000
 NA_IDENTIFIERS = [9999999999.0, 0]
 TARGET_COLUMN = "INPPERSPRIM"
+
 
 def extract_year(filename):
     matches = re.findall(r"\d{4}", filename)  # Extract all 4-digit numbers
@@ -52,13 +52,12 @@ def load_income_data(income_dir, predictor_year):
         if start_year <= year <= end_year:
             print(f"Reading data for {year}")
             file_path = os.path.join(income_dir, file)
-            df, meta = pyreadstat.read_sav(
-                file_path, row_limit=ROW_LIMIT, usecols=["RINPERSOON", TARGET_COLUMN]
-            )
+            df, meta = pyreadstat.read_sav(file_path, row_limit=ROW_LIMIT, usecols=["RINPERSOON", TARGET_COLUMN])
             df[TARGET_COLUMN] = df[TARGET_COLUMN].astype(int)
             df = df.dropna()
             na_mask = df[TARGET_COLUMN].isin(NA_IDENTIFIERS)
             df = df.loc[~na_mask, :]
+            df["RINPERSOON"] = df["RINPERSOON"].astype(np.int64)
             income_data[year] = df.rename(columns={TARGET_COLUMN: f"{TARGET_COLUMN}_{year}"})
 
     # Load the predictor year income file (used as predictor)
@@ -80,14 +79,14 @@ def load_background_data(background_path, keep_n=None):
 def get_embedding_df(embeddings_path, embedding_type):
     """Load embeddings from HDF5 file."""
     global USER
-    person_key = 'sequence_id'
+    person_key = "sequence_id"
     rinpersoon_ids, embeddings = load_hdf5(
         emb_url=embeddings_path,
         id_key=person_key,
         value_key=embedding_type,
         sample_size=ROW_LIMIT if ROW_LIMIT != 0 else -1,
     )
-    if USER == 'snellius':  # TODO: this needs to be fixed in a future commit
+    if USER == "snellius":  # TODO: this needs to be fixed in a future commit
         rinpersoon_ids = np.array([str(i) for i in range(len(embeddings))])
     # Create a DataFrame for embeddings
     embedding_dim = embeddings.shape[1]
@@ -138,8 +137,8 @@ def run_cross_validation(
     fold = 1
 
     # Replace 'embedding' with actual embedding columns
-    if 'embedding' in predictors:
-        predictors = [col if col != 'embedding' else embedding_columns for col in predictors]
+    if "embedding" in predictors:
+        predictors = [col if col != "embedding" else embedding_columns for col in predictors]
         # Flatten the list if embedding_columns is a list of lists
         predictors = [item for sublist in predictors for item in (sublist if isinstance(sublist, list) else [sublist])]
 
@@ -249,11 +248,7 @@ def run_cross_validation(
 
 
 def custom_format(x):
-    f = (
-        lambda x: (f"{x:.2e}".replace("+0", "+").replace("-0", "-").replace("+", ""))
-        if abs(x) >= 10000
-        else f"{x:.2f}"
-    )
+    f = lambda x: (f"{x:.2e}".replace("+0", "+").replace("-0", "-").replace("+", "")) if abs(x) >= 10000 else f"{x:.2f}"
     if isinstance(x, str):
         return x
     elif isinstance(x, (int, float)):
@@ -270,9 +265,7 @@ def save_results_to_csv(output_dir, filename, results_df):
 
     # Apply custom formatting to the entire DataFrame
     formatted_df = results_df.applymap(custom_format)
-    output_path_formatted = (
-        output_path.split(".")[0] + "_formatted." + output_path.split(".")[1]
-    )
+    output_path_formatted = output_path.split(".")[0] + "_formatted." + output_path.split(".")[1]
     formatted_df.to_csv(output_path_formatted, index=False)
     print(f"Results saved to {output_path} and {output_path_formatted}")
 
@@ -354,10 +347,12 @@ def run_additional_experiments(
     start_year = predictor_year + 1
     for predictors, experiment_name in experiments:
         # Replace 'embedding' with actual embedding columns
-        if 'embedding' in predictors:
-            predictors = [col if col != 'embedding' else embedding_columns for col in predictors]
+        if "embedding" in predictors:
+            predictors = [col if col != "embedding" else embedding_columns for col in predictors]
             # Flatten the list if necessary
-            predictors = [item for sublist in predictors for item in (sublist if isinstance(sublist, list) else [sublist])]
+            predictors = [
+                item for sublist in predictors for item in (sublist if isinstance(sublist, list) else [sublist])
+            ]
 
         for year in range(start_year, END_YEAR + 1):
             target = f"{TARGET_COLUMN}_{year}"
@@ -381,9 +376,7 @@ def run_additional_experiments(
             all_results.append(mean_row)
 
     final_results_df = pd.DataFrame(all_results)
-    cols = ["Experiment", "Year"] + [
-        col for col in final_results_df.columns if col not in ["Experiment", "Year"]
-    ]
+    cols = ["Experiment", "Year"] + [col for col in final_results_df.columns if col not in ["Experiment", "Year"]]
     final_results_df = final_results_df[cols]
 
     filename = f"additional_results_{transformation}"
@@ -465,9 +458,7 @@ def main(args):
     get_mean_gender_income(merged_df, output_dir)
     for f in TRANSFORMATION_FUNCTIONS:
         print(f"Transformation_function = {f}\nRunning primary experiment ....")
-        run_primary_experiment(
-            merged_df, output_dir, predictor_year, args.train_only, f, use_embeddings=use_embeddings
-        )
+        run_primary_experiment(merged_df, output_dir, predictor_year, args.train_only, f, use_embeddings=use_embeddings)
 
         print(f"Transformation_function = {f}\nRunning additional experiment ....")
         run_additional_experiments(
