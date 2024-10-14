@@ -36,8 +36,15 @@ birth_municipality_list = list(df['birth_municipality'])
 
 print("Normalizing birth years", flush=True)
 
-norm_birth_years = list(np.array(birth_year_list) / np.max(birth_year_list))
+norm_birth_years = []
+# Use min-max normalization on birth years
+min_value = np.min(birth_year_list)
+max_value = np.max(birth_year_list)
 
+for year in birth_year_list:
+    norm_value = (year - min_value) / (max_value - min_value)
+
+norm_birth_years.append(norm_value)
 
 print(norm_birth_years[:20], flush=True)
 
@@ -52,7 +59,14 @@ print("Normalizing Municipality...", flush=True)
 #enc = OrdinalEncoder(max_categories=10)
 #norm_municipality = list(enc.fit_transform(np.array(birth_municipality_list).reshape(-1, 1)))
 
-norm_municipality = list(np.array(birth_municipality_list) / np.max(birth_municipality_list))
+norm_municipality = []
+
+min_value = np.min(birth_municipality_list)
+max_value = np.max(birth_municipality_list)
+for value in birth_municipality_list:
+    normal_value = (value - min_value) / (max_value - min_value) 
+    norm_municipality.append(normal_value)
+
 print(norm_municipality[:20], flush=True)
 
 birth_year_dict = {}
