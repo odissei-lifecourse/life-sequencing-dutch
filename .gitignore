@@ -1,8 +1,8 @@
 data/private/
 code/experimental
 **/.DS_Store
-code/prefer_challenge/data 
-code/prefer_challenge/data/ 
+code/prefer_challenge/data
+code/prefer_challenge/data/
 code/prefer_challenge/models/
 __pycache__/
 *.pyc                # Ignore compiled Python files in all directories
@@ -12,4 +12,6 @@ env_ossc/
 .venv/
 *.swp
 logs/
+*logs/*.err
+*logs/*.out
 data/temp_output/
