@@ -153,6 +153,7 @@ psutil @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/psuti
 ptyprocess @ file:///home/jenkins/.local/easybuild/sources/p/poetry/extensions/ptyprocess-0.7.0-py2.py3-none-any.whl#sha256=4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35
 py @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/py/py-1.11.0
 py-expression-eval @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/py_expression_eval/py_expression_eval-0.3.14
+pyarrow==17.0.0
 pyasn1 @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/pyasn1/pyasn1-0.5.0
 pybind11 @ file:///tmp/jenkins/build/pybind11/2.11.1/GCCcore-12.3.0/pybind11-2.11.1
 pycparser @ file:///tmp/jenkins/build/PythonbundlePyPI/2023.06/GCCcore-12.3.0/pycparser/pycparser-2.21
