@@ -8,7 +8,7 @@ def test_transformation():
     df = pd.DataFrame({
         'col1': np.random.normal(25000, 40000, 200),  # 200 Random values from a normal distribution
         'col2': np.array(
-                  [-1000, -10, 0, 10, 1000] + np.random.randint(-1000, 1000, 195).tolist()
+                  [-1e9, -10, 0, 10, 1e9] + np.random.randint(-1000, 1000, 195).tolist()
                 )  # Random values between -1000 and 1000
     })
 
@@ -31,6 +31,8 @@ def test_transformation():
             inverse=True, 
             transformation_info=transformation_info
           )
+          print(df[col].to_numpy()[:5])
+          print(inverse_transformed_col[:5])
           
           # Assert that the inverse transformation is within epsilon of the original data
           assert np.allclose(
