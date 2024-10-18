@@ -9,7 +9,7 @@ data_path = "data/raw_data/"
 PARTNERSHIP_FILE_PATH = data_path + "GBAVERBINTENISPARTNER2023BUSV1.sav"
 DEATH_FILE_PATH = data_path + "VRLGBAOVERLIJDENTABV2024061.sav"
 BIRTH_FILE_PATH = data_path + "VRLGBAPERSOONKTABV2024061.sav"
-OUTPUT_FILE_PATH = "data/partnership_after_2016.sav"
+OUTPUT_FILE_PATH = "data/partnership_after_2016.csv"
 
 
 PARTNERSHIP_START = 'AANVANGVERBINTENIS'
@@ -103,7 +103,7 @@ def filter_first_partnerships(partnership_data, start_year=2017):
     ]
 
     for year in range(2017, 2025):
-      print(f"# of first partnerships in {year} = {partnership_data_sorted[PARTNERSHIP_START].str.startswith(str(year))}", flush=True)
+      print(f"# of first partnerships in {year} = {partnership_data_sorted[PARTNERSHIP_START].astype(str).str.startswith(str(year)).sum()}", flush=True)
     
     # Add f'first_union_after_{start_year-1}' column
     partnership_data_filtered[f'first_union_after_{start_year-1}'] = 1
@@ -130,7 +130,7 @@ def filter_eligible_non_married(
     # Calculate age and filter for people 80 years old or younger
     birth_data['age'] = start_year - birth_data['VRLGBAGEBOORTEJAAR']
     eligible_birth_data = birth_data[
-      birth_data['age'] >= 18 & birth_data['age'] <= 80
+      (birth_data['age'] >= 18) & (birth_data['age'] <= 80)
     ]
 
     print(f"# of dead+alive people between 18-80 = {len(eligible_birth_data)}", flush=True)    
