@@ -6,10 +6,10 @@ import numpy as np
 
 # Placeholder paths for the input files
 data_path = "data/raw_data/"
-PARTNERSHIP_FILE_PATH = data_path + "placeholder.sav"
-DEATH_FILE_PATH = data_path + "placeholder.sav"
-BIRTH_FILE_PATH = data_path + "placeholder.sav"
-OUTPUT_FILE_PATH = data_path + "placeholder.sav"
+PARTNERSHIP_FILE_PATH = data_path + "GBAVERBINTENISPARTNER2023BUSV1.sav"
+DEATH_FILE_PATH = data_path + "VRLGBAOVERLIJDENTABV2024061.sav"
+BIRTH_FILE_PATH = data_path + "VRLGBAPERSOONKTABV2024061.sav"
+OUTPUT_FILE_PATH = "data/partnership_after_2016.sav"
 
 
 PARTNERSHIP_START = 'AANVANGVERBINTENIS'
@@ -38,6 +38,8 @@ def read_partnership_data(file_path):
     partnership_data = partnership_data[
       partnership_data[PARTNERSHIP_TYPE].isin(['H', 'P'])
     ]
+    print(f"total # of partnerships over all years = {len(partnership_data)}", flush=True)
+    print(f"total # of unique people who got into partnerships= {partnership_data[RINPERSOON].nunique()}", flush=True)
     
     return partnership_data
 
@@ -53,7 +55,7 @@ def read_death_data(file_path):
     """
     columns_to_read = [RINPERSOON, 'VRLGBADatumOverlijden']
     death_data = read_sav_rinpersoon(file_path, columns_to_read)
-    
+    print(f"# of deaths over all years = {len(death_data)}", flush=True)  
     return death_data
 
 
@@ -68,7 +70,10 @@ def read_birth_data(file_path):
     """
     columns_to_read = [RINPERSOON, 'VRLGBAGEBOORTEJAAR']
     birth_data = read_sav_rinpersoon(file_path, columns_to_read)
-    
+    birth_data['VRLGBAGEBOORTEJAAR'] = birth_data['VRLGBAGEBOORTEJAAR'].astype(
+      int
+    ) 
+    print(f"# of births over all years = {len(birth_data)}",flush=True)
     return birth_data
 
 
@@ -96,11 +101,14 @@ def filter_first_partnerships(partnership_data, start_year=2017):
     partnership_data_filtered = partnership_data_sorted[
         (partnership_data_sorted[PARTNERSHIP_START] >= start_time)
     ]
+
+    for year in range(2017, 2025):
+      print(f"# of first partnerships in {year} = {partnership_data_sorted[PARTNERSHIP_START].str.startswith(str(year))}", flush=True)
     
-    # Add f'first_union_after_{start_year}' column
-    partnership_data_filtered[f'first_union_after_{start_year}'] = 1
+    # Add f'first_union_after_{start_year-1}' column
+    partnership_data_filtered[f'first_union_after_{start_year-1}'] = 1
     
-    return partnership_data_filtered[[RINPERSOON, f'first_union_after_{start_year}']]
+    return partnership_data_filtered[[RINPERSOON, f'first_union_after_{start_year-1}']]
 
 
 def filter_eligible_non_married(
@@ -121,8 +129,11 @@ def filter_eligible_non_married(
     """
     # Calculate age and filter for people 80 years old or younger
     birth_data['age'] = start_year - birth_data['VRLGBAGEBOORTEJAAR']
-    eligible_birth_data = birth_data[birth_data['age'] <= 80]
-    
+    eligible_birth_data = birth_data[
+      birth_data['age'] >= 18 & birth_data['age'] <= 80
+    ]
+
+    print(f"# of dead+alive people between 18-80 = {len(eligible_birth_data)}", flush=True)    
     # Merge with death data to exclude deceased individuals
     alive_data = pd.merge(
       eligible_birth_data, 
@@ -132,10 +143,13 @@ def filter_eligible_non_married(
       indicator=True
     )
     alive_data = alive_data[alive_data['_merge'] == 'left_only']  # Keep only those not in the death data
-    
+    alive_data = alive_data.drop(columns=['_merge'])
+
+    print(f"# of alive people = {len(alive_data)}", flush=True)    
 
     # Exclude people who got married
     unique_partnership_data = partnership_data[['RINPERSOON']].drop_duplicates()
+    print(f"# of people who ever got into partnership = {len(unique_partnership_data)}", flush=True)
     eligible_non_married = pd.merge(
       alive_data, 
       unique_partnership_data, 
@@ -147,10 +161,11 @@ def filter_eligible_non_married(
       eligible_non_married['_merge'] == 'left_only'
     ]  # Keep only those not in the partnership data
     
-    # Add f'first_union_after_{start_year}' column with 0 for non-married
-    eligible_non_married[f'first_union_after_{start_year}'] = 0
+    print(f"# of people with label = 0 {len(eligible_non_married)})", flush=True)  
+    # Add f'first_union_after_{start_year-1}' column with 0 for non-married
+    eligible_non_married[f'first_union_after_{start_year-1}'] = 0
     
-    return eligible_non_married[[RINPERSOON, f'first_union_after_{start_year}']]
+    return eligible_non_married[[RINPERSOON, f'first_union_after_{start_year-1}']]
 
 
 def main():
@@ -184,7 +199,7 @@ def main():
     )
     assert combined_data[RINPERSOON].is_unique, f'final dataframe does not have unique values for {RINPERSOON}'
 
-    label = f'first_union_after_{start_year}'
+    label = f'first_union_after_{start_year-1}'
     print(
       f"""
       final dataset length = {len(combined_data)},
