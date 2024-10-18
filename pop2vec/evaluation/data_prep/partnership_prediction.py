@@ -5,10 +5,11 @@ import numpy as np
 
 
 # Placeholder paths for the input files
-PARTNERSHIP_FILE_PATH = "path_to_partnership_data.sav"
-DEATH_FILE_PATH = "path_to_death_data.sav"
-BIRTH_FILE_PATH = "path_to_birth_data.sav"
-OUTPUT_FILE_PATH = "path_to_output.csv"
+data_path = "data/raw_data/"
+PARTNERSHIP_FILE_PATH = data_path + "placeholder.sav"
+DEATH_FILE_PATH = data_path + "placeholder.sav"
+BIRTH_FILE_PATH = data_path + "placeholder.sav"
+OUTPUT_FILE_PATH = data_path + "placeholder.sav"
 
 
 PARTNERSHIP_START = 'AANVANGVERBINTENIS'
