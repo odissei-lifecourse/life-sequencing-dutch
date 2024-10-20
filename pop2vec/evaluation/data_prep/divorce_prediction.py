@@ -3,7 +3,7 @@ import pyreadstat
 
 # Constants for column names
 PERSON_ID = "RINPERSOON"
-PARTNER_ID = "RINPERSOONSVERBINTENISP"
+PARTNER_ID = "RINPERSOONVERBINTENISP"
 START_DATE = "AANVANGVERBINTENIS"
 END_DATE = "EINDEVERBINTENIS"
 DISSOLUTION_REASON = "REDENBEEINDIGINGVERBINTENIS"
@@ -38,6 +38,9 @@ def main():
     # Check for partnership duplicates
     check_partnership_duplicates(final_data)
 
+    assert final_data[PERSON_ID].is_unique(), f"{PERSON_ID} is not unique in the final data"
+    assert final_data[PARTNER_ID].is_unique(), f"{PARTNER_ID} is not unique in the final data"
+    
     # Save final data to CSV
     final_data.to_csv(OUTPUT_FILE_PATH, index=False)
     print(f"Final data saved to {OUTPUT_FILE_PATH}")
@@ -68,6 +71,11 @@ def clean_data(df):
     """
     initial_rows = len(df)
     print(f"Initial number of rows: {initial_rows}")
+
+    # drop all rows where duplicate is not present with the partner and main id swapped
+    df_swapped = df.copy()
+    df_swapped[[PERSON_ID, PARTNER_ID]] = df_swapped[[PARTNER_ID, PERSON_ID]]
+    df = df.merge(df_swapped, on=list(df.columns), how='inner')
 
     # Filter partnerships of type 'H' or 'P'
     df = df[
@@ -129,7 +137,10 @@ def process_data(df, start_year):
 
     # Filter partnerships valid till the last day of START_YEAR - 1
     cutoff_date = pd.Timestamp(year=start_year - 1, month=12, day=31)
-    valid_df = df[df[START_DATE] <= cutoff_date]
+    valid_df = df[
+      (df[START_DATE] <= cutoff_date) &
+      (df[END_DATE] > cutoff_date) 
+    ]
     print(f"Rows after filtering partnerships valid till {cutoff_date.date()}: "
           f"{len(valid_df)}")
 
