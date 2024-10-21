@@ -38,8 +38,8 @@ def main():
     # Check for partnership duplicates
     check_partnership_duplicates(final_data)
 
-    assert final_data[PERSON_ID].is_unique(), f"{PERSON_ID} is not unique in the final data"
-    assert final_data[PARTNER_ID].is_unique(), f"{PARTNER_ID} is not unique in the final data"
+    assert final_data[PERSON_ID].is_unique, f"{PERSON_ID} is not unique in the final data"
+    assert final_data[PARTNER_ID].is_unique, f"{PARTNER_ID} is not unique in the final data"
     
     # Save final data to CSV
     final_data.to_csv(OUTPUT_FILE_PATH, index=False)
@@ -73,9 +73,11 @@ def clean_data(df):
     print(f"Initial number of rows: {initial_rows}")
 
     # drop all rows where duplicate is not present with the partner and main id swapped
+    df = df.fillna({DISSOLUTION_REASON: 'ACTIVE'})
     df_swapped = df.copy()
     df_swapped[[PERSON_ID, PARTNER_ID]] = df_swapped[[PARTNER_ID, PERSON_ID]]
     df = df.merge(df_swapped, on=list(df.columns), how='inner')
+    print(f"Rows after dropping non-duplicated pairs: {len(df)}")
 
     # Filter partnerships of type 'H' or 'P'
     df = df[
@@ -130,7 +132,7 @@ def process_data(df, start_year):
     df[START_DATE] = pd.to_datetime(
         df[START_DATE], format='%Y%m%d', errors='coerce')
     df[END_DATE] = pd.to_datetime(
-        df[END_DATE].replace(END_DATA_NA, '99991231'),
+        df[END_DATE].replace(END_DATA_NA, '22001231'),
         format='%Y%m%d', 
         errors='coerce'
     )
@@ -151,7 +153,7 @@ def process_data(df, start_year):
     valid_df[divorce_after_label] = valid_df.apply(
         lambda row: 1 if (
             row[END_DATE] > cutoff_date and
-            row[END_DATE] != pd.Timestamp('9999-12-31')
+            row[END_DATE] != pd.Timestamp('2200-12-31')
         ) else 0,
         axis=1
     )
