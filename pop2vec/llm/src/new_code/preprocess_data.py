@@ -1,52 +1,96 @@
-
 import fnmatch
 import json
 import math
-import numpy as np
 import os
-import pandas as pd 
-import sys
 import shutil
-from pop2vec.llm.src.new_code.utils import get_column_names, print_now
-from pop2vec.llm.src.new_code.constants import MISSING, DAYS_SINCE_FIRST, FIRST_EVENT_TIME, AGE, INF
+import sys
 from functools import partial
+import logging
 
+import numpy as np
+import pandas as pd
+
+from pop2vec.llm.src.new_code.constants import (
+    AGE,
+    DAYS_SINCE_FIRST,
+    FIRST_EVENT_TIME,
+    INF,
+    MISSING,
+)
+from pop2vec.llm.src.new_code.utils import get_column_names, print_now
+
+# Set up logging configuration
+logging.basicConfig(
+  level=logging.INFO, 
+  format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 TIME_KEY = 'TIME_KEY'
 SOURCE = 'SOURCE'
 DEST = 'DEST'
 IMMUTABLE_COLS = 'IMMUTABLE_COLS'
-PRIMARY_KEY= 'PRIMARY_KEY'
-MAX_UNIQUE_PER_COLUMN = "MAX_UNIQUE_PER_COLUMN"
+PRIMARY_KEY = 'PRIMARY_KEY'
+MAX_UNIQUE_PER_COLUMN = 'MAX_UNIQUE_PER_COLUMN'
 RESTRICTED_SUBSTRINGS = 'RESTRICTED_SUBSTRINGS'
 CALCULATE_AGE = 'CALCULATE_AGE'
 DELIMITER = 'DELIMITER'
 MISSING_SIGNIFIERS = 'MISSING_SIGNIFIERS'
-# Define source and destination directories
+
+# Global variables
+missing_signifiers = []
+
 def read_cfg(path):
+  """Reads a JSON configuration file.
+
+  Args:
+    path (str): Path to the JSON configuration file.
+
+  Returns:
+    dict: Configuration dictionary loaded from the JSON file.
+  """
   with open(path, 'r') as file:
     cfg = json.load(file)
-  return cfg  
+  return cfg
 
-def bucketize(x, current_min, current_max, new_min, new_max, missing_signfiers):
+def bucketize(x, current_min, current_max, new_min, new_max, missing_signifiers):
+  """Bucketizes a value into a new range, handling missing values.
+
+  Args:
+    x (float): The value to bucketize.
+    current_min (float): The minimum value of the current range.
+    current_max (float): The maximum value of the current range.
+    new_min (int): The minimum value of the new range.
+    new_max (int): The maximum value of the new range.
+    missing_signifiers (list): List of values signifying missing data.
+
+  Returns:
+    int or str: The bucketized value, or MISSING if x is missing.
+  """
   try:
-    if x in missing_signfiers:
+    if x in missing_signifiers:
       return MISSING
     return int(
-      np.round(
-        (
-          (x - current_min) / (current_max - current_min) * (new_max - new_min)
-        )
-      ) + new_min
+        np.round(
+            ((x - current_min) / (current_max - current_min) * (new_max - new_min))
+        ) + new_min
     )
   except Exception as e:
-    if math.isnan(float(x)) is False:
-      print_now(e)
-      print_now(x, current_min, current_max, new_min, new_max)
+    if not math.isnan(float(x)):
+      logging.info(e)
+      logging.info(f"{x}, {current_min}, {current_max}, {new_min}, {new_max}")
     return MISSING
 
-def quantize(col, name):
-  # Find the current min and max values, ignoring NaN values
+def quantize(col, name, missing_signifiers=None):
+  """Quantizes a numeric column into buckets.
+
+  Args:
+    col (pd.Series): The column to quantize.
+    name (str): The name of the column.
+
+  Returns:
+    tuple: A tuple containing the quantized column and a boolean indicating
+      whether there are enough non-missing values.
+  """
   current_min = col.min(skipna=True)
   current_max = np.ceil(col.max(skipna=True))
 
@@ -54,94 +98,104 @@ def quantize(col, name):
     current_min = int(-INF)
   if current_max == np.inf:
     current_max = int(INF)
-  
-  # Define the desired range
+
   new_min = 1
   new_max = min(current_max, 100)
-  assert(current_min != current_max)
-  # Perform linear scaling, ignoring NaN values
+  assert current_min != current_max
+
   scaled_col = col.apply(
-    bucketize, 
-    args=(current_min, current_max, new_min, new_max, missing_signfiers)
+      bucketize,
+      args=(current_min, current_max, new_min, new_max, missing_signifiers)
   )
-  ok_num = len(scaled_col) - np.sum(scaled_col=='MISSING')
-  print_now(f"column = {name}, ok count = {ok_num}, ok % = {ok_num/len(scaled_col) * 100}")
-  assert(ok_num > (len(scaled_col)/100))
-  return scaled_col, ok_num > (len(scaled_col)/100)
+  ok_num = len(scaled_col) - np.sum(scaled_col == 'MISSING')
+  logging.info(
+      f"processed column = {name}, ok count = {ok_num}, "
+      f"ok % = {ok_num / len(scaled_col) * 100}"
+  )
+  assert ok_num > (len(scaled_col) / 100)
+  return scaled_col, ok_num > (len(scaled_col) / 100)
 
 all_cols = {}
 all_primaries = set()
+
 def process_and_write(
-  file_path,
-  primary_key,
-  immutable_cols,
-  restricted_substrings,
-  max_unique_per_column,
-  time_key,
-  first_event_time,
-  calculate_age,
-  missing_signfiers
+    file_path,
+    primary_key,
+    immutable_cols,
+    restricted_substrings,
+    max_unique_per_column,
+    time_key,
+    first_event_time,
+    calculate_age,
+    missing_signifiers,
+    delimiter
 ):
   global all_primaries
   if 'background' in file_path:
-    print_now(f"background file {file_path} is left as it is.")
+    logging.info(f"background file {file_path} is left as it is.")
     return
-  print_now(file_path)
-  print_now("*"*100)
+  logging.info(f"processing {file_path}")
+  logging.info("*" * 100)
   df = pd.read_csv(file_path, delimiter=delimiter)
   all_primaries = all_primaries | set(df[primary_key].unique())
   col_for_drop_check = DAYS_SINCE_FIRST
   if DAYS_SINCE_FIRST not in df.columns:
     col_for_drop_check = time_key
-  if calculate_age is False:
+  if not calculate_age:
     if AGE not in df.columns:
-      print_now(f"deleting {file_path} as it does not have the column age.")
+      logging.info(f"Ignoring {file_path} as it does not have the column age and calculate_age is False")
       os.remove(file_path)
       return
     else:
-      df[AGE] = df[AGE].to_numpy(int) 
+      df[AGE] = df[AGE].to_numpy(int)
   else:
-    # TODO: write logic for calculating age at event
     df[AGE] = 0
 
   df.dropna(subset=[col_for_drop_check], inplace=True)
   for column in df.columns:
     if column in [AGE, DAYS_SINCE_FIRST, time_key]:
       df[column] = np.round(df[column].tolist()).astype(int)
-    elif column == primary_key or column in immutable_cols: 
+    elif column == primary_key or column in immutable_cols:
       continue
     elif (
-      any(item in column for item in restricted_substrings) or 
-      (
-        df[column].dtype=='object' and 
-        len(df[column].unique()) > max_unique_per_column
-      )
+        any(item in column for item in restricted_substrings)
+        or (
+            df[column].dtype == 'object' and
+            len(df[column].unique()) > max_unique_per_column
+        )
     ):
-      print("dropping column", column)
+      logging.info(f"dropping column = {column}")
       df.drop(columns=[column], inplace=True)
-    elif np.issubdtype(df[column].dtype, np.number) and len(df[column].unique()) > 100:
-      print("quantizing column", column)
-      scaled_col, have_enough = quantize(df[column], column)
+    elif (
+        np.issubdtype(df[column].dtype, np.number) and
+        len(df[column].unique()) > 100
+    ):
+      logging.info(f"quantizing column {column}")
+      scaled_col, have_enough = quantize(df[column], column, missing_signifiers)
       if have_enough:
         df[column] = scaled_col
     else:
-      print(f"keeping categorical column {column} with {len(df[column].unique())} items")
+      logging.info(
+          f"keeping categorical column {column} with "
+          f"{len(df[column].unique())} items"
+      )
   df.fillna(value=MISSING, inplace=True)
   for col in df.columns:
     if col not in all_cols:
       all_cols[col] = []
     all_cols[col].append(file_path)
   if DAYS_SINCE_FIRST not in df.columns:
-    df[DAYS_SINCE_FIRST] = df[time_key].apply(lambda x: x-first_event_time)
+    df[DAYS_SINCE_FIRST] = df[time_key].apply(lambda x: x - first_event_time)
     df.drop(columns=[time_key], inplace=True)
   else:
     df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].to_numpy(int)
   df.to_csv(file_path, index=False)
 
-if __name__ == "__main__":
-  CFG_PATH = sys.argv[1]
-  print(CFG_PATH)
-  cfg = read_cfg(CFG_PATH)
+def main():
+  global missing_signifiers
+  cfg_path = sys.argv[1]
+  logging.info(f"cfg_path = {cfg_path}")
+  cfg = read_cfg(cfg_path)
 
   source_dir = cfg[SOURCE]
   destination_dir = cfg[DEST]
@@ -150,50 +204,44 @@ if __name__ == "__main__":
   restricted_substrings = cfg[RESTRICTED_SUBSTRINGS]
   max_unique_per_column = cfg[MAX_UNIQUE_PER_COLUMN]
   calculate_age = cfg[CALCULATE_AGE]
-  if DELIMITER in cfg:
-    delimiter = cfg[DELIMITER]
-  else:
-    delimiter = ','
-  if TIME_KEY in cfg:
-    time_key = cfg[TIME_KEY]
-    first_event_time = cfg[FIRST_EVENT_TIME]
-  else:
-    time_key = None
-  if MISSING_SIGNIFIERS in cfg:
-    missing_signfiers = cfg[missing_signfiers]
-  else:
-    missing_signfiers = []
-  # Use shutil.copytree() to copy the entire directory recursively
+
+  delimiter = cfg.get(DELIMITER, ',')
+  time_key = cfg.get(TIME_KEY, None)
+  first_event_time = cfg.get(FIRST_EVENT_TIME) if TIME_KEY in cfg else None
+  missing_signifiers = cfg.get(MISSING_SIGNIFIERS, [])
+
+  # Copy the entire directory recursively
   if os.path.exists(destination_dir):
     shutil.rmtree(destination_dir)
   shutil.copytree(source_dir, destination_dir)
+
   for root, dirs, files in os.walk(destination_dir):
     for filename in fnmatch.filter(files, '*.csv'):
       current_file_path = os.path.join(root, filename)
       cols = get_column_names(current_file_path, delimiter=delimiter)
-      if (
-        primary_key in cols and (DAYS_SINCE_FIRST in cols or time_key in cols)
-      ):
-        print(filename)
+
+      if primary_key in cols and (DAYS_SINCE_FIRST in cols or time_key in cols):
+        logging.info(f"processing {filename}")
         process_and_write(
-          file_path=current_file_path,
-          primary_key=primary_key,
-          immutable_cols=immutable_cols,
-          restricted_substrings=restricted_substrings,
-          max_unique_per_column=max_unique_per_column,
-          time_key=time_key,
-          first_event_time=first_event_time,
-          calculate_age=calculate_age,
-          missing_signfiers=missing_signfiers
+            file_path=current_file_path,
+            primary_key=primary_key,
+            immutable_cols=immutable_cols,
+            restricted_substrings=restricted_substrings,
+            max_unique_per_column=max_unique_per_column,
+            time_key=time_key,
+            first_event_time=first_event_time,
+            calculate_age=calculate_age,
+            missing_signifiers=missing_signifiers,
+            delimiter=delimiter
         )
 
   for col in all_cols:
-    print(col, ":", len(all_cols[col]), "\n", all_cols[col])
+    logging.info(
+      f"""Column {col} is found in {len(all_cols[col])} files."
+      the files are:  {all_cols[col]}"""
+    )
 
-  print(f"# of people {len(all_primaries)}")
+  logging.info(f"# of people: {len(all_primaries)}")
 
-  # df = pd.read_csv('projects/baseball/data/baseballdatabank-2023.1 2/core/People.csv')
-  # people_have = set(df[primary_key].unique())
-  # print(f"intersection size = {len(people_have & all_primaries)}")
-  # print(f"subtract size 1 = {len(people_have - all_primaries)}")
-  # print(f"subtract size 2 = {len(all_primaries & people_have)}")
+if __name__ == "__main__":
+  main()
