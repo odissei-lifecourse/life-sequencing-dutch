@@ -5,7 +5,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 from tqdm import tqdm
-from pop2vec.utils.constants import DATA_ROOT
+from pop2vec.utils.constants import OSSC_ROOT
 
 DRY_RUN = False
 
@@ -67,8 +67,8 @@ def h5_array_to_pq(input_path, output_path, emb_filename, emb_type="cls_emb", id
 
 def main():
     """Iterate over inputs and convert hdf5 embeddings to parquet."""
-    source_path = Path(DATA_ROOT, data_origin)
-    write_path = Path(DATA_ROOT, data_destination)
+    source_path = Path(OSSC_ROOT, data_origin)
+    write_path = Path(OSSC_ROOT, data_destination)
 
     for pair in tqdm(model_emb_map):
         model, emb_name = pair
