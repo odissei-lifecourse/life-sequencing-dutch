@@ -6,6 +6,8 @@ import shutil
 import sys
 from functools import partial
 import logging
+from typing import Dict, Union, List
+
 
 import numpy as np
 import pandas as pd
@@ -13,11 +15,17 @@ import pandas as pd
 from pop2vec.llm.src.new_code.constants import (
     AGE,
     DAYS_SINCE_FIRST,
-    FIRST_EVENT_TIME,
     INF,
     MISSING,
 )
-from pop2vec.llm.src.new_code.utils import get_column_names, print_now
+from pop2vec.llm.src.new_code.utils import (
+  get_column_names, 
+  print_now, 
+  load_parquet_with_metadata,
+  load_csv_and_create_metadata,
+  transform_to_percentiles,
+  replace_less_frequent
+)
 
 # Set up logging configuration
 logging.basicConfig(
@@ -25,19 +33,17 @@ logging.basicConfig(
   format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-TIME_KEY = 'TIME_KEY'
 SOURCE = 'SOURCE'
 DEST = 'DEST'
 IMMUTABLE_COLS = 'IMMUTABLE_COLS'
 PRIMARY_KEY = 'PRIMARY_KEY'
-MAX_UNIQUE_PER_COLUMN = 'MAX_UNIQUE_PER_COLUMN'
 RESTRICTED_SUBSTRINGS = 'RESTRICTED_SUBSTRINGS'
-CALCULATE_AGE = 'CALCULATE_AGE'
 DELIMITER = 'DELIMITER'
-MISSING_SIGNIFIERS = 'MISSING_SIGNIFIERS'
+CATEGORICAL_THRESHOLD = 'CATEGORICAL_THRESHOLD'
 
 # Global variables
-missing_signifiers = []
+all_cols = {}
+all_primaries = set()
 
 def read_cfg(path):
   """Reads a JSON configuration file.
@@ -52,188 +58,206 @@ def read_cfg(path):
     cfg = json.load(file)
   return cfg
 
-def bucketize(x, current_min, current_max, new_min, new_max, missing_signifiers):
-  """Bucketizes a value into a new range, handling missing values.
-
-  Args:
-    x (float): The value to bucketize.
-    current_min (float): The minimum value of the current range.
-    current_max (float): The maximum value of the current range.
-    new_min (int): The minimum value of the new range.
-    new_max (int): The maximum value of the new range.
-    missing_signifiers (list): List of values signifying missing data.
-
-  Returns:
-    int or str: The bucketized value, or MISSING if x is missing.
-  """
-  try:
-    if x in missing_signifiers:
-      return MISSING
-    return int(
-        np.round(
-            ((x - current_min) / (current_max - current_min) * (new_max - new_min))
-        ) + new_min
-    )
-  except Exception as e:
-    if not math.isnan(float(x)):
-      logging.info(e)
-      logging.info(f"{x}, {current_min}, {current_max}, {new_min}, {new_max}")
-    return MISSING
-
-def quantize(col, name, missing_signifiers=None):
-  """Quantizes a numeric column into buckets.
-
-  Args:
-    col (pd.Series): The column to quantize.
-    name (str): The name of the column.
-
-  Returns:
-    tuple: A tuple containing the quantized column and a boolean indicating
-      whether there are enough non-missing values.
-  """
-  current_min = col.min(skipna=True)
-  current_max = np.ceil(col.max(skipna=True))
-
-  if current_min == -np.inf:
-    current_min = int(-INF)
-  if current_max == np.inf:
-    current_max = int(INF)
-
-  new_min = 1
-  new_max = min(current_max, 100)
-  assert current_min != current_max
-
-  scaled_col = col.apply(
-      bucketize,
-      args=(current_min, current_max, new_min, new_max, missing_signifiers)
-  )
-  ok_num = len(scaled_col) - np.sum(scaled_col == 'MISSING')
-  logging.info(
-      f"processed column = {name}, ok count = {ok_num}, "
-      f"ok % = {ok_num / len(scaled_col) * 100}"
-  )
-  assert ok_num > (len(scaled_col) / 100)
-  return scaled_col, ok_num > (len(scaled_col) / 100)
-
-all_cols = {}
-all_primaries = set()
-
 def process_and_write(
-    file_path,
+    df,
+    meta_dict,
+    write_path,
     primary_key,
     immutable_cols,
     restricted_substrings,
-    max_unique_per_column,
-    time_key,
-    first_event_time,
-    calculate_age,
-    missing_signifiers,
-    delimiter
 ):
-  global all_primaries
-  if 'background' in file_path:
-    logging.info(f"background file {file_path} is left as it is.")
-    return
-  logging.info(f"processing {file_path}")
-  logging.info("*" * 100)
-  df = pd.read_csv(file_path, delimiter=delimiter)
-  all_primaries = all_primaries | set(df[primary_key].unique())
-  col_for_drop_check = DAYS_SINCE_FIRST
-  if DAYS_SINCE_FIRST not in df.columns:
-    col_for_drop_check = time_key
-  if not calculate_age:
-    if AGE not in df.columns:
-      logging.info(f"Ignoring {file_path} as it does not have the column age and calculate_age is False")
-      os.remove(file_path)
-      return
-    else:
-      df[AGE] = df[AGE].to_numpy(int)
-  else:
-    df[AGE] = 0
+  """Processes a CSV file and writes the modified data.
 
-  df.dropna(subset=[col_for_drop_check], inplace=True)
+  Args:
+    df: dataframe containing the main data
+    meta_dict: dict containing metadata
+    write_path: where df will be written
+    primary_key (str): Name of the primary key column, e.g., RINPERSOON in 
+      dutch data
+    immutable_cols (list): These columns cannot be modified.
+    restricted_substrings (list): Any column containing any of the substrings 
+      will be dropped
+  """
+  
+  global all_primaries
+  
+  if 'background' in write_path:
+    logging.info(f"background file {write_path} is written as it is.")
+    df.to_parquet(write_path)
+    return
+  
+  logging.info(f"preparing {write_path}")
+  logging.info("*" * 100)
+  
+  all_primaries = all_primaries | set(df[primary_key].unique())
+  
+  #drop any row that has nan in time columns
+  df.dropna(subset=[DAYS_SINCE_FIRST, AGE], inplace=True)
+  
+  # convert time columns to int
+  df[AGE] = df[AGE].round().astype(int)
+  df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].round().astype(int)
+  
+  # fill all missing values (nan) by MISSING
+  df.fillna("MISSING", inplace=True)
+
   for column in df.columns:
-    if column in [AGE, DAYS_SINCE_FIRST, time_key]:
-      df[column] = np.round(df[column].tolist()).astype(int)
-    elif column == primary_key or column in immutable_cols:
+    if column == primary_key or column in immutable_cols:
       continue
-    elif (
-        any(item in column for item in restricted_substrings)
-        or (
-            df[column].dtype == 'object' and
-            len(df[column].unique()) > max_unique_per_column
-        )
-    ):
-      logging.info(f"dropping column = {column}")
+    elif any(item in column for item in restricted_substrings):
+      logging.info(f"dropping column = {column}; contains restriced substring")
       df.drop(columns=[column], inplace=True)
-    elif (
-        np.issubdtype(df[column].dtype, np.number) and
-        len(df[column].unique()) > 100
-    ):
-      logging.info(f"quantizing column {column}")
-      scaled_col, have_enough = quantize(df[column], column, missing_signifiers)
-      if have_enough:
-        df[column] = scaled_col
-    else:
+    elif meta_dict[column] == 'Numeric':
+      logging.info(f"transforming {column} column to percentiles")
+      df[column] = transform_to_percentiles(df[column])
+    elif meta_dict[column] == 'String':
       logging.info(
           f"keeping categorical column {column} with "
           f"{len(df[column].unique())} items"
       )
-  df.fillna(value=MISSING, inplace=True)
+      df[column] = replace_less_frequent(
+        df[column], 
+        keep_top_n = 100, 
+        name_others = "Others",
+        ignore_list = ['MISSING'],
+      )
+    else:
+      logging.error(f"column {column} with write_path = {write_path} has malformed meta_dict {meta_dict} ")
+  
   for col in df.columns:
     if col not in all_cols:
       all_cols[col] = []
-    all_cols[col].append(file_path)
-  if DAYS_SINCE_FIRST not in df.columns:
-    df[DAYS_SINCE_FIRST] = df[time_key].apply(lambda x: x - first_event_time)
-    df.drop(columns=[time_key], inplace=True)
-  else:
-    df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].to_numpy(int)
-  df.to_csv(file_path, index=False)
+    all_cols[col].append(write_path)
+  
+  df.to_parquet(write_path, index=False)
+
+def get_csv_data(
+  input_directory: str,
+  output_directory: str, 
+  delimiter: str, 
+  categorical_threshold: int
+) -> List[Dict[str, Union[pd.DataFrame, Dict, str]]]:
+  """Process all CSV files in a given directory.
+  
+  Args:
+    input_directory: The directory to search for CSV files.
+    output_directory: where processed parquet files will be written.
+    delimiter: delimiter for csv files
+    categorical_threshold: numerical columns having unique values less than
+      the threshold will be treated as categorical columns.
+  """
+  ret = []
+  for root, _, files in os.walk(input_directory):
+    for file in files:
+      if file.endswith(".csv"):
+        csv_path = os.path.join(root, file)
+        df, meta = load_csv_and_create_metadata(
+          csv_path, 
+          delimiter, 
+          categorical_threshold
+        )
+        ret.append({
+            'dataframe': df, 
+            'meta_dict': meta,
+            'write_path': os.path.join(
+              output_directory, 
+              file.replace('.csv', '.parquet')
+            )
+        })
+  
+  return ret
+
+def _get_data_and_metadata_from_files(files: List[str], root: str):
+  # Raise an error if the number of files is not exactly 2
+  if len(files) != 2:
+    raise ParquetFileError(
+        f"Directory '{root}' contains {len(files)} files. "
+        f"Expected exactly 2 parquet files."
+    )
+  data_file = None
+  metadata_file = None
+  for file in files:
+    if file.endswith("_meta.parquet"):
+      metadata_file = file
+    elif file.endswith(".parquet"):
+      data_file = file
+    else:
+      raise ValueError(f"{root} contains {file} that is not a parquet file.")
+
+  if data_file is None or metadata_file is None:
+    raise ValueError(
+      f"""Directory '{root}' is missing either a parquet or metadata file.
+      List of files found: {files}"""
+    )
+
+  if (
+      os.path.splitext(parquet_file)[0] == 
+      os.path.splitext(metadata_file)[0].replace("_meta", "")
+  ) is False:  
+    raise ValueError(
+      f"Directory '{root}' contains parquet files but their names do not match the required pattern."
+    )
+  
+  return data_file, metadata_file
+
+def get_parquet_data(
+  input_directory: str,
+  output_directory: str,
+) -> List[Dict[str, Union[pd.DataFrame, Dict, str]]]:
+  ret = []
+  for root, _, files in os.walk(input_directory):
+    if root == input_directory:
+      continue
+    data_file, metadata_file = _get_data_and_metadata_from_files(files, root)
+    df, meta = load_parquet_with_metadata(data_file, metadata_file)
+    ret.append(
+      {
+        'dataframe': df, 
+        'meta_dict': meta,
+        'write_path': os.path.join(
+          output_directory, 
+          os.path.basename(data_file)
+        )
+      }
+    )
+  
+  return ret
 
 def main():
-  global missing_signifiers
   cfg_path = sys.argv[1]
   logging.info(f"cfg_path = {cfg_path}")
   cfg = read_cfg(cfg_path)
 
   source_dir = cfg[SOURCE]
   destination_dir = cfg[DEST]
-  immutable_cols = cfg[IMMUTABLE_COLS]
+  immutable_cols = cfg.get(IMMUTABLE_COLS, [])
   primary_key = cfg[PRIMARY_KEY]
-  restricted_substrings = cfg[RESTRICTED_SUBSTRINGS]
-  max_unique_per_column = cfg[MAX_UNIQUE_PER_COLUMN]
-  calculate_age = cfg[CALCULATE_AGE]
-
+  restricted_substrings = cfg.get(RESTRICTED_SUBSTRINGS, [])
+  categorical_threshold = cfg.get(CATEGORICAL_THRESHOLD, 100)
   delimiter = cfg.get(DELIMITER, ',')
-  time_key = cfg.get(TIME_KEY, None)
-  first_event_time = cfg.get(FIRST_EVENT_TIME) if TIME_KEY in cfg else None
-  missing_signifiers = cfg.get(MISSING_SIGNIFIERS, [])
 
-  # Copy the entire directory recursively
-  if os.path.exists(destination_dir):
-    shutil.rmtree(destination_dir)
-  shutil.copytree(source_dir, destination_dir)
+  if not os.path.exists(destination_dir):
+    os.mkdir(destination_dir)  
 
-  for root, dirs, files in os.walk(destination_dir):
-    for filename in fnmatch.filter(files, '*.csv'):
-      current_file_path = os.path.join(root, filename)
-      cols = get_column_names(current_file_path, delimiter=delimiter)
-
-      if primary_key in cols and (DAYS_SINCE_FIRST in cols or time_key in cols):
-        logging.info(f"processing {filename}")
-        process_and_write(
-            file_path=current_file_path,
-            primary_key=primary_key,
-            immutable_cols=immutable_cols,
-            restricted_substrings=restricted_substrings,
-            max_unique_per_column=max_unique_per_column,
-            time_key=time_key,
-            first_event_time=first_event_time,
-            calculate_age=calculate_age,
-            missing_signifiers=missing_signifiers,
-            delimiter=delimiter
-        )
+  data_dicts = get_csv_data(
+    source_dir, 
+    destination_dir,
+    delimiter,
+    categorical_threshold,
+  )
+  data_dicts.extend(get_parquet_data(source_dir, destination_dir))
+  
+  for data_dict in data_dicts:
+    logging.info(f"preparing {data_dict['write_path']}")
+    process_and_write(
+      df=data_dict['dataframe'],
+      meta_dict=data_dict['meta_dict'],
+      write_path=data_dict['write_path'],
+      primary_key=primary_key,
+      immutable_cols=immutable_cols,
+      restricted_substrings=restricted_substrings,
+    )
+    logging.info(f"{data_dict['write_path']} is written")
 
   for col in all_cols:
     logging.info(
