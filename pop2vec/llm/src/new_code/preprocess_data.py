@@ -7,7 +7,7 @@ import sys
 from functools import partial
 import logging
 from typing import Dict, Union, List
-
+import gc
 
 import numpy as np
 import pandas as pd
@@ -66,7 +66,7 @@ def process_and_write(
     immutable_cols,
     restricted_substrings,
 ):
-  """Processes a CSV file and writes the modified data.
+  """Processes a DataFrame and writes the modified data in parquet.
 
   Args:
     df: dataframe containing the main data
@@ -80,16 +80,12 @@ def process_and_write(
   """
   
   global all_primaries
-  
+    
   if 'background' in write_path:
     logging.info(f"background file {write_path} is written as it is.")
-    df.to_parquet(write_path)
+    df.to_parquet(write_path, index=False)
     return
   
-  logging.info(f"preparing {write_path}")
-  logging.info("*" * 100)
-  
-  all_primaries = all_primaries | set(df[primary_key].unique())
   
   #drop any row that has nan in time columns
   df.dropna(subset=[DAYS_SINCE_FIRST, AGE], inplace=True)
@@ -99,10 +95,14 @@ def process_and_write(
   df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].round().astype(int)
   
   # fill all missing values (nan) by MISSING
-  df.fillna("MISSING", inplace=True)
+  df.fillna(MISSING, inplace=True)
 
   for column in df.columns:
-    if column == primary_key or column in immutable_cols:
+    if (
+      column == primary_key or 
+      column in immutable_cols or 
+      column in [AGE, DAYS_SINCE_FIRST]
+    ):
       continue
     elif any(item in column for item in restricted_substrings):
       logging.info(f"dropping column = {column}; contains restriced substring")
@@ -110,16 +110,21 @@ def process_and_write(
     elif meta_dict[column] == 'Numeric':
       logging.info(f"transforming {column} column to percentiles")
       df[column] = transform_to_percentiles(df[column])
+      logging.info(
+        f"{column} has {len(df[column].unique())} unique values after transformation"
+      )
     elif meta_dict[column] == 'String':
       logging.info(
-          f"keeping categorical column {column} with "
-          f"{len(df[column].unique())} items"
+        f"categorical column {column} has {len(df[column].unique())} unique values initially\n"
       )
       df[column] = replace_less_frequent(
         df[column], 
         keep_top_n = 100, 
         name_others = "Others",
-        ignore_list = ['MISSING'],
+        ignore_list = [MISSING],
+      )
+      logging.info(
+        f"keeping the top {len(df[column].unique())} unique values"
       )
     else:
       logging.error(f"column {column} with write_path = {write_path} has malformed meta_dict {meta_dict} ")
@@ -128,8 +133,13 @@ def process_and_write(
     if col not in all_cols:
       all_cols[col] = []
     all_cols[col].append(write_path)
+    if col not in [primary_key, AGE, DAYS_SINCE_FIRST]:
+      df[col] = df[col].astype(str)
   
+  all_primaries = all_primaries | set(df[primary_key].unique())
   df.to_parquet(write_path, index=False)
+  del df
+  gc.collect()
 
 def get_csv_data(
   input_directory: str,
@@ -151,26 +161,35 @@ def get_csv_data(
     for file in files:
       if file.endswith(".csv"):
         csv_path = os.path.join(root, file)
-        df, meta = load_csv_and_create_metadata(
-          csv_path, 
-          delimiter, 
-          categorical_threshold
-        )
         ret.append({
-            'dataframe': df, 
-            'meta_dict': meta,
+            'input_csv_path': csv_path, 
             'write_path': os.path.join(
               output_directory, 
               file.replace('.csv', '.parquet')
-            )
+            ),
+            'delimiter': delimiter,
+            'categorical_threshold': categorical_threshold,
+            'type': 'csv',
         })
   
   return ret
 
 def _get_data_and_metadata_from_files(files: List[str], root: str):
+  """Retrieves data and metadata file paths from a list of files.
+
+  Args:
+      files (List[str]): List of file names under root.
+      root (str): Root directory path.
+
+  Returns:
+      Tuple[str, str]: Tuple containing data file path and metadata file path.
+
+  Raises:
+      ValueError: If the directory does not contain exactly two required files.
+  """
   # Raise an error if the number of files is not exactly 2
   if len(files) != 2:
-    raise ParquetFileError(
+    raise ValueError(
         f"Directory '{root}' contains {len(files)} files. "
         f"Expected exactly 2 parquet files."
     )
@@ -191,9 +210,9 @@ def _get_data_and_metadata_from_files(files: List[str], root: str):
     )
 
   if (
-      os.path.splitext(parquet_file)[0] == 
+      os.path.splitext(data_file)[0] != 
       os.path.splitext(metadata_file)[0].replace("_meta", "")
-  ) is False:  
+  ):  
     raise ValueError(
       f"Directory '{root}' contains parquet files but their names do not match the required pattern."
     )
@@ -204,22 +223,32 @@ def get_parquet_data(
   input_directory: str,
   output_directory: str,
 ) -> List[Dict[str, Union[pd.DataFrame, Dict, str]]]:
+  """Processes all Parquet files in a given directory.
+
+  Args:
+      input_directory (str): The directory to search for Parquet files.
+      output_directory (str): Where processed Parquet files will be written.
+
+  Returns:
+      A list of dictionaries containing file paths and types.
+  """
   ret = []
   for root, _, files in os.walk(input_directory):
     if root == input_directory:
       continue
-    data_file, metadata_file = _get_data_and_metadata_from_files(files, root)
-    df, meta = load_parquet_with_metadata(data_file, metadata_file)
-    ret.append(
-      {
-        'dataframe': df, 
-        'meta_dict': meta,
-        'write_path': os.path.join(
-          output_directory, 
-          os.path.basename(data_file)
-        )
-      }
-    )
+    if root.endswith('_parquet'):
+      data_file, metadata_file = _get_data_and_metadata_from_files(files, root)
+      ret.append(
+        {
+          'input_data_parquet_path': os.path.join(root, data_file),
+          'input_meta_parquet_path': os.path.join(root, metadata_file), 
+          'write_path': os.path.join(
+            output_directory, 
+            os.path.basename(data_file)
+          ),
+          'type': 'parquet'
+        }
+      )
   
   return ret
 
@@ -239,30 +268,47 @@ def main():
   if not os.path.exists(destination_dir):
     os.mkdir(destination_dir)  
 
-  data_dicts = get_csv_data(
+  path_dicts = get_csv_data(
     source_dir, 
     destination_dir,
     delimiter,
     categorical_threshold,
   )
-  data_dicts.extend(get_parquet_data(source_dir, destination_dir))
+  path_dicts.extend(get_parquet_data(source_dir, destination_dir))
   
-  for data_dict in data_dicts:
-    logging.info(f"preparing {data_dict['write_path']}")
+  for path_dict in path_dicts:
+    if path_dict['type'] == 'csv':
+      logging.info(f"reading {path_dict['input_csv_path']}")
+      df, meta = load_csv_and_create_metadata(
+        path_dict['input_csv_path'], 
+        path_dict['delimiter'], 
+        path_dict['categorical_threshold'],
+      )
+    elif path_dict['type'] == 'parquet':
+      logging.info(f"reading {path_dict['input_data_parquet_path']}")
+      df, meta = load_parquet_with_metadata(
+        path_dict['input_data_parquet_path'], 
+        path_dict['input_meta_parquet_path']
+      )
+    else:
+      raise ValueError(
+        f"path_dict['type'] should be either 'csv' or 'parquet', found {path_dict['type']}"
+      )
+
     process_and_write(
-      df=data_dict['dataframe'],
-      meta_dict=data_dict['meta_dict'],
-      write_path=data_dict['write_path'],
+      df=df,
+      meta_dict=meta,
+      write_path=path_dict['write_path'],
       primary_key=primary_key,
       immutable_cols=immutable_cols,
       restricted_substrings=restricted_substrings,
     )
-    logging.info(f"{data_dict['write_path']} is written")
+    logging.info(f"{path_dict['write_path']} is written")
 
   for col in all_cols:
     logging.info(
-      f"""Column {col} is found in {len(all_cols[col])} files."
-      the files are:  {all_cols[col]}"""
+        f"Column {col} is found in {len(all_cols[col])} files. "
+        f"The files are: {all_cols[col]}"
     )
 
   logging.info(f"# of people: {len(all_primaries)}")
