@@ -25,11 +25,25 @@ This is information from Tom.
 It goes through [access control lists](https://servicedesk.surf.nl/wiki/pages/viewpage.action?pageId=30660238).
 This currently creates constraints on the permissions of directories/files. If user A creates directory `mydir/`, user B in the same project may not automatically have permissions to write/execute code on in `mydir/`. As far as we understand, the user that created `mydir/` needs to use the `setfacl` and `getfacl` to give other project users those permissions.
 
+### Workflow when creating new directories
+
+When a user creates a new directory, they should set the permissions as follows:
+```bash
+setfacl -R -m g:osscPROJNR:rwx ./mydir # sets permissions recursively on existing files and directories in mydir/
+setfacl -R -d --set g:osscPROJNR:rwx ./mydir # sets permissions as a default on directories created inside mydir/
+```
+where `PROJNR` is the CBS project number, for instance 9424.
+
+
+### Permissions on older directories
+
 As per ticket SD-74551 on the SURF service desk,
 - there should be now a default ACL in which everyone in the group ossc9424 also has read, write, execute permission.
 - user ossc9424fhvo is the owner of all files that were previously owned by ossc9424
 - the directories `~/Dakota_network`, `~/Tanzir/`, and `~/Life_Course_Evaluation` still are chowned by their respective creators. But `getfacl` returns either `group:rwx` or `group:ossc9424:rwx`, which I understand gives rwx access to the ossc9424 group in both cases.
 - there are still some directories for which the group lacks write access, for instance `Network_Embeddings`.
+
+
 
 
 ## Working with Git on the OSSC
