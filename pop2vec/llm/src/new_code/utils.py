@@ -10,6 +10,12 @@ import os
 import pandas as pd
 import random
 import logging
+from pop2vec.llm.src.new_code.constants import (
+    AGE,
+    DAYS_SINCE_FIRST,
+    SPECIAL_NUMERIC_ZERO,
+    SPECIAL_STR_ZERO
+)
 
 print_now = partial(print, flush=True)
 logging.basicConfig(level=logging.INFO)
@@ -74,7 +80,8 @@ def transform_to_percentiles(column_data: pd.Series) -> pd.Series:
 def load_csv_and_create_metadata(
   file_path: str, 
   delimiter: str, 
-  categorical_threshold: int
+  categorical_threshold: int,
+  primary_key: str,
 ) -> tuple[pd.DataFrame, dict]: 
     assert file_path.endswith('.csv'), (
       '{file_path} is not a csv file.'
@@ -82,8 +89,15 @@ def load_csv_and_create_metadata(
     assert delimiter is not None, 'delimiter must not be none for csv'
     
     df = pd.read_csv(file_path, delimiter=delimiter)
+    special_values = {
+      '0' : SPECIAL_STR_ZERO,
+      0 : SPECIAL_NUMERIC_ZERO,
+    }
+
     meta = {}
     for col in df.columns:
+      if col in [primary_key, AGE, DAYS_SINCE_FIRST]:
+        continue
       if (
         df[col].dtype == 'object' or 
         df[col].nunique() <= categorical_threshold
@@ -91,6 +105,8 @@ def load_csv_and_create_metadata(
         meta[col] = 'String'
       else:
         meta[col] = 'Numeric'
+      df[col] = df[col].replace(special_values)
+
     return df, meta
 
 def _load_metadata(metadata_file: str) -> pd.DataFrame:
@@ -115,7 +131,8 @@ def _load_metadata(metadata_file: str) -> pd.DataFrame:
 
 def _load_parquet_and_transform_data(
     data_file: str,
-    metadata_df: pd.DataFrame
+    metadata_df: pd.DataFrame,
+    primary_key: str,
 ) -> pd.DataFrame:
   """Load data from a parquet file and apply metadata value labels.
 
@@ -123,6 +140,7 @@ def _load_parquet_and_transform_data(
     data_file: Path to the parquet file containing data.
     metadata_df: DataFrame with metadata containing column names, types, 
                  and value labels.
+    primary_key: primary key of df stored at data_file
 
   Returns:
     A pandas DataFrame with special values replaced for numeric columns.
@@ -131,19 +149,27 @@ def _load_parquet_and_transform_data(
   
   for _, row in metadata_df.iterrows():
     col_name = row['Name']
+    if col_name in [primary_key, AGE, DAYS_SINCE_FIRST]:
+      continue
     col_type = row['Type']
-    value_labels = row['Value Labels']
-
+    value_labels = row[
+      'Value Labels' if 'Value Labels' in metadata_df.columns else 'ValueLabels'
+    ]
+    special_values = ast.literal_eval(value_labels)  # Convert string to dictionary
+    if 0 not in special_values:
+      special_values[0] = SPECIAL_NUMERIC_ZERO
+    if '0' not in special_values:
+      special_values['0'] = SPECIAL_STR_ZERO
     # Only handle numeric columns for value replacement
     if col_type == 'Numeric' and pd.notna(value_labels):
-      special_values = ast.literal_eval(value_labels)  # Convert string to dictionary
       data_df[col_name] = data_df[col_name].replace(special_values)
   
   return data_df
 
 def load_parquet_with_metadata(
     data_file: str,
-    metadata_file: str
+    metadata_file: str,
+    primary_key: str,
 ) -> tuple[pd.DataFrame, dict]:
   """Process data and metadata to create a dataframe and column types.
 
@@ -157,15 +183,19 @@ def load_parquet_with_metadata(
       - A dictionary where keys are column names, and values are either 
         "Numeric" or "String".
   """
-  assert file_path.endswith('.parquet'), (
+  assert data_file.endswith('.parquet'), (
     '{data_file} is not a parquet file.'
   )
-  assert meta_path.endswith('.parquet'), (
+  assert metadata_file.endswith('.parquet'), (
     '{meta_path} is not a parquet file.'
   )
   # Load metadata and data
   metadata_df = _load_metadata(metadata_file)
-  data_df = _load_parquet_and_transform_data(data_file, metadata_df)
+  data_df = _load_parquet_and_transform_data(
+    data_file, 
+    metadata_df, 
+    primary_key
+  )
   
   # Create column types dictionary
   column_types = {}
