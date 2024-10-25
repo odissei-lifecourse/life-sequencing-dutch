@@ -17,6 +17,8 @@ from pop2vec.llm.src.new_code.constants import (
     SPECIAL_STR_ZERO
 )
 
+from typing import Union
+
 print_now = partial(print, flush=True)
 logging.basicConfig(level=logging.INFO)
 
@@ -45,13 +47,18 @@ def replace_less_frequent(
   top_n_values = value_counts.nlargest(keep_top_n).index
   
   # Replace values not in the top 'n' and not in ignore_list with 'name_others'
-  new_column = df_column.apply(
-    lambda x: x if x in top_n_values or x in ignore_list else name_others
-  )
+  
+  # new_column = df_column.apply(
+  #   lambda x: x if x in top_n_values or x in ignore_list else name_others
+  # )
+  # Faster option below
+  mask = df_column.isin(top_n_values) | df_column.isin(ignore_list)
+  new_column = df_column.where(mask, other=name_others)
+
   
   return new_column
 
-def transform_to_percentiles(column_data: pd.Series) -> pd.Series:
+def transform_to_percentiles(column_data: pd.Series, inplace: bool) -> Union[None, pd.Series]:
   """Transform numeric values in a column to integer percentiles (0-99),
   leaving non-numeric values unchanged.
 
@@ -69,13 +76,16 @@ def transform_to_percentiles(column_data: pd.Series) -> pd.Series:
   percentiles = column_data[numeric_mask].rank(pct=True) * 100
   percentiles = np.floor(percentiles).astype(int).clip(0, 99)
 
-  # Create a copy of the original column_data
-  transformed_data = column_data.copy()
+  if inplace:
+    column_data.loc[numeric_mask] = percentiles
+    return
+  else:
+    # Create a copy of the original column_data
+    transformed_data = column_data.copy()
 
-  # Replace numeric values with their percentile ranks
-  transformed_data[numeric_mask] = percentiles
-
-  return transformed_data
+    # Replace numeric values with their percentile ranks
+    transformed_data[numeric_mask] = percentiles
+    return transformed_data
 
 def load_csv_and_create_metadata(
   file_path: str, 
@@ -105,7 +115,7 @@ def load_csv_and_create_metadata(
         meta[col] = 'String'
       else:
         meta[col] = 'Numeric'
-      df[col] = df[col].replace(special_values)
+      df[col].replace(special_values, inplace=True)
 
     return df, meta
 
@@ -162,7 +172,7 @@ def _load_parquet_and_transform_data(
       special_values['0'] = SPECIAL_STR_ZERO
     # Only handle numeric columns for value replacement
     if col_type == 'Numeric' and pd.notna(value_labels):
-      data_df[col_name] = data_df[col_name].replace(special_values)
+      data_df[col_name].replace(special_values, inplace=True)
   
   return data_df
 

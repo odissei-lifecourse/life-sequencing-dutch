@@ -91,9 +91,13 @@ def process_and_write(
   df.dropna(subset=[DAYS_SINCE_FIRST, AGE], inplace=True)
   
   # convert time columns to int
-  df[AGE] = df[AGE].round().astype(int)
-  df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].round().astype(int)
+  # df[AGE] = df[AGE].round().astype(int)
+  # df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].round().astype(int)
   
+  # faster conversion below
+  df[AGE] = pd.to_numeric(df[AGE], errors='coerce').round(0).astype(int, copy=False)
+  df[DAYS_SINCE_FIRST] = pd.to_numeric(df[DAYS_SINCE_FIRST], errors='coerce').round(0).astype(int, copy=False)
+
   # fill all missing values (nan) by MISSING
   df.fillna(MISSING, inplace=True)
 
@@ -111,7 +115,7 @@ def process_and_write(
       logging.info(
         f"transforming numeric column {column} with {df[column].nunique()} unique values to percentiles"
       )
-      df[column] = transform_to_percentiles(df[column])
+      transform_to_percentiles(df[column], True)
       logging.info(
         f"{column} has {df[column].nunique()} unique values after transformation"
       )
