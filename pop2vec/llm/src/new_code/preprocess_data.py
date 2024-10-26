@@ -281,6 +281,36 @@ def get_parquet_data(
   
   return ret
 
+def load_data(path_dict, primary_key):
+  try:
+    if path_dict['type'] == 'csv':
+      logging.info(f"reading {path_dict['input_csv_path']}")
+      df, meta = load_csv_and_create_metadata(
+        path_dict['input_csv_path'], 
+        path_dict['delimiter'], 
+        path_dict['categorical_threshold'],
+        primary_key,
+      )
+    elif path_dict['type'] == 'parquet':
+      logging.info(f"reading {path_dict['input_data_parquet_path']}")
+      df, meta = load_parquet_with_metadata(
+        path_dict['input_data_parquet_path'], 
+        path_dict['input_meta_parquet_path'],
+        primary_key,
+      )
+    else:
+      raise ValueError(
+        f"path_dict['type'] should be either 'csv' or 'parquet', found {path_dict['type']}"
+      )
+    return df, meta
+
+  except Exception as e:
+    logging.error(
+      f"An error occurred while preparing {path_dict['write_path']}:\n {e}"
+    )
+    return None, None
+
+
 def main():
   cfg_path = sys.argv[1]
   logging.info(f"cfg_path = {cfg_path}")
@@ -312,35 +342,17 @@ def main():
       else:
         logging.info(f"{path_dict['write_path']} already exists. Not replacing file and continuing.")
         continue
-    if path_dict['type'] == 'csv':
-      logging.info(f"reading {path_dict['input_csv_path']}")
-      df, meta = load_csv_and_create_metadata(
-        path_dict['input_csv_path'], 
-        path_dict['delimiter'], 
-        path_dict['categorical_threshold'],
-        primary_key,
+    df, meta = load_data(path_dict, primary_key)
+    if df is not None:
+      process_and_write(
+        df=df,
+        meta_dict=meta,
+        write_path=path_dict['write_path'],
+        primary_key=primary_key,
+        immutable_cols=immutable_cols,
+        restricted_substrings=restricted_substrings,
       )
-    elif path_dict['type'] == 'parquet':
-      logging.info(f"reading {path_dict['input_data_parquet_path']}")
-      df, meta = load_parquet_with_metadata(
-        path_dict['input_data_parquet_path'], 
-        path_dict['input_meta_parquet_path'],
-        primary_key,
-      )
-    else:
-      raise ValueError(
-        f"path_dict['type'] should be either 'csv' or 'parquet', found {path_dict['type']}"
-      )
-
-    process_and_write(
-      df=df,
-      meta_dict=meta,
-      write_path=path_dict['write_path'],
-      primary_key=primary_key,
-      immutable_cols=immutable_cols,
-      restricted_substrings=restricted_substrings,
-    )
-    logging.info(f"{path_dict['write_path']} is written")
+      logging.info(f"{path_dict['write_path']} is written")
 
   for col in all_cols:
     logging.info(
