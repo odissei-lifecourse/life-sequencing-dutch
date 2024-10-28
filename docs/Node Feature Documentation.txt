@@ -1,0 +1,64 @@
+﻿Node Feature Documentation
+
+
+This document explains the coding system used in the data found in 
+“/gpfs/ostor/ossc9424/homedir/data/graph/node_features/”. All codes are taken directly from the underlying graph edge lists, and were sourced from the original CBS documentation (translated into English). The original Dutch documents are linked below.
+
+
+Family: https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/familienetwerktab-familierelaties
+Neighbors:
+https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/burennetwerktab-buren-en-buurtgenotenrelaties
+Householders:
+https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/huisgenotennetwerktab-huisgenotenrelaties
+Colleagues:
+https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/colleganetwerktab-collegarelaties
+Classmates:
+https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/klasgenotennetwerktab-klasgenotenrelaties
+
+
+100 - Number of neighbors with unknown relation (should be 0, safe to ignore)
+101 - Number of neighbors at distance 1
+102 - Number of neighbors at distance 2
+
+
+200 - Number of coworkers with unknown relation (should be 0, safe to ignore)
+201 - Number of coworkers
+
+
+300 - Number of family with unknown relation (should be 0, safe to ignore)
+301 - Number of parents
+302 - Number of coparents
+303 - Number of grandparents
+304 - Number of children
+305 - Number of grandchildren
+306 - Number of full siblings
+307 - Number of half siblings
+308 - Number of unknown siblings
+309 - Number of full cousins
+310 - Number of nieces/nephews
+311 - Number of aunts/uncles
+312 - Number of partners (married)
+313 - Number of partners (unmarried)
+314 - Number of parent-in-laws
+315 - Number of child-in-laws
+316 - Number of sibling-in-laws
+317 - Number of step-parents
+318 - Number of step-children
+319 - Number of step-siblings
+320 - Number of first cousins by marriage
+321 - Number of cousins by marriage
+322 - Number of married aunts/uncles
+
+
+400 - Number of householders with unknown relation (should be 0, safe to ignore)
+401 - Number of roommates
+402 - Number of housemates
+
+
+500 - Number of classmates with unknown relation (should be 0, safe to ignore)
+501 - Number of primary school classmates
+502 - Number of special education classmates
+503 - Number of secondary school classmates
+504 - Number of secondary vocational education classmates
+505 - Number of higher vocational education classmates
+506 - Number of science education classmates
