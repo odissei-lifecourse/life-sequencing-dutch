@@ -8,6 +8,7 @@ import time
 import numpy as np
 import os
 import pandas as pd
+import pyarrow.parquet as pq
 import random
 import logging
 from pop2vec.llm.src.new_code.constants import (
@@ -58,7 +59,11 @@ def replace_less_frequent(
   
   return new_column
 
-def transform_to_percentiles(column_data: pd.Series, inplace: bool) -> Union[None, pd.Series]:
+def transform_to_percentiles(
+  df: pd.DataFrame, 
+  column: str, 
+  inplace: bool
+) -> Union[None, pd.DataFrame]:
   """Transform numeric values in a column to integer percentiles (0-99),
   leaving non-numeric values unchanged.
 
@@ -70,6 +75,7 @@ def transform_to_percentiles(column_data: pd.Series, inplace: bool) -> Union[Non
     as integers from 0 to 99, and non-numeric values are left unchanged.
   """
   # Create a mask to identify numeric values
+  column_data = df[column]
   numeric_mask = pd.to_numeric(column_data, errors='coerce').notna()
 
   # Apply the transformation only to numeric values
@@ -77,7 +83,7 @@ def transform_to_percentiles(column_data: pd.Series, inplace: bool) -> Union[Non
   percentiles = np.floor(percentiles).astype(int).clip(0, 99)
 
   if inplace:
-    column_data.loc[numeric_mask] = percentiles
+    df.loc[numeric_mask, column] = percentiles
     return
   else:
     # Create a copy of the original column_data
@@ -85,7 +91,8 @@ def transform_to_percentiles(column_data: pd.Series, inplace: bool) -> Union[Non
 
     # Replace numeric values with their percentile ranks
     transformed_data[numeric_mask] = percentiles
-    return transformed_data
+    df[column] = transformed_data
+    return df
 
 def load_csv_and_create_metadata(
   file_path: str, 
@@ -215,10 +222,14 @@ def load_parquet_with_metadata(
   return data_df, column_types
 
 
-def get_column_names(csv_file, delimiter=','):
-  df = pd.read_csv(csv_file, delimiter=delimiter, nrows=2)
-  return df.columns
-
+def get_column_names(file, delimiter=','):
+  if file.endswith('.csv'):
+    return pd.read_csv(csv_file, delimiter=delimiter, nrows=2).columns.tolist()
+  elif file.endswith('.parquet'):
+    return pq.ParquetFile(file).schema.names
+  else:
+    raise ValueError('{file} is not a csv or parquet file.')
+  
 def read_json(path):
   with open(path, 'r') as file:
     data = json.load(file)
