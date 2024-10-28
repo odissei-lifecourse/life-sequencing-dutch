@@ -15,6 +15,10 @@ https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onde
 Classmates:
 https://www.cbs.nl/nl-nl/onze-diensten/maatwerk-en-microdata/microdata-zelf-onderzoek-doen/microdatabestanden/klasgenotennetwerktab-klasgenotenrelaties
 
+The data files contain the following columns:
+
+MAPPED_ID - The re-indexed ID value, used for DeepWalk and GraphSage
+RINPERSOON - The RINPERSOON number
 
 100 - Number of neighbors with unknown relation (should be 0, safe to ignore)
 101 - Number of neighbors at distance 1
