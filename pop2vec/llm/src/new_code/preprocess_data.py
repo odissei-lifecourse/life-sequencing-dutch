@@ -115,7 +115,7 @@ def process_and_write(
       logging.info(
         f"transforming numeric column {column} with {df[column].nunique()} unique values to percentiles"
       )
-      transform_to_percentiles(df[column], True)
+      transform_to_percentiles(df, column, True)
       logging.info(
         f"{column} has {df[column].nunique()} unique values after transformation"
       )
