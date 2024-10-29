@@ -1,0 +1,7 @@
+{
+  "DATA_PATH": "/projects/0/prjs1019/data/llm/raw/data/",
+  "SEQUENCE_WRITE_PATH": "/projects/0/prjs1019/data/llm/processed/people.json",
+  "VOCAB_WRITE_PATH": "/projects/0/prjs1019/data/llm/processed/vocab.csv",
+  "PRIMARY_KEY": "RINPERSOON",
+  "VOCAB_NAME": "dutch_vocab_2017_v2"
+}

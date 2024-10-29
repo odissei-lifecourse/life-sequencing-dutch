@@ -8,7 +8,7 @@ import time
 import numpy as np
 import os
 import pandas as pd
-import pyarrow.parquet as pq
+import pyarrow.parquet 
 import random
 import logging
 from pop2vec.llm.src.new_code.constants import (
@@ -27,7 +27,7 @@ def replace_less_frequent(
   df_column, 
   keep_top_n = 100, 
   name_others = "Others", 
-  ignore_list = ["MISSING"]
+  ignore_list = ["MISSING"],
 ):
   """
   Replace less frequent values in a pandas Series with a placeholder.
@@ -146,6 +146,32 @@ def _load_metadata(metadata_file: str) -> pd.DataFrame:
   
   return metadata_df
 
+def _replace_less_frequent_special_values(
+  column_data: pd.Series,
+  special_values: dict,
+  keep_top_n = 100, 
+  name_others = "Others", 
+):
+  # Step 1: Count occurrences of each key in `replacements` within `series`
+  freq_counts = column_data[
+    column_data.isin(special_values.keys())
+  ].value_counts()
+
+  # Step 2: Identify top_n most frequent keys
+  top_frequent_keys = set(freq_counts.nlargest(keep_top_n).index)
+
+  # Step 3: Create masks for efficient vectorized replacement
+  # Mask for top_n frequent keys
+  mask_top = column_data.isin(top_frequent_keys)
+  # Mask for other keys in `replacements` but not in top_n
+  mask_other_replacements = column_data.isin(replacements.keys()) & ~mask_top
+
+  # Step 4: Perform vectorized replacements
+  result = column_data.where(~mask_top, column_data.map(special_values))         # Replace top_n keys
+  result = result.where(~mask_other_replacements, name_others)       # Replace other keys
+
+  return result
+
 def _load_parquet_and_transform_data(
     data_file: str,
     metadata_df: pd.DataFrame,
@@ -178,9 +204,22 @@ def _load_parquet_and_transform_data(
     if '0' not in special_values:
       special_values['0'] = SPECIAL_STR_ZERO
     # Only handle numeric columns for value replacement
+    keep_top_n = 100
     if col_type == 'Numeric' and pd.notna(value_labels):
-      data_df[col_name].replace(special_values, inplace=True)
-  
+      if len(special_values) <= keep_top_n:
+        data_df[col_name].replace(special_values, inplace=True)
+      else:
+        logging.info(
+          f"""Column {col_name} has {len(special_values)}. 
+          We are keeping the most frequent {keep_top_n} values.
+          """
+        )
+        data_df[col_name] = _replace_less_frequent_special_values(
+          data_df[col_name],
+          special_values,
+          keep_top_n
+        )
+
   return data_df
 
 def load_parquet_with_metadata(
@@ -204,7 +243,7 @@ def load_parquet_with_metadata(
     '{data_file} is not a parquet file.'
   )
   assert metadata_file.endswith('.parquet'), (
-    '{meta_path} is not a parquet file.'
+    '{metadata_file} is not a parquet file.'
   )
   # Load metadata and data
   metadata_df = _load_metadata(metadata_file)
@@ -226,7 +265,7 @@ def get_column_names(file, delimiter=','):
   if file.endswith('.csv'):
     return pd.read_csv(csv_file, delimiter=delimiter, nrows=2).columns.tolist()
   elif file.endswith('.parquet'):
-    return pq.ParquetFile(file).schema.names
+    return pyarrow.parquet.ParquetFile(file).schema.names
   else:
     raise ValueError('{file} is not a csv or parquet file.')
   
