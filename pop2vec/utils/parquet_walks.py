@@ -1,6 +1,10 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 import duckdb
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def create_column_placeholders(cols) -> str:  # suggested by Claude
@@ -13,9 +17,9 @@ class ParquetWalks:
     """Container for loading dataframes of walks for deepwalk."""
 
     parquet_path: str
-    year: str
+    year: int
     iter_name: str
-    chunk_id = int | None
+    chunk_id: int | None = None
 
     def load_walks(self) -> pd.DataFrame:
         """Load random walks from parquet partitions."""
@@ -57,3 +61,13 @@ class ParquetWalks:
 
         con.close()
         return result_df
+
+
+# this is only for development
+if __name__ == "__main__":
+    parquet_dir = "/gpfs/ostor/ossc9424/homedir/data/graph/walks/"
+
+    data_file = ParquetWalks(parquet_path=parquet_dir + "/*/*/*/*.parquet", iter_name="walklen15_prob0.8", year=2010)
+    data_file.chunk_id = 0
+
+    data_file.load_walks()
