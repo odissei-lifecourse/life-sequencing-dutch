@@ -8,8 +8,6 @@ class DeepwalkDataset(Dataset):
     def __init__(
         self,
         walk_file,
-        map_file,
-        walk_length,
         window_size,
         num_walks,
         batch_size,
@@ -20,8 +18,7 @@ class DeepwalkDataset(Dataset):
         if gpus is None:
             gpus = [0]
         self.walk_frame = walk_file.load_walks()
-
-        self.walk_length = walk_length
+        self.walk_length = self.walk_frame.shape[1]
         self.window_size = window_size
         self.num_walks = num_walks
         self.batch_size = batch_size
