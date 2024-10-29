@@ -5,16 +5,20 @@ import time
 import numpy as np
 import torch
 import torch.multiprocessing as mp
+from pathlib import Path
+
 from torch.utils.data import DataLoader
 from pop2vec.graph.src.deepwalk_dataset import DeepwalkDataset
 from pop2vec.graph.src.model import SkipGramModel
 from pop2vec.utils.parquet_walks import ParquetWalks
-
+from pop2vec.graph.config.deepwalk_data_config import data_config
 
 class DeepwalkTrainer:
-    def __init__(self, args, parquet_data_file):
+    def __init__(self, args, parquet_data_file, model_save_file, output_emb_file):
         """Initializing the trainer with the input arguments."""
         self.args = args
+        self.model_save_file = model_save_file
+        self.output_emb_file = output_emb_file
         self.dataset = DeepwalkDataset(
             walk_file=parquet_data_file,
             window_size=args.window_size,
@@ -36,9 +40,9 @@ class DeepwalkTrainer:
         assert choices == 1, "Must choose only *one* training mode in [only_cpu, only_gpu, mix]"
 
         # initializing embedding on CPU
-        if os.path.exists(self.args.model_save_file):
+        if os.path.exists(self.model_save_file):
             print("Loading model from previous save state...", flush=True)
-            self.emb_model = torch.load(self.args.model_save_file)
+            self.emb_model = torch.load(self.model_save_file)
         else:
             self.emb_model = SkipGramModel(
                 emb_size=self.emb_size,
@@ -103,11 +107,11 @@ class DeepwalkTrainer:
 
         print("Used time: %.2fs" % (time.time() - start_all), flush=True)
         if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding_txt(self.dataset, self.output_emb_file)
         elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding_pt(self.dataset, self.output_emb_file)
         else:
-            self.emb_model.save_embedding(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding(self.dataset, self.output_emb_file)
 
     def fast_train_sp(self, rank, gpu_id):
         """A subprocess for fast_train_mp."""
@@ -238,26 +242,22 @@ class DeepwalkTrainer:
                 self.emb_model.finish_async_update()
 
         print("Training used time: %.2fs" % (time.time() - start_all), flush=True)
-        print("Saving model under name", self.args.model_save_file, flush=True)
-        torch.save(self.emb_model, self.args.model_save_file)
+        print("Saving model under name", self.model_save_file, flush=True)
+        torch.save(self.emb_model, self.model_save_file)
 
         if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding_txt(self.dataset, self.output_emb_file)
         elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding_pt(self.dataset, self.output_emb_file)
         else:
-            self.emb_model.save_embedding(self.dataset, self.args.output_emb_file)
+            self.emb_model.save_embedding(self.dataset, self.output_emb_file)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepWalk")
     # input files
     ## personal datasets
-    parser.add_argument(
-        "--data_file",
-        type=str,
-        help="path of the partitioned parquet dataset.",
-    )
+
     parser.add_argument(
         "--year",
         type=int,
@@ -281,19 +281,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether save dat in pt format or npy",
     )
-    parser.add_argument(
-        "--output_emb_file",
-        type=str,
-        default="emb.npy",
-        help="path of the output npy embedding file",
-    )
 
-    parser.add_argument(
-        "--model_save_file",
-        type=str,
-        default="deepwalk_model.pth",
-        help="path of the model file",
-    )
 
     parser.add_argument(
         "--map_file",
@@ -432,19 +420,27 @@ if __name__ == "__main__":
     start_index = args.start_index
     max_epochs = args.max_epochs
 
-    emb_file = args.output_emb_file
-    emb_root = emb_file[:-4]
-    emb_extension = emb_file[-4:]
+    model_name = data_config["walk_iteration_name"] + "_" + str(data_config["year"])
+
+    emb_file = data_config["embedding_dir"] + model_name + ".emb" 
+    emb_file = Path(emb_file)
+    emb_root = str(emb_file.parent / emb_file.stem)
+    emb_extension = emb_file.suffix
+
 
     data_file = ParquetWalks(
-        parquet_path=args.data_file + "/*/*/*/*.parquet", iter_name="walklen15_prob0.8", year=args.year
+        parquet_path=data_config["parquet_root"] + data_config["parquet_nests"],
+        iter_name= data_config["walk_iteration_name"],
+        year=args.year
     )
+
+    model_save_file = data_config["model_dir"] + model_name + ".pth"
 
     for i in range(start_index, max_epochs + 1):
         data_file.chunk_id = i
 
         start_time = time.time()
-        trainer = DeepwalkTrainer(args, data_file)
+        trainer = DeepwalkTrainer(args, data_file, model_save_file, emb_file)
         trainer.train()
         print("Total used time: %.2f" % (time.time() - start_time), flush=True)
 
