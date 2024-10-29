@@ -3,7 +3,7 @@ import duckdb
 import pandas as pd
 
 
-def create_column_placeholders(cols) -> str: # suggested by Claude
+def create_column_placeholders(cols) -> str:  # suggested by Claude
     """Return comma-separated columns to query."""
     return ", ".join(cols)
 
@@ -11,6 +11,7 @@ def create_column_placeholders(cols) -> str: # suggested by Claude
 @dataclass
 class ParquetWalks:
     """Container for loading dataframes of walks for deepwalk."""
+
     parquet_path: str
     year: str
     iter_name: str
@@ -44,13 +45,7 @@ class ParquetWalks:
         """
         # ruff: enable: S608
 
-        query_args = (
-                *cols_to_query,
-                self.parquet_path,
-                self.year,
-                self.iter_name,
-                f"%chunk-{self.chunk_id}.parquet"
-                )
+        query_args = (*cols_to_query, self.parquet_path, self.year, self.iter_name, f"%chunk-{self.chunk_id}.parquet")
         result = con.execute(main_query, query_args)
         result_df = result.df()
 
