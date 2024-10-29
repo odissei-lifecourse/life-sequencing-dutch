@@ -420,9 +420,9 @@ if __name__ == "__main__":
     start_index = args.start_index
     max_epochs = args.max_epochs
 
-    model_name = data_config["walk_iteration_name"] + "_" + str(data_config["year"])
+    model_name = data_config["walk_iteration_name"] + "_" + str(args.year)
 
-    emb_file = data_config["embedding_dir"] + model_name + ".emb" 
+    emb_file = data_config["embedding_dir"] + model_name + ".emb"
     emb_file = Path(emb_file)
     emb_root = str(emb_file.parent / emb_file.stem)
     emb_extension = emb_file.suffix

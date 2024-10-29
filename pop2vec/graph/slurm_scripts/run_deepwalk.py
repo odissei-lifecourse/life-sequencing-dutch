@@ -21,4 +21,5 @@ python -m pop2vec.graph.src.deepwalk \
         --gpus 0 \
         --print_loss \
         --start_index 0 \
-        --max_epochs 50
+        --max_epochs 50 \
+        --year 2016
