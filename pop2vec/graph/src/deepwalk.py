@@ -17,8 +17,6 @@ class DeepwalkTrainer:
         self.args = args
         self.dataset = DeepwalkDataset(
             walk_file=parquet_data_file,
-            map_file=args.map_file,
-            walk_length=args.walk_length,
             window_size=args.window_size,
             num_walks=args.num_walks,
             batch_size=args.batch_size,
@@ -45,7 +43,7 @@ class DeepwalkTrainer:
             self.emb_model = SkipGramModel(
                 emb_size=self.emb_size,
                 emb_dimension=self.args.dim,
-                walk_length=self.args.walk_length,
+                walk_length=self.dataset.walk_length,
                 window_size=self.args.window_size,
                 batch_size=self.args.batch_size,
                 only_cpu=self.args.only_cpu,
@@ -133,7 +131,7 @@ class DeepwalkTrainer:
         print("num batchs: %d in process [%d] GPU [%d]" % (num_batches, rank, gpu_id), flush=True)
         # number of positive node pairs in a sequence
         num_pos = int(
-            2 * self.args.walk_length * self.args.window_size - self.args.window_size * (self.args.window_size + 1)
+            2 * self.dataset.walk_length * self.args.window_size - self.args.window_size * (self.args.window_size + 1)
         )
 
         start = time.time()
@@ -176,7 +174,7 @@ class DeepwalkTrainer:
     def fast_train(self):
         """Fast train with dataloader with only gpu / only cpu."""
         # the number of postive node pairs of a node sequence
-        num_pos = 2 * self.args.walk_length * self.args.window_size - self.args.window_size * (
+        num_pos = 2 * self.dataset.walk_length * self.args.window_size - self.args.window_size * (
             self.args.window_size + 1
         )
         num_pos = int(num_pos)
@@ -336,12 +334,6 @@ if __name__ == "__main__":
         default=64,
         type=int,
         help="number of node sequences in each batch",
-    )
-    parser.add_argument(
-        "--walk_length",
-        default=40,
-        type=int,
-        help="number of nodes in a sequence",
     )
     parser.add_argument("--neg_weight", default=1.0, type=float, help="negative weight")
     parser.add_argument(
