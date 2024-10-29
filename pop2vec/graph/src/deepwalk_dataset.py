@@ -16,7 +16,7 @@ class DeepwalkDataset(Dataset):
         fast_neg=True,
     ):
 
-        self.walk_frame = pd.read_csv(walk_file)
+        self.walk_frame = walk_file.load_walks()
 
         self.walk_length = walk_length
         self.window_size = window_size

@@ -9,14 +9,14 @@ import torch.multiprocessing as mp
 from pop2vec.graph.src.model import SkipGramModel
 from torch.utils.data import DataLoader
 from pop2vec.graph.src.deepwalk_dataset import DeepwalkDataset
-
+from pop2vec.utils.parquet_walks import ParquetWalks
 
 class DeepwalkTrainer:
-    def __init__(self, args, data_file):
+    def __init__(self, args, parquet_data_file):
         """Initializing the trainer with the input arguments"""
         self.args = args
         self.dataset = DeepwalkDataset(
-            walk_file=data_file,
+            walk_file=parquet_data_file,
             map_file=args.map_file,
             walk_length=args.walk_length,
             window_size=args.window_size,
@@ -287,8 +287,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_file",
         type=str,
-        help="path of the txt network file, builtin dataset include youtube-net and blog-net",
+        help="path of the partitioned parquet dataset.",
     )
+    parser.add_argument(
+            "--year",
+            type=int,
+            help="Year of the walks.",
+            )
+    parser.add_argument(
+            "--iteration_name",
+            type=str,
+            help="Walk iteration name to use.",
+            )
     # output files
     parser.add_argument(
         "--save_in_txt",
@@ -470,18 +480,22 @@ if __name__ == "__main__":
     if args.async_update:
         assert args.mix, "--async_update only with --mix"
 
-    data_root = args.data_file
     start_index = args.start_index
     max_epochs = args.max_epochs
     
     emb_file = args.output_emb_file
     emb_root = emb_file[:-4]
     emb_extension = emb_file[-4:]
+
+    data_file = ParquetWalks(
+            parquet_path = args.data_file + "/*/*/*/*.parquet",
+            iter_name = "walklen15_prob0.8",
+            year = args.year)
     
     
     for i in range(start_index, max_epochs+1):
-        data_file = data_root + str(i) + ".csv"
-    
+        data_file.chunk_id = i
+
         start_time = time.time()
         trainer = DeepwalkTrainer(args, data_file)
         trainer.train()
