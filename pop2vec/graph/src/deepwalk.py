@@ -2,16 +2,16 @@ import argparse
 import os
 import random
 import time
+from pathlib import Path
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-from pathlib import Path
-
 from torch.utils.data import DataLoader
+from pop2vec.graph.config.deepwalk_data_config import data_config
 from pop2vec.graph.src.deepwalk_dataset import DeepwalkDataset
 from pop2vec.graph.src.model import SkipGramModel
 from pop2vec.utils.parquet_walks import ParquetWalks
-from pop2vec.graph.config.deepwalk_data_config import data_config
+
 
 class DeepwalkTrainer:
     def __init__(self, args, parquet_data_file, model_save_file, output_emb_file, parquet_root_embs):
@@ -111,9 +111,8 @@ class DeepwalkTrainer:
             raise NotImplementedError
 
         self.emb_model.save_embedding(
-                dataset=self.dataset,
-                file_name=self.output_emb_file,
-                parquet_root=self.parquet_root_embs)
+            dataset=self.dataset, file_name=self.output_emb_file, parquet_root=self.parquet_root_embs
+        )
 
     def fast_train_sp(self, rank, gpu_id):
         """A subprocess for fast_train_mp."""
@@ -251,10 +250,8 @@ class DeepwalkTrainer:
             raise NotImplementedError
 
         self.emb_model.save_embedding(
-                dataset=self.dataset,
-                file_name=self.output_emb_file,
-                parquet_root=self.parquet_root_embs)
-
+            dataset=self.dataset, file_name=self.output_emb_file, parquet_root=self.parquet_root_embs
+        )
 
 
 if __name__ == "__main__":
@@ -273,9 +270,8 @@ if __name__ == "__main__":
         help="Walk iteration name to use.",
     )
     parser.add_argument(
-            "--record_edge_type",
-            action="store_true",
-            help="Whether to use walks that record the edge type or not.")
+        "--record_edge_type", action="store_true", help="Whether to use walks that record the edge type or not."
+    )
     # output files
     parser.add_argument(
         "--save_in_txt",
@@ -289,7 +285,6 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether save dat in pt format or npy",
     )
-
 
     parser.add_argument(
         "--map_file",
@@ -432,11 +427,11 @@ if __name__ == "__main__":
     emb_file = "embedding.parquet"
 
     data_file = ParquetWalks(
-            parquet_root = data_config["parquet_root"],
-            parquet_nests = data_config["parquet_nests"],
-            iter_name= data_config["walk_iteration_name"],
-            year=args.year,
-            record_edge_type=args.record_edge_type
+        parquet_root=data_config["parquet_root"],
+        parquet_nests=data_config["parquet_nests"],
+        iter_name=data_config["walk_iteration_name"],
+        year=args.year,
+        record_edge_type=args.record_edge_type,
     )
 
     model_save_file = data_config["model_dir"] + model_name + ".pth"
@@ -452,7 +447,8 @@ if __name__ == "__main__":
         # Every 10 epochs snapshot the embedding
         if i % 10 == 0:
             trainer.emb_model.save_embedding(
-                    dataset=trainer.dataset,
-                    file_name=emb_file,
-                    parquet_root=data_config["embedding_dir"],
-                    record_epoch=True)
+                dataset=trainer.dataset,
+                file_name=emb_file,
+                parquet_root=data_config["embedding_dir"],
+                record_epoch=True,
+            )

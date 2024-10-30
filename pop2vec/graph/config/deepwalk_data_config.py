@@ -1,4 +1,3 @@
-
 from pop2vec.utils.constants import DATA_ROOT
 
 data_config = {

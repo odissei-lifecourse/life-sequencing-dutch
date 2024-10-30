@@ -8,13 +8,9 @@ import pyarrow.parquet as pq
 
 # ruff: noqa: PLR0913
 
+
 def save_to_parquet(
-        data: np.ndarray,
-        id_col: str,
-        prefix_data_cols: str,
-        filename: str,
-        parquet_nests: OrderedDict,
-        parquet_root: str
+    data: np.ndarray, id_col: str, prefix_data_cols: str, filename: str, parquet_nests: OrderedDict, parquet_root: str
 ) -> None:
     """Save an array to parquet with partitioning.
 
@@ -36,9 +32,8 @@ def save_to_parquet(
     col_names = [id_col, *data_cols]
 
     table = pa.Table.from_arrays(
-            [pa.array(data[:, 0], type=pa.int64())] +
-            [data[:, i] for i in range(1, n_cols)],
-            names=col_names)
+        [pa.array(data[:, 0], type=pa.int64())] + [data[:, i] for i in range(1, n_cols)], names=col_names
+    )
 
     partitions = [f"{key}={value}" for key, value in parquet_nests.items()]
     save_dir = Path(parquet_root) / Path(*partitions)
