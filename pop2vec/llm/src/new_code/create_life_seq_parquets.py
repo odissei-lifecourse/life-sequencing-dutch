@@ -1,6 +1,6 @@
 from pop2vec.llm.src.new_code.create_person_dict import CreatePersonDict
 from pop2vec.llm.src.new_code.utils import get_column_names, print_now, read_json
-from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST
+from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST, AGE
 
 import os
 import fnmatch
@@ -10,7 +10,7 @@ import logging
 
 
 PRIMARY_KEY = "PRIMARY_KEY"
-DATA_DIRECTORY_PATH = 'DATA_DIRECTORY_PATH'
+DATA_PATH = 'DATA_PATH'
 SEQUENCE_WRITE_PATH = "SEQUENCE_WRITE_PATH"
 
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +33,7 @@ def create_person_sequence(file_paths, custom_vocab, write_path, primary_key):
     )
     creator.generate_people_data(write_path)
 
-def data_integrity_check(fp):
+def data_integrity_check(fp, primary_key):
   columns = get_column_names(fp)
   if (
       primary_key in columns and
@@ -66,7 +66,7 @@ def get_data_files_from_directory(directory, primary_key):
     for root, _, files in os.walk(directory):
         for filename in fnmatch.filter(files, '*.parquet'):
             current_file_path = os.path.join(root, filename)
-            if data_integrity_check(current_file_path):
+            if data_integrity_check(current_file_path, primary_key):
               data_files.append(current_file_path)
     return data_files
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     cfg = read_json(CFG_PATH)
 
     data_file_paths = get_data_files_from_directory(
-        cfg[DATA_DIRECTORY_PATH],
+        cfg[DATA_PATH],
         cfg[PRIMARY_KEY]
     )
     print_now(f"# of data_files_paths = {len(data_file_paths)}")

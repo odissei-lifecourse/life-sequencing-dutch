@@ -87,7 +87,7 @@ class CreatePersonDict:
           f"Unique Background file not found.\n"
           f"found background files list: {background_file_path}"
         )
-       return background_file_path[0]
+        return background_file_path[0]
 
     def _process_background_data(self):
         """Processes the background data.
@@ -98,7 +98,7 @@ class CreatePersonDict:
         background_df = pd.read_parquet(self.background_file_path)
         background_df = background_df.fillna(MISSING)
         background_df[self.primary_key] = background_df[self.primary_key]
-         background_df.set_index(self.primary_key, inplace=True)
+        background_df.set_index(self.primary_key, inplace=True)
 
         logging.info(f"{len(background_df)} people in background file")
         logging.info(
@@ -119,7 +119,7 @@ class CreatePersonDict:
         background_df = background_df[['background']]
         return background_df
 
-    def _process_event_files(self):
+    def _process_event_files(self, valid_ids):
         """Processes event files individually and creates 'sentence' columns.
 
         Returns:
@@ -131,7 +131,7 @@ class CreatePersonDict:
 
             df = pd.read_parquet(
                 source_path,
-                columns=lambda column: column not in IGNORE_COLUMNS,
+                # columns=lambda column: column not in IGNORE_COLUMNS,
             )
             # Filter out IDs not present in background data
             initial_size = len(df)

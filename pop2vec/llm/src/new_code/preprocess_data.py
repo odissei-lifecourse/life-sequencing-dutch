@@ -82,7 +82,7 @@ def process_and_write(
   global all_primaries
     
   if 'background' in write_path:
-    logging.info(f"background file {write_path} is written as it is.")
+    logging.info(f"background file {write_path} is kept as it is.")
     df.to_parquet(write_path, index=False)
     return
   
