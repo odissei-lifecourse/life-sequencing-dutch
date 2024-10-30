@@ -423,7 +423,15 @@ if __name__ == "__main__":
     start_index = args.start_index
     max_epochs = args.max_epochs
 
-    model_name = data_config["walk_iteration_name"] + "_" + str(args.year)
+    model_nesting_path = [
+            data_config["model_dir"],
+            f"year={args.year}",
+            f"iter_name={data_config['walk_iteration_name']}",
+            f"record_edge_type={int(args.record_edge_type)}"]
+    model_save_file = Path(*model_nesting_path) / "model.pth"
+    model_save_file.parent.mkdir(parents=True, exist_ok=True)
+    model_save_file = str(model_save_file)
+
     emb_file = "embedding.parquet"
 
     data_file = ParquetWalks(
@@ -434,7 +442,6 @@ if __name__ == "__main__":
         record_edge_type=args.record_edge_type,
     )
 
-    model_save_file = data_config["model_dir"] + model_name + ".pth"
 
     for i in range(start_index, max_epochs + 1):
         data_file.chunk_id = i
