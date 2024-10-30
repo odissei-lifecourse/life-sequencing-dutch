@@ -64,7 +64,7 @@ class ParquetWalks:
         nests = OrderedDict([
             ("year", self.year),
             ("iter_name", self.iter_name),
-            ("record_edge_type", self.record_edge_type)
+            ("record_edge_type", int(self.record_edge_type))
             ])
 
         if record_chunk:
@@ -90,12 +90,12 @@ class ParquetWalks:
 
         con = duckdb.connect(":memory:")
 
-        column_query = """
-            SELECT column_name
-            FROM ( DESCRIBE TABLE '?' )
-        """
         parquet_path = str(Path(self.parquet_root) / Path(self.parquet_nests))
-        columns = con.execute(column_query, (parquet_path,)).fetchall()
+        column_query = f"""
+            SELECT column_name
+            FROM ( DESCRIBE TABLE '{parquet_path}' )
+        """
+        columns = con.execute(column_query).fetchall()
         source_col = ["SOURCE"]
         step_cols = [col[0] for col in columns if "STEP" in col[0]]
         cols_to_query = source_col + step_cols
@@ -104,7 +104,7 @@ class ParquetWalks:
         main_query = f"""
             SELECT {create_column_placeholders(cols_to_query)}
             FROM parquet_scan(?, filename = true)
-            WHERE filename LIKE '%chunk-?.parquet'
+            WHERE filename LIKE '%chunk-{self.chunk_id}.parquet'
             AND dry = 0
             AND year = ?
             AND record_edge_type = ?
@@ -113,14 +113,20 @@ class ParquetWalks:
         # ruff: enable: S608
 
         query_args = (
-                *cols_to_query, parquet_path, self.year, self.iter_name,
-                self.record_edge_type, f"%chunk-{self.chunk_id}.parquet")
+                parquet_path,
+                self.year,
+                int(self.record_edge_type),
+                self.iter_name)
 
         result = con.execute(main_query, query_args)
         result_df = result.df()
 
         n_unique = result_df["SOURCE"].nunique()
         n_rows = result_df.shape[0]
+        if n_rows == 0:
+            msg = f"The query f{main_query} yielded no results with parameters {query_args}"
+            raise ValueError(msg)
+
         if n_unique != n_rows:
             msg = "Found duplicated SOURCE nodes"
             raise RuntimeError(msg)
@@ -133,7 +139,13 @@ class ParquetWalks:
 if __name__ == "__main__":
     parquet_dir = "/gpfs/ostor/ossc9424/homedir/data/graph/walks/"
 
-    data_file = ParquetWalks(parquet_path=parquet_dir + "/*/*/*/*.parquet", iter_name="walklen15_prob0.8", year=2010)
+    data_file = ParquetWalks(
+            parquet_root=parquet_dir,
+            parquet_nests= "*/*/*/*/*.parquet",
+            iter_name="walklen40_prob0.8",
+            record_edge_type=False,
+            year=2016)
+
     data_file.chunk_id = 0
 
-    data_file.load_walks()
+    dataframe = data_file.load_walks()

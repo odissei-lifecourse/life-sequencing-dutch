@@ -534,6 +534,7 @@ class SkipGramModel(nn.Module):
         n_rows, _ = embedding.shape
         mapped_indices = np.arange(n_rows)
         remapped_ids = dataset.walk_file.remap_ids(mapped_indices)
+        remapped_ids = np.expand_dims(remapped_ids, axis=1)
         embedding = np.hstack([remapped_ids, embedding])
 
         dataset.walk_file.save_embedding(

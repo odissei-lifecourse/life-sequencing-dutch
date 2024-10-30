@@ -247,12 +247,14 @@ class DeepwalkTrainer:
         print("Saving model under name", self.model_save_file, flush=True)
         torch.save(self.emb_model, self.model_save_file)
 
-        if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(self.dataset, self.output_emb_file)
-        elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(self.dataset, self.output_emb_file)
-        else:
-            self.emb_model.save_embedding(self.dataset, self.output_emb_file)
+        if self.args.save_in_txt or self.args.save_in_pt:
+            raise NotImplementedError
+
+        self.emb_model.save_embedding(
+                dataset=self.dataset,
+                file_name=self.output_emb_file,
+                parquet_root=self.parquet_root_embs)
+
 
 
 if __name__ == "__main__":
@@ -272,7 +274,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
             "--record_edge_type",
-            type=bool,
             action="store_true",
             help="Whether to use walks that record the edge type or not.")
     # output files
@@ -452,6 +453,6 @@ if __name__ == "__main__":
         if i % 10 == 0:
             trainer.emb_model.save_embedding(
                     dataset=trainer.dataset,
-                    file_name=temp_emb_filename,
+                    file_name=emb_file,
                     parquet_root=data_config["embedding_dir"],
                     record_epoch=True)
