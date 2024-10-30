@@ -66,3 +66,5 @@ RINPERSOON - The RINPERSOON number
 504 - Number of secondary vocational education classmates
 505 - Number of higher vocational education classmates
 506 - Number of science education classmates
+
+A value of -1 in any column means that person was not present in the respective layer at all. That means that if there is a -1 in any column there will be -1 in every column beginning with the same digit.
