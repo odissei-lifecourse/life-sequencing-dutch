@@ -17,7 +17,8 @@ class DeepwalkDataset(Dataset):
     ):
         if gpus is None:
             gpus = [0]
-        self.walk_frame = walk_file.load_walks()
+        self.walk_file = walk_file
+        self.walk_frame = self.walk_file.load_walks()
         self.walk_length = self.walk_frame.shape[1]
         self.window_size = window_size
         self.num_walks = num_walks

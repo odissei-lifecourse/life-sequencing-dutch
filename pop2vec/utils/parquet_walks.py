@@ -1,7 +1,12 @@
 from __future__ import annotations
+import pickle
+from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 import duckdb
+import numpy as np
+from pop2vec.utils.save_to_parquet import save_to_parquet
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -16,10 +21,66 @@ def create_column_placeholders(cols) -> str:  # suggested by Claude
 class ParquetWalks:
     """Container for loading dataframes of walks for deepwalk."""
 
-    parquet_path: str
+    parquet_root: str
+    parquet_nests: str # TODO: could this not be inferred from all the partitions that are arguments below?
     year: int
     iter_name: str
+    record_edge_type: bool
     chunk_id: int | None = None
+    n_edge_types: int = 5 # hard-coded number of edge types. should find way to determine automatically
+
+    def remap_ids(self, mapped_indices): # TODO: don't hard-code path here
+        """Remap an array of mapped indices.
+
+        From a list of mapped indices from 0 to len(mapped_indices)-1,
+        return the ids corresponding to the indices.
+        """
+        mapping_url = "/gpfs/ostor/ossc9424/homedir/data/graph/mappings/family_" + str(self.year) + ".pkl"
+        with Path(mapping_url).open("rb") as pkl_file:
+            person_mappings = dict(pickle.load(pkl_file)) # noqa: S301
+
+
+        inverted_mappings = {value: key for key, value in person_mappings.items()}
+        unmapped_ids = [inverted_mappings[idx] for idx in mapped_indices]
+        return np.array(unmapped_ids)
+
+
+    def save_embedding(self,
+                       embeddings: np.ndarray,
+                       parquet_root_out: str,
+                       filename: str,
+                       record_chunk: bool=False) -> None:
+        """Save an array of embeddings to parquet.
+
+        Args:
+            embeddings (np.ndarray): array to save.
+            parquet_root_out (str): parquet root from where the partitioning starts.
+            filename (str): name of the file, without any paths.
+            record_chunk (bool, optional): If true, the current `chunk_id` is appended to the filename.
+
+        Notes:
+            Replicates the parquet nesting from the source data, but omits the lowest nest (`dry`).
+        """
+        nests = OrderedDict([
+            ("year", self.year),
+            ("iter_name", self.iter_name),
+            ("record_edge_type", self.record_edge_type)
+            ])
+
+        if record_chunk:
+            file_path = Path(filename)
+            filename = file_path.stem + "_" + str(self.chunk_id) + file_path.suffix
+
+        save_to_parquet(
+                data=embeddings,
+                id_col="rinpersoon_id",
+                prefix_data_cols="emb",
+                filename=filename,
+                parquet_nests=nests,
+                parquet_root=parquet_root_out
+                )
+
+
 
     def load_walks(self) -> pd.DataFrame:
         """Load random walks from parquet partitions."""
@@ -33,7 +94,8 @@ class ParquetWalks:
             SELECT column_name
             FROM ( DESCRIBE TABLE '?' )
         """
-        columns = con.execute(column_query, (self.parquet_path,)).fetchall()
+        parquet_path = str(Path(self.parquet_root) / Path(self.parquet_nests))
+        columns = con.execute(column_query, (parquet_path,)).fetchall()
         source_col = ["SOURCE"]
         step_cols = [col[0] for col in columns if "STEP" in col[0]]
         cols_to_query = source_col + step_cols
@@ -45,11 +107,15 @@ class ParquetWalks:
             WHERE filename LIKE '%chunk-?.parquet'
             AND dry = 0
             AND year = ?
+            AND record_edge_type = ?
             AND iter_name = ?
         """
         # ruff: enable: S608
 
-        query_args = (*cols_to_query, self.parquet_path, self.year, self.iter_name, f"%chunk-{self.chunk_id}.parquet")
+        query_args = (
+                *cols_to_query, parquet_path, self.year, self.iter_name,
+                self.record_edge_type, f"%chunk-{self.chunk_id}.parquet")
+
         result = con.execute(main_query, query_args)
         result_df = result.df()
 

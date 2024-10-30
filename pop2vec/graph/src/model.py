@@ -513,22 +513,35 @@ class SkipGramModel(nn.Module):
         # return torch.mean(score + neg_score)
         return torch.sum(score), torch.sum(neg_score)
 
-    def save_embedding(self, dataset, file_name):
+    def save_embedding(self, dataset, file_name: str, parquet_root: str, record_epoch=False):
         """Write embedding to local file. Only used when node ids are numbers.
 
         Parameter
         ---------
         dataset DeepwalkDataset : the dataset
         file_name str : the file name
+        record_epoch: If true, the epoch ID is appended as `_id` at the end of the file.
         """
         embedding = self.u_embeddings.weight.cpu().data.numpy()
         if self.norm:
             embedding /= np.sqrt(np.sum(embedding * embedding, 1)).reshape(
                 -1, 1
             )
-        with open(file_name, 'wb') as pkl_file:
-            pickle.dump(embedding, pkl_file)
-        #np.save(file_name, embedding)
+
+        if dataset.walk_file.record_edge_type:
+            embedding = embedding[:-dataset.walk_file.n_edge_types, :]
+
+        n_rows, _ = embedding.shape
+        mapped_indices = np.arange(n_rows)
+        remapped_ids = dataset.walk_file.remap_ids(mapped_indices)
+        embedding = np.hstack([remapped_ids, embedding])
+
+        dataset.walk_file.save_embedding(
+                embeddings=embedding,
+                parquet_root_out=parquet_root,
+                filename=file_name,
+                record_chunk=record_epoch)
+        # NOTE: in principle, one could even use chunk_id here to store the model?
 
     def save_embedding_pt(self, dataset, file_name):
         """For ogb leaderboard."""

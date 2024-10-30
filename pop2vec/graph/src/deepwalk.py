@@ -14,11 +14,12 @@ from pop2vec.utils.parquet_walks import ParquetWalks
 from pop2vec.graph.config.deepwalk_data_config import data_config
 
 class DeepwalkTrainer:
-    def __init__(self, args, parquet_data_file, model_save_file, output_emb_file):
+    def __init__(self, args, parquet_data_file, model_save_file, output_emb_file, parquet_root_embs):
         """Initializing the trainer with the input arguments."""
         self.args = args
         self.model_save_file = model_save_file
         self.output_emb_file = output_emb_file
+        self.parquet_root_embs = parquet_root_embs
         self.dataset = DeepwalkDataset(
             walk_file=parquet_data_file,
             window_size=args.window_size,
@@ -106,12 +107,13 @@ class DeepwalkTrainer:
             p.join()
 
         print("Used time: %.2fs" % (time.time() - start_all), flush=True)
-        if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(self.dataset, self.output_emb_file)
-        elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(self.dataset, self.output_emb_file)
-        else:
-            self.emb_model.save_embedding(self.dataset, self.output_emb_file)
+        if self.args.save_in_txt or self.args.save_in_pt:
+            raise NotImplementedError
+
+        self.emb_model.save_embedding(
+                dataset=self.dataset,
+                file_name=self.output_emb_file,
+                parquet_root=self.parquet_root_embs)
 
     def fast_train_sp(self, rank, gpu_id):
         """A subprocess for fast_train_mp."""
@@ -268,6 +270,11 @@ if __name__ == "__main__":
         type=str,
         help="Walk iteration name to use.",
     )
+    parser.add_argument(
+            "--record_edge_type",
+            type=bool,
+            action="store_true",
+            help="Whether to use walks that record the edge type or not.")
     # output files
     parser.add_argument(
         "--save_in_txt",
@@ -421,17 +428,14 @@ if __name__ == "__main__":
     max_epochs = args.max_epochs
 
     model_name = data_config["walk_iteration_name"] + "_" + str(args.year)
-
-    emb_file = data_config["embedding_dir"] + model_name + ".emb"
-    emb_file = Path(emb_file)
-    emb_root = str(emb_file.parent / emb_file.stem)
-    emb_extension = emb_file.suffix
-
+    emb_file = "embedding.parquet"
 
     data_file = ParquetWalks(
-        parquet_path=data_config["parquet_root"] + data_config["parquet_nests"],
-        iter_name= data_config["walk_iteration_name"],
-        year=args.year
+            parquet_root = data_config["parquet_root"],
+            parquet_nests = data_config["parquet_nests"],
+            iter_name= data_config["walk_iteration_name"],
+            year=args.year,
+            record_edge_type=args.record_edge_type
     )
 
     model_save_file = data_config["model_dir"] + model_name + ".pth"
@@ -440,11 +444,14 @@ if __name__ == "__main__":
         data_file.chunk_id = i
 
         start_time = time.time()
-        trainer = DeepwalkTrainer(args, data_file, model_save_file, emb_file)
+        trainer = DeepwalkTrainer(args, data_file, model_save_file, emb_file, data_config["embedding_dir"])
         trainer.train()
         print("Total used time: %.2f" % (time.time() - start_time), flush=True)
 
         # Every 10 epochs snapshot the embedding
         if i % 10 == 0:
-            temp_emb_filename = emb_root + "_" + str(i) + emb_extension
-            trainer.emb_model.save_embedding(trainer.dataset, temp_emb_filename)
+            trainer.emb_model.save_embedding(
+                    dataset=trainer.dataset,
+                    file_name=temp_emb_filename,
+                    parquet_root=data_config["embedding_dir"],
+                    record_epoch=True)
