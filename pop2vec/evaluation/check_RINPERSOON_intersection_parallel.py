@@ -6,6 +6,8 @@ from tqdm import tqdm
 import multiprocessing
 from multiprocessing import Manager
 
+file_names = []
+id_sets = {}
 # Define initializer function to set global id_sets in each worker
 def init_worker(id_sets_shared):
     global id_sets
@@ -42,10 +44,9 @@ def read_file(file_path):
 
 
 if __name__ == "__main__":
+  global id_sets, file_names
   # Define the directory path
   directory_path = '/gpfs/ostr/ossc9424/homedir/data/llm/raw/'
-  manager = Manager()
-  id_sets = manager.dict()
   # Step 1: Find all Parquet and CSV files
   all_files = []
   for root, dirs, files in os.walk(directory_path):
@@ -65,9 +66,10 @@ if __name__ == "__main__":
       results = list(tqdm(pool.imap_unordered(read_file, all_files), total=len(all_files)))
 
   # Build id_sets dictionary
-  for f_name, id_set in results:
-    id_sets[f_name] = id_set
-  # id_sets = dict(results)
+
+  # for f_name, id_set in results:
+  #   id_sets[f_name] = id_set
+  id_sets = dict(results)
   total = 0
   for k, v in id_sets.items():
     total += len(v)
@@ -100,6 +102,11 @@ if __name__ == "__main__":
   # Compute similarities in parallel
   with multiprocessing.Pool(processes=65) as pool:
       results = list(tqdm(pool.imap_unordered(compute_similarity, index_pairs), total=len(index_pairs)))
+
+  # Fill in the matrices
+  for i, j, sim_csv1, sim_csv2 in results:
+      csv1_matrix[i + 1, j + 1] = csv1_matrix[j + 1, i + 1] = sim_csv1
+      csv2_matrix[i + 1, j + 1] = csv2_matrix[j + 1, i + 1] = sim_csv2
 
   # Step 4: Save matrices as CSVs
   csv1_df = pd.DataFrame(csv1_matrix)
