@@ -2,23 +2,26 @@ import argparse
 import os
 import random
 import time
-
+from pathlib import Path
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-from pop2vec.graph.src.model import SkipGramModel
 from torch.utils.data import DataLoader
+from pop2vec.graph.config.deepwalk_data_config import data_config
 from pop2vec.graph.src.deepwalk_dataset import DeepwalkDataset
+from pop2vec.graph.src.model import SkipGramModel
+from pop2vec.utils.parquet_walks import ParquetWalks
 
 
 class DeepwalkTrainer:
-    def __init__(self, args, data_file):
-        """Initializing the trainer with the input arguments"""
+    def __init__(self, args, parquet_data_file, model_save_file, output_emb_file, parquet_root_embs):
+        """Initializing the trainer with the input arguments."""
         self.args = args
+        self.model_save_file = model_save_file
+        self.output_emb_file = output_emb_file
+        self.parquet_root_embs = parquet_root_embs
         self.dataset = DeepwalkDataset(
-            walk_file=data_file,
-            map_file=args.map_file,
-            walk_length=args.walk_length,
+            walk_file=parquet_data_file,
             window_size=args.window_size,
             num_walks=args.num_walks,
             batch_size=args.batch_size,
@@ -31,23 +34,21 @@ class DeepwalkTrainer:
         self.emb_model = None
 
     def init_device_emb(self):
-        """set the device before training
-        will be called once in fast_train_mp / fast_train
+        """Set the device before training
+        will be called once in fast_train_mp / fast_train.
         """
         choices = sum([self.args.only_gpu, self.args.only_cpu, self.args.mix])
-        assert (
-            choices == 1
-        ), "Must choose only *one* training mode in [only_cpu, only_gpu, mix]"
+        assert choices == 1, "Must choose only *one* training mode in [only_cpu, only_gpu, mix]"
 
         # initializing embedding on CPU
-        if os.path.exists(self.args.model_save_file):
+        if os.path.exists(self.model_save_file):
             print("Loading model from previous save state...", flush=True)
-            self.emb_model = torch.load(self.args.model_save_file)
+            self.emb_model = torch.load(self.model_save_file)
         else:
             self.emb_model = SkipGramModel(
                 emb_size=self.emb_size,
                 emb_dimension=self.args.dim,
-                walk_length=self.args.walk_length,
+                walk_length=self.dataset.walk_length,
                 window_size=self.args.window_size,
                 batch_size=self.args.batch_size,
                 only_cpu=self.args.only_cpu,
@@ -73,23 +74,21 @@ class DeepwalkTrainer:
         elif self.args.mix:
             print("Mix CPU with %d GPU" % len(self.args.gpus), flush=True)
             if len(self.args.gpus) == 1:
-                assert (
-                    self.args.gpus[0] >= 0
-                ), "mix CPU with GPU should have available GPU"
+                assert self.args.gpus[0] >= 0, "mix CPU with GPU should have available GPU"
                 self.emb_model.set_device(self.args.gpus[0])
         else:
             print("Run in CPU process", flush=True)
             self.args.gpus = [torch.device("cpu")]
 
     def train(self):
-        """train the embedding"""
+        """Train the embedding."""
         if len(self.args.gpus) > 1:
             self.fast_train_mp()
         else:
             self.fast_train()
 
     def fast_train_mp(self):
-        """multi-cpu-core or mix cpu & multi-gpu"""
+        """multi-cpu-core or mix cpu & multi-gpu."""
         self.init_device_emb()
         self.emb_model.share_memory()
 
@@ -100,9 +99,7 @@ class DeepwalkTrainer:
         ps = []
 
         for i in range(len(self.args.gpus)):
-            p = mp.Process(
-                target=self.fast_train_sp, args=(i, self.args.gpus[i])
-            )
+            p = mp.Process(target=self.fast_train_sp, args=(i, self.args.gpus[i]))
             ps.append(p)
             p.start()
 
@@ -110,21 +107,15 @@ class DeepwalkTrainer:
             p.join()
 
         print("Used time: %.2fs" % (time.time() - start_all), flush=True)
-        if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(
-                self.dataset, self.args.output_emb_file
-            )
-        elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(
-                self.dataset, self.args.output_emb_file
-            )
-        else:
-            self.emb_model.save_embedding(
-                self.dataset, self.args.output_emb_file
-            )
+        if self.args.save_in_txt or self.args.save_in_pt:
+            raise NotImplementedError
+
+        self.emb_model.save_embedding(
+            dataset=self.dataset, file_name=self.output_emb_file, parquet_root=self.parquet_root_embs
+        )
 
     def fast_train_sp(self, rank, gpu_id):
-        """a subprocess for fast_train_mp"""
+        """A subprocess for fast_train_mp."""
         if self.args.mix:
             self.emb_model.set_device(gpu_id)
 
@@ -132,7 +123,7 @@ class DeepwalkTrainer:
         if self.args.async_update:
             self.emb_model.create_async_update()
 
-        #sampler = self.dataset.create_sampler(rank)
+        # sampler = self.dataset.create_sampler(rank)
 
         dataloader = DataLoader(
             dataset=self.dataset,
@@ -142,14 +133,10 @@ class DeepwalkTrainer:
             num_workers=self.args.num_sampler_threads,
         )
         num_batches = len(dataloader)
-        print(
-            "num batchs: %d in process [%d] GPU [%d]"
-            % (num_batches, rank, gpu_id), flush=True
-        )
+        print("num batchs: %d in process [%d] GPU [%d]" % (num_batches, rank, gpu_id), flush=True)
         # number of positive node pairs in a sequence
         num_pos = int(
-            2 * self.args.walk_length * self.args.window_size
-            - self.args.window_size * (self.args.window_size + 1)
+            2 * self.dataset.walk_length * self.args.window_size - self.args.window_size * (self.args.window_size + 1)
         )
 
         start = time.time()
@@ -177,27 +164,23 @@ class DeepwalkTrainer:
                                 gpu_id,
                                 i,
                                 time.time() - start,
-                                -sum(self.emb_model.loss)
-                                / self.args.print_interval,
-                            ), flush=True
+                                -sum(self.emb_model.loss) / self.args.print_interval,
+                            ),
+                            flush=True,
                         )
                         self.emb_model.loss = []
                     else:
-                        print(
-                            "GPU-[%d] batch %d time: %.2fs"
-                            % (gpu_id, i, time.time() - start), flush=True
-                        )
+                        print("GPU-[%d] batch %d time: %.2fs" % (gpu_id, i, time.time() - start), flush=True)
                     start = time.time()
 
             if self.args.async_update:
                 self.emb_model.finish_async_update()
 
     def fast_train(self):
-        """fast train with dataloader with only gpu / only cpu"""
+        """Fast train with dataloader with only gpu / only cpu."""
         # the number of postive node pairs of a node sequence
-        num_pos = (
-            2 * self.args.walk_length * self.args.window_size
-            - self.args.window_size * (self.args.window_size + 1)
+        num_pos = 2 * self.dataset.walk_length * self.args.window_size - self.args.window_size * (
+            self.args.window_size + 1
         )
         num_pos = int(num_pos)
 
@@ -247,47 +230,47 @@ class DeepwalkTrainer:
                             % (
                                 i,
                                 time.time() - start,
-                                -sum(self.emb_model.loss)
-                                / self.args.print_interval,
-                            ), flush=True
+                                -sum(self.emb_model.loss) / self.args.print_interval,
+                            ),
+                            flush=True,
                         )
                         self.emb_model.loss = []
                     else:
-                        print(
-                            "Batch %d, training time: %.2fs"
-                            % (i, time.time() - start), flush=True
-                        )
+                        print("Batch %d, training time: %.2fs" % (i, time.time() - start), flush=True)
                     start = time.time()
 
             if self.args.async_update:
                 self.emb_model.finish_async_update()
 
         print("Training used time: %.2fs" % (time.time() - start_all), flush=True)
-        print("Saving model under name", self.args.model_save_file, flush=True)
-        torch.save(self.emb_model, self.args.model_save_file)
+        print("Saving model under name", self.model_save_file, flush=True)
+        torch.save(self.emb_model, self.model_save_file)
 
-        if self.args.save_in_txt:
-            self.emb_model.save_embedding_txt(
-                self.dataset, self.args.output_emb_file
-            )
-        elif self.args.save_in_pt:
-            self.emb_model.save_embedding_pt(
-                self.dataset, self.args.output_emb_file
-            )
-        else:
-            self.emb_model.save_embedding(
-                self.dataset, self.args.output_emb_file
-            )
+        if self.args.save_in_txt or self.args.save_in_pt:
+            raise NotImplementedError
+
+        self.emb_model.save_embedding(
+            dataset=self.dataset, file_name=self.output_emb_file, parquet_root=self.parquet_root_embs
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepWalk")
     # input files
     ## personal datasets
+
     parser.add_argument(
-        "--data_file",
+        "--year",
+        type=int,
+        help="Year of the walks.",
+    )
+    parser.add_argument(
+        "--iteration_name",
         type=str,
-        help="path of the txt network file, builtin dataset include youtube-net and blog-net",
+        help="Walk iteration name to use.",
+    )
+    parser.add_argument(
+        "--record_edge_type", action="store_true", help="Whether to use walks that record the edge type or not."
     )
     # output files
     parser.add_argument(
@@ -301,19 +284,6 @@ if __name__ == "__main__":
         default=False,
         action="store_true",
         help="Whether save dat in pt format or npy",
-    )
-    parser.add_argument(
-        "--output_emb_file",
-        type=str,
-        default="emb.npy",
-        help="path of the output npy embedding file",
-    )
-
-    parser.add_argument(
-        "--model_save_file",
-        type=str,
-        default="deepwalk_model.pth",
-        help="path of the model file",
     )
 
     parser.add_argument(
@@ -330,12 +300,8 @@ if __name__ == "__main__":
     )
 
     # model parameters
-    parser.add_argument(
-        "--dim", default=80, type=int, help="embedding dimensions"
-    )
-    parser.add_argument(
-        "--window_size", default=5, type=int, help="context window size"
-    )
+    parser.add_argument("--dim", default=80, type=int, help="embedding dimensions")
+    parser.add_argument("--window_size", default=5, type=int, help="context window size")
     parser.add_argument(
         "--use_context_weight",
         default=False,
@@ -360,15 +326,7 @@ if __name__ == "__main__":
         type=int,
         help="number of node sequences in each batch",
     )
-    parser.add_argument(
-        "--walk_length",
-        default=40,
-        type=int,
-        help="number of nodes in a sequence",
-    )
-    parser.add_argument(
-        "--neg_weight", default=1.0, type=float, help="negative weight"
-    )
+    parser.add_argument("--neg_weight", default=1.0, type=float, help="negative weight")
     parser.add_argument(
         "--lap_norm",
         default=0.01,
@@ -454,40 +412,51 @@ if __name__ == "__main__":
         action="store_true",
         help="count the params, exit once counting over",
     )
-    parser.add_argument(
-        "--start_index",
-        default=1,
-        type=int
-    )
-    parser.add_argument(
-        "--max_epochs",
-        default=1,
-        type=int
-    )
+    parser.add_argument("--start_index", default=1, type=int)
+    parser.add_argument("--max_epochs", default=1, type=int)
 
     args = parser.parse_args()
     args.fast_neg = not args.true_neg
     if args.async_update:
         assert args.mix, "--async_update only with --mix"
 
-    data_root = args.data_file
     start_index = args.start_index
     max_epochs = args.max_epochs
-    
-    emb_file = args.output_emb_file
-    emb_root = emb_file[:-4]
-    emb_extension = emb_file[-4:]
-    
-    
-    for i in range(start_index, max_epochs+1):
-        data_file = data_root + str(i) + ".csv"
-    
+
+    model_nesting_path = [
+        data_config["model_dir"],
+        f"year={args.year}",
+        f"iter_name={data_config['walk_iteration_name']}",
+        f"record_edge_type={int(args.record_edge_type)}",
+    ]
+    model_save_file = Path(*model_nesting_path) / "model.pth"
+    model_save_file.parent.mkdir(parents=True, exist_ok=True)
+    model_save_file = str(model_save_file)
+
+    emb_file = "embedding.parquet"
+
+    data_file = ParquetWalks(
+        parquet_root=data_config["parquet_root"],
+        parquet_nests=data_config["parquet_nests"],
+        iter_name=data_config["walk_iteration_name"],
+        year=args.year,
+        record_edge_type=args.record_edge_type,
+        mapping_dir=data_config["mapping_dir"]
+    )
+
+    for i in range(start_index, max_epochs + 1):
+        data_file.chunk_id = i
+
         start_time = time.time()
-        trainer = DeepwalkTrainer(args, data_file)
+        trainer = DeepwalkTrainer(args, data_file, model_save_file, emb_file, data_config["embedding_dir"])
         trainer.train()
         print("Total used time: %.2f" % (time.time() - start_time), flush=True)
-        
+
         # Every 10 epochs snapshot the embedding
         if i % 10 == 0:
-            temp_emb_filename = emb_root + "_"+ str(i) + emb_extension
-            trainer.emb_model.save_embedding(trainer.dataset, temp_emb_filename)
+            trainer.emb_model.save_embedding(
+                dataset=trainer.dataset,
+                file_name=emb_file,
+                parquet_root=data_config["embedding_dir"],
+                record_epoch=True,
+            )
