@@ -10,5 +10,5 @@
   "TIME_RANGE_END": 16438,
   "SHUFFLE": true,
   "PARALLEL": false,
-  "CHUNK_SIZE": 10000
+  "LOAD_VOCAB": true
 }

@@ -36,6 +36,7 @@ from pop2vec.llm.src.tasks.mlm import MLM
 """
 
 
+
 PRIMARY_KEY = "PRIMARY_KEY"
 DATA_DIRECTORY_PATH = "DATA_PATH"
 VOCAB_NAME = "VOCAB_NAME"
@@ -45,6 +46,10 @@ TIME_RANGE_START = "TIME_RANGE_START"
 TIME_RANGE_END = "TIME_RANGE_END"
 
 MIN_EVENT_THRESHOLD = 12
+LOG_THRESHOLD = 100
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 # Global variables for worker processes
 global_custom_vocab = None
@@ -140,7 +145,7 @@ def encode_documents(
   do_mlm
 ):
     start_idx, end_idx, process_id = chunk_indices
-    logging.info(f"Process {process_id} starting with rows {start_idx} to {end_idx}")
+    logging.info(f"Process {process_id} starting with row groups {start_idx} to {end_idx}")
     global global_custom_vocab
     global global_mlm  # Use the global MLM object
 
@@ -151,28 +156,31 @@ def encode_documents(
     columns = [primary_key, 'sentence', 'abspos', 'age', 'segment', 'background']
 
     # Calculate row indices for the required rows
-    row_indices = list(range(start_idx, end_idx))
+    row_group_indices = list(range(start_idx, end_idx))
+    if len(row_group_indices) == 0:
+      return
 
     # Read the specified rows
-    table = parquet_file.read(columns=columns, use_threads=False, row_indices=row_indices)
+    # table = parquet_file.read(columns=columns, use_threads=False)#, row_indices=row_indices)
+    table = parquet_file.read_row_groups(row_groups=row_group_indices, columns=columns, use_threads=False)
     df = table.to_pandas()
 
-    for index, row in df.iterrows():
-        person_id = row[primary_key]
+    for i, row in df.itertuples():
+        person_id = getattr(row, primary_key)
         if needed_ids is not None and person_id not in needed_ids:
             continue
 
-        sentences = row['sentence']
+        sentences = row.sentence
         if len(sentences) < MIN_EVENT_THRESHOLD:
             continue
 
         person_document = PersonDocument(
             person_id=person_id,
             sentences=sentences,
-            abspos=[int(float(x)) for x in row['abspos']],
-            age=[int(float(x)) for x in row['age']],
-            segment=row['segment'],
-            background=Background(**row['background']),
+            abspos=[int(float(x)) for x in row.abspos],
+            age=[int(float(x)) for x in row.age],
+            segment=row.segment,
+            background=Background(**row.background),
         )
 
         output = global_mlm.encode_document(
@@ -182,6 +190,11 @@ def encode_documents(
         if output is None:
             continue
         update_data_dict(data_dict, output, do_mlm)
+        if i%LOG_THRESHOLD == 0:
+          logging.info(
+            f'''Process {process_id} --> 
+            done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}'''
+          )
 
 
     convert_to_numpy(data_dict)
@@ -196,7 +209,7 @@ def init_hdf5_datasets(h5f, data_dict, dtype='i4'):
                 "sequence_id",
                 data=data_dict[key],
                 maxshape=(None,),
-                dtype=h5py.special_dtype(vlen=str),
+                dtype=dtype, #h5py.special_dtype(vlen=str),
                 chunks=True,
                 compression="gzip"
             )
@@ -278,11 +291,11 @@ def generate_encoded_data(
     logging.info(f"# of processes = {num_processes}")
 
     # Calculate chunk sizes for each process
-    chunks_per_process = total_docs // num_processes
+    chunks_per_process = parquet_file.num_row_groups // num_processes #total_docs // num_processes
     chunk_indices = []
     for i in range(num_processes):
         start_idx = i * chunks_per_process
-        end_idx = (i + 1) * chunks_per_process if i != num_processes - 1 else total_docs
+        end_idx = (i + 1) * chunks_per_process if i != num_processes - 1 else parquet_file.num_row_groups
         chunk_indices.append((start_idx, end_idx, i))
 
     helper_encode_documents = partial(
@@ -312,7 +325,7 @@ def generate_encoded_data(
 def get_data_files_from_directory(directory, primary_key):
     data_files = []
     for root, dirs, files in os.walk(directory):
-        for filename in fnmatch.filter(files, '*.csv'):
+        for filename in fnmatch.filter(files, '*.parquet'):
             current_file_path = os.path.join(root, filename)
             columns = get_column_names(current_file_path)
             if (
@@ -348,13 +361,19 @@ if __name__ == "__main__":
     )
     logging.info("# of data_files_paths = %s", len(data_file_paths))
 
-    custom_vocab = create_vocab(
-        vocab_write_path=vocab_path,
-        data_file_paths=data_file_paths,
-        vocab_name=vocab_name,
-        primary_key=primary_key,
-    )
-
+    if cfg.get('LOAD_VOCAB', False):
+      logging.info(f"Loading Vocab from {vocab_path}")
+      custom_vocab = CustomVocabulary(name=vocab_name)
+      custom_vocab.load_vocab(vocab_path)
+    else:
+      logging.info(f"Creating Vocab and saving at {vocab_path}")
+      custom_vocab = create_vocab(
+          vocab_write_path=vocab_path,
+          data_file_paths=data_file_paths,
+          vocab_name=vocab_name,
+          primary_key=primary_key,
+      )
+    logging.info("Vocab is ready")
     generate_encoded_data(
         custom_vocab=custom_vocab,
         sequence_path=cfg[SEQUENCE_PATH],
@@ -364,7 +383,7 @@ if __name__ == "__main__":
         do_mlm=cfg['DO_MLM'],
         needed_ids_path=cfg.get('NEEDED_IDS_PATH', None),
         shuffle=cfg.get('SHUFFLE', False),
-        chunk_size=cfg.get('CHUNK_SIZE', 5000),
+        #chunk_size=cfg.get('CHUNK_SIZE', 5000),
         parallel=cfg.get("PARALLEL", True),
         max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
     )

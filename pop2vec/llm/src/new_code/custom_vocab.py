@@ -17,6 +17,8 @@ from pop2vec.llm.src.data_new.sources.base import TokenSource
 
 from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, IGNORE_COLUMNS, MISSING, DELIMITER
 
+from tqdm import tqdm
+
 class DataFile():
   
   def __init__(self, path, primary_key, name=None):
@@ -27,7 +29,12 @@ class DataFile():
 
   def _get_df(self):
     if self.df is None:
-      self.df = pd.read_csv(self.path, delimiter=DELIMITER)
+      if self.path.endswith('.csv'):
+        self.df = pd.read_csv(self.path)
+      elif self.path.endswith('.parquet'):
+        self.df = pd.read_parquet(self.path)
+      else:
+        raise ValueError(f'{path} is not a csv or parquet file!')
     return self.df
 
   def _get_unique_tokens_for_column(self, data, column):
@@ -49,9 +56,7 @@ class DataFile():
         column != self.primary_key
       ):
         unique_tokens_by_category.append(
-          self._get_unique_tokens_for_column(
-            df[column], column,
-          )
+          self._get_unique_tokens_for_column(df[column], column,)
         )
     return unique_tokens_by_category
 
@@ -72,7 +77,9 @@ class CustomVocabulary(Vocabulary):
     """
     
     name: str
-    data_files: List[DataFile]
+    data_files: List[DataFile] = field(
+        default_factory=lambda: []
+    )
     general_tokens: List[str] = field(
         default_factory=lambda: [
             "[PAD]",
@@ -95,6 +102,20 @@ class CustomVocabulary(Vocabulary):
     # min_token_count_field: Dict[str, int] = field(default_factory=dict)
 
     vocab_df = None
+
+    def load_vocab(self, path: str) -> None:
+        """Load the vocabulary DataFrame from a CSV file."""
+        if path.endswith('.csv'):
+          self.vocab_df = pd.read_csv(path, index_col='ID')
+        elif path.endswith('.parquet'):
+          self.vocab_df = pd.read_parquet(path)
+          self.vocab_df.set_index('ID', inplace=True)
+        else:
+          raise ValueError(f"{path} is not a csv or parquet!")
+        self.vocab_df = self.vocab_df.rename_axis(index="ID")
+        # the following looks unnecessary but the code breaks without this
+        # TODO: Figure out why this is necessary
+        self.vocab_df['ID'] = self.vocab_df.index
 
     # @save_tsv(DATA_ROOT / "processed/vocab/{self.name}/", on_validation_error="error")
     def vocab(self) -> pd.DataFrame:
@@ -131,7 +152,7 @@ class CustomVocabulary(Vocabulary):
         # )
         
         vocab_parts = [general, background]#, month, year, origin]
-        for source_file in self.data_files:
+        for source_file in tqdm(self.data_files):
           vocab_parts.extend(
             source_file.get_all_unique_tokens_with_category()
           )
@@ -158,4 +179,9 @@ class CustomVocabulary(Vocabulary):
 
     def save_vocab(self, path):
       vocab_df = self.vocab()
-      vocab_df.to_csv(path)
+      if path.endswith('.csv'):
+        vocab_df.to_csv(path, index=False)
+      elif path.endswith('.parquet'):
+        vocab_df.to_parquet(path, index=False)
+      else:
+        raise ValueError(f'{path} is neither a csv nor a parquet file!')
