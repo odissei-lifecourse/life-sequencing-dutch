@@ -31,11 +31,9 @@ elif model == "network":
     model_emb_map = [("lr_steve_full_network_2010_30", "embeddings"), ("lr_steve_full_network_2020", "embeddings")]
 
 
-def h5_array_to_pq(input_path: Path,
-                   output_path: Path,
-                   emb_filename: str,
-                   emb_type: str="cls_emb",
-                   id_array: str="sequence_id"):
+def h5_array_to_pq(
+    input_path: Path, output_path: Path, emb_filename: str, emb_type: str = "cls_emb", id_array: str = "sequence_id"
+):
     """Convert hdf5 file into parquet.
 
     Args:
