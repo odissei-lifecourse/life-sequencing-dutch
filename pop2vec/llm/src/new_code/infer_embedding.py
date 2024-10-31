@@ -38,6 +38,16 @@ def dump_embeddings(path, embeddings_dict):
 
 
 def inference(cfg, transform_to_parquet=True):
+    """Run inference on trained model.
+    
+    Args:
+        cfg (dict): configuration.
+        transform_to_parquet (bool): If true (the default), the stored embeddings are copied from hdf5 into a parquet file.
+
+    Notes:
+       Embeddings are always stored in hdf5. If a file with the same name exists already, it 
+       is replaced. 
+    """
     hparams_path = cfg["HPARAMS_PATH"]
     hparams = read_hparams_from_file(hparams_path)
     checkpoint_path = cfg["CHECKPOINT_PATH"]
@@ -78,8 +88,13 @@ def inference(cfg, transform_to_parquet=True):
         cls_emb = outputs[:, 0, :].cpu()
         mean_emb = torch.mean(outputs, axis=1).cpu()
         data_dict = {"sequence_id": sequence_id, "cls_emb": cls_emb, "mean_emb": mean_emb}
+        
+        if i == 0 and Path(write_path).is_file():
+            print_now(f"Replacing file {write_path} with new embeddings.")
+            Path(write_path).unlink()
 
         write_to_hdf5(write_path, data_dict, np.float32)
+    
     if transform_to_parquet:
         write_path = Path(write_path)
         for emb_type in ["cls_emb", "mean_emb"]:
