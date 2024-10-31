@@ -308,6 +308,7 @@ class MLM(Task):
             sequence_id=sequence_id,
             input_ids=input_ids,
             padding_mask=padding_mask,
+            original_sequence=original_sequence
           )
 
     # These could (maybe should?) also be calculated in the __post_init__.
@@ -444,4 +445,5 @@ class SimpleEncodedDocument(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray
+    original_sequence: np.ndarray
     
