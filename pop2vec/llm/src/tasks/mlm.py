@@ -174,11 +174,12 @@ class MLM(Task):
           )
         else:
           #print_now(f"input_ids vs original sequence shape, {input_ids.shape}, {original_sequence.shape}")
-          input_ids[0] = original_sequence
+          input_ids[0] = copy.deepcopy(original_sequence)
           return SimpleEncodedDocument(
             sequence_id=sequence_id,
             input_ids=input_ids,
             padding_mask=padding_mask,
+            original_sequence=original_sequence,
           )
 
     # These could (maybe should?) also be calculated in the __post_init__.
@@ -315,4 +316,5 @@ class SimpleEncodedDocument(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray
+    original_sequence: np.ndarray
     
