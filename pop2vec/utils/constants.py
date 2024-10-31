@@ -3,16 +3,14 @@
 NOTE: socket.gethostname() does not work as expected on the Snellius login node.
 """
 
-import socket
 import os
+import socket
 from pathlib import Path
-
 
 host_name = socket.gethostname()
 os_user = os.environ["USER"]
-if "ossc" in host_name: 
-    #OSSC_ROOT = "/gpfs/ostor/ossc9424/homedir/" 
-     # TODO: this should just be os.environ["HOME"] 
+if "ossc" in host_name:
+    OSSC_ROOT = "/gpfs/ostor/ossc9424/homedir/" # legacy; should use os.environ["HOME"] instead
     DATA_ROOT = Path(os.environ["HOME"]) / Path("data/")
     DATA_ROOT = str(DATA_ROOT)
     LOCATION = "ossc"
