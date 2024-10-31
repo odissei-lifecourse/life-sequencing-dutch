@@ -67,12 +67,14 @@ class MLM(Task):
         do_mlm: bool = True,
     ) -> "MLMEncodedDocument":
         if do_print:
+            print_now(f"RINPERSOON = {document.person_id}")
             print_now(f"first year active = {int(2017 - (16408 - np.min(document.abspos)) / 365)})")
             print_now(f"last year active = {int(2017 - (16408 - np.max(document.abspos)) / 365)})")
             print_now(f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}")
             print_now(f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}")
             print_now(f"background\n{document.background}")
             print_now(f"all events\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
 
         # Slice document by time range
         len_before = len(document.sentences)
@@ -81,6 +83,8 @@ class MLM(Task):
 
         if do_print:
             print_now(f"len_before {len_before} & len_after {len_after}")
+            print_now(f"Sentences after time slicing\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
 
         # Get rid of all documents who have less than threshold # of events after slicing by time
         if len(document.sentences) < min_event_threshold:
@@ -106,7 +110,7 @@ class MLM(Task):
 
         if do_print:
             print_now(f"total sentences = {len(sentence_lengths)}, ok = {THRESHOLD}")
-
+            print_now(f"lengths of sentences = {[(i, sentence_lengths[i]) for i in range(len(sentence_lengths))]}")
         # Slice the document to include only the sentences that fit
         if THRESHOLD > 0:
             document.sentences = document.sentences[-THRESHOLD:]
@@ -122,6 +126,11 @@ class MLM(Task):
             document.segment = []
             sentences = [prefix_sentence]
             sentence_lengths = np.array([len(s) for s in sentences])
+
+        if do_print:
+            print_now(f"Sentences after thresholding due to max_len\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
+
 
         # Efficiently expand properties using numpy.repeat
         x_abspos = np.array([0] + document.abspos)
