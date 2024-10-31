@@ -165,7 +165,7 @@ def encode_documents(
     table = parquet_file.read_row_groups(row_groups=row_group_indices, columns=columns, use_threads=False)
     df = table.to_pandas()
 
-    for i, row in df.itertuples():
+    for i, row in enumerate(df.itertuples()):
         person_id = getattr(row, primary_key)
         if needed_ids is not None and person_id not in needed_ids:
             continue
@@ -179,7 +179,7 @@ def encode_documents(
             sentences=sentences,
             abspos=[int(float(x)) for x in row.abspos],
             age=[int(float(x)) for x in row.age],
-            segment=row.segment,
+            segment=[int(x) for x in row.segment],
             background=Background(**row.background),
         )
 
