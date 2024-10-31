@@ -19,14 +19,30 @@ def create_column_placeholders(cols) -> str:  # suggested by Claude
 
 @dataclass
 class ParquetWalks:
-    """Container for handling walks.
+    """Container for handling walks stored in Parquet format.
 
-    Contains
-        - Metadata for file paths and walks 
-        - Method for loading dataframes of walks for deepwalk.
-        - Method for remapping and saving deepwalk embeddings.
+    This class provides functionality to load, process, and save random walks
+    and their associated embeddings from/to Parquet files. It handles file paths,
+    metadata, and operations related to the walks and embeddings.
+
+    Attributes:
+        parquet_root (str): Root directory for Parquet files.
+        parquet_nests (str): Nested directory structure for Parquet partitions.
+        year (int): Year of the walks to use.
+        iter_name (str): Name of the iteration or walk configuration.
+        record_edge_type (bool): Whether edge types are recorded in the walks.
+        mapping_dir (str): Directory containing ID mapping files.
+        chunk_id (int | None): ID of the current chunk, if applicable.
+        n_edge_types (int): Number of edge types (default is 5).
+
+    Methods:
+        remap_ids(mapped_indices): Remap 0-based indices of embeddings to original IDs.
+        save_embedding(embeddings, parquet_root_out, filename, record_chunk): Save embeddings to Parquet.
+        load_walks(): Load random walks from Parquet files.
+
+    The class is designed to work with partitioned Parquet data and provides
+    methods for handling ID remapping, embedding saving, and walk loading.
     """
-
     parquet_root: str
     parquet_nests: str  # TODO: could this not be inferred from all the partitions that are arguments below?
     year: int
@@ -134,6 +150,7 @@ class ParquetWalks:
 # this is only for development
 if __name__ == "__main__":
     parquet_dir = "/gpfs/ostor/ossc9424/homedir/data/graph/walks/"
+    mapping_dir = "/gpfs/ostor/ossc9424/homedir/data/graph/mappings/"
 
     data_file = ParquetWalks(
         parquet_root=parquet_dir,
@@ -141,6 +158,7 @@ if __name__ == "__main__":
         iter_name="walklen40_prob0.8",
         record_edge_type=False,
         year=2016,
+        mapping_dir=mapping_dir
     )
 
     data_file.chunk_id = 0
