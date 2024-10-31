@@ -19,15 +19,23 @@ def create_column_placeholders(cols) -> str:  # suggested by Claude
 
 @dataclass
 class ParquetWalks:
-    """Container for loading dataframes of walks for deepwalk."""
+    """Container for handling walks.
+
+    Contains
+        - Metadata for file paths and walks 
+        - Method for loading dataframes of walks for deepwalk.
+        - Method for remapping and saving deepwalk embeddings.
+    """
 
     parquet_root: str
     parquet_nests: str  # TODO: could this not be inferred from all the partitions that are arguments below?
     year: int
     iter_name: str
     record_edge_type: bool
+    mapping_dir: str
     chunk_id: int | None = None
     n_edge_types: int = 5  # hard-coded number of edge types. should find way to determine automatically
+
 
     def remap_ids(self, mapped_indices):  # TODO: don't hard-code path here
         """Remap an array of mapped indices.
@@ -35,8 +43,8 @@ class ParquetWalks:
         From a list of mapped indices from 0 to len(mapped_indices)-1,
         return the ids corresponding to the indices.
         """
-        mapping_url = "/gpfs/ostor/ossc9424/homedir/data/graph/mappings/family_" + str(self.year) + ".pkl"
-        with Path(mapping_url).open("rb") as pkl_file:
+        mapping_url = Path(*[self.mapping_dir, "family_" + str(self.year)]).with_suffix(".pkl")
+        with mapping_url.open("rb") as pkl_file:
             person_mappings = dict(pickle.load(pkl_file))  # noqa: S301
 
         inverted_mappings = {value: key for key, value in person_mappings.items()}
