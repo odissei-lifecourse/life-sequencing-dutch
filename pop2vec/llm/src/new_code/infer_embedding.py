@@ -4,12 +4,14 @@ import json
 import sys
 import logging 
 from tqdm import tqdm
+from pathlib import Path
 
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
 from pop2vec.llm.src.new_code.pretrain import read_hparams_from_file
 from pop2vec.llm.src.new_code.pipeline import write_to_hdf5
 from pop2vec.llm.src.new_code.utils import read_json, print_now
+from pop2vec.utils.convert_hdf5_to_parquet import h5_array_to_pq
 from torch.utils.data import DataLoader
 
 
@@ -34,7 +36,7 @@ def dump_embeddings(path, embeddings_dict):
     json.dump(embeddings_dict, json_file)
 
 
-def inference(cfg):
+def inference(cfg, transform_to_parquet=True):
   hparams_path = cfg['HPARAMS_PATH']
   hparams = read_hparams_from_file(hparams_path)
   checkpoint_path = cfg['CHECKPOINT_PATH']
@@ -44,9 +46,9 @@ def inference(cfg):
 
   logging.info("Reading from tokenzied path: %s", tokenized_path)
   dataset = CustomIterableDataset(
-    tokenized_path, 
+    tokenized_path,
     validation=False,
-    inference=True
+    inference=True,
   )
   dataset.set_mlm_encoded(False)
 
@@ -80,8 +82,16 @@ def inference(cfg):
          "mean_emb": mean_emb
       }
 
-      write_to_hdf5(write_path, data_dict, np.float16)
-        
+      write_to_hdf5(write_path, data_dict, np.float32)
+  if transform_to_parquet:
+      write_path = Path(write_path)
+      for emb_type in ["cls_emb", "mean_emb"]:
+          h5_array_to_pq(
+                  input_path=write_path.parent,
+                  output_path=write_path.parent,
+                  emb_filename=write_path.stem,
+                  emb_type=emb_type,
+                  id_array="sequence_id")
 
 
 if __name__ == "__main__":

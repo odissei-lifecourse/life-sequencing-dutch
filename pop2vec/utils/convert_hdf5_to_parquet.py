@@ -31,18 +31,20 @@ elif model == "network":
     model_emb_map = [("lr_steve_full_network_2010_30", "embeddings"), ("lr_steve_full_network_2020", "embeddings")]
 
 
-def h5_array_to_pq(input_path, output_path, emb_filename, emb_type="cls_emb", id_array="sequence_id"):
+def h5_array_to_pq(input_path: Path,
+                   output_path: Path,
+                   emb_filename: str,
+                   emb_type: str="cls_emb",
+                   id_array: str="sequence_id"):
     """Convert hdf5 file into parquet.
 
     Args:
-        input_path (str): Path to the hdf5 file.
-        output_path (str): Path to store the parquet file.
+        input_path (Path): Path to the hdf5 file.
+        output_path (Path): Path to store the parquet file.
         emb_filename (str): Name embedding file, without file suffix.
         emb_type (str): Embedding type. For LLM, "cls_emb" or "mean_emb", for
         network "embeddings".
         id_array (str): Key of the hdf5 array that identifies the unique persons.
-
-
     """
     input_path = input_path.joinpath(Path(emb_filename))
     h5file = h5py.File(input_path.with_suffix(".h5"))
