@@ -441,6 +441,7 @@ if __name__ == "__main__":
         iter_name=data_config["walk_iteration_name"],
         year=args.year,
         record_edge_type=args.record_edge_type,
+        mapping_dir=data_config["mapping_dir"]
     )
 
     for i in range(start_index, max_epochs + 1):
