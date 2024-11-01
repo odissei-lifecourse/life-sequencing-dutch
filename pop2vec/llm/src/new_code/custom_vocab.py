@@ -18,6 +18,7 @@ from pop2vec.llm.src.data_new.sources.base import TokenSource
 from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, IGNORE_COLUMNS, MISSING, DELIMITER
 
 from tqdm import tqdm
+from multiprocessing import Pool
 
 class DataFile():
   
@@ -59,6 +60,10 @@ class DataFile():
           self._get_unique_tokens_for_column(df[column], column,)
         )
     return unique_tokens_by_category
+
+def get_all_unique_tokens_with_category(source_file):
+  return source_file.get_all_unique_tokens_with_category()
+          
 
 @dataclass
 class CustomVocabulary(Vocabulary):
@@ -118,7 +123,7 @@ class CustomVocabulary(Vocabulary):
         self.vocab_df['ID'] = self.vocab_df.index
 
     # @save_tsv(DATA_ROOT / "processed/vocab/{self.name}/", on_validation_error="error")
-    def vocab(self) -> pd.DataFrame:
+    def vocab(self, num_processes=1) -> pd.DataFrame:
         """Filters the tokens by count, sorts them lexicographically for each source,
         and computes the voculary with the field labels as categories.
         """
@@ -152,11 +157,23 @@ class CustomVocabulary(Vocabulary):
         # )
         
         vocab_parts = [general, background]#, month, year, origin]
-        for source_file in tqdm(self.data_files):
-          vocab_parts.extend(
-            source_file.get_all_unique_tokens_with_category()
-          )
-          
+        if num_processes == 1:
+          for source_file in tqdm(self.data_files):
+            vocab_parts.extend(
+              source_file.get_all_unique_tokens_with_category()
+            )
+        else:
+          logging.info("Starting multiprocessing")
+          with Pool(processes=num_processes) as pool:
+            results = list(tqdm(
+              pool.imap_unordered(
+                get_all_unique_tokens_with_category, 
+                self.data_files
+              ), 
+              total=len(self.data_files)
+            ))
+          for tokens in results:
+            vocab_parts.extend(tokens)  
         # debug
         # total = 0
         # for part in vocab_parts:
@@ -177,8 +194,8 @@ class CustomVocabulary(Vocabulary):
 
         return self.vocab_df  
 
-    def save_vocab(self, path):
-      vocab_df = self.vocab()
+    def save_vocab(self, path, num_processes=1):
+      vocab_df = self.vocab(num_processes)
       if path.endswith('.csv'):
         vocab_df.to_csv(path, index=False)
       elif path.endswith('.parquet'):

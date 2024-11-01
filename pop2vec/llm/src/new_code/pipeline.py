@@ -68,7 +68,13 @@ def worker_initializer(custom_vocab, time_range, max_seq_len):
 def get_raw_file_name(path):
     return os.path.basename(path).split(".")[0]
 
-def create_vocab(vocab_write_path, data_file_paths, vocab_name, primary_key):
+def create_vocab(
+  vocab_write_path, 
+  data_file_paths, 
+  vocab_name, 
+  primary_key,
+  num_processes=1,
+):
     logging.debug("Starting create_vocab function")
     data_files = []
     for path in data_file_paths:
@@ -81,7 +87,7 @@ def create_vocab(vocab_write_path, data_file_paths, vocab_name, primary_key):
         )
 
     custom_vocab = CustomVocabulary(name=vocab_name, data_files=data_files)
-    custom_vocab.save_vocab(vocab_write_path)
+    custom_vocab.save_vocab(vocab_write_path, num_processes)
     logging.debug("Finished create_vocab function")
     return custom_vocab
 
@@ -164,7 +170,7 @@ def encode_documents(
     # table = parquet_file.read(columns=columns, use_threads=False)#, row_indices=row_indices)
     table = parquet_file.read_row_groups(row_groups=row_group_indices, columns=columns, use_threads=False)
     df = table.to_pandas()
-
+    done_counter = 0
     for i, row in enumerate(df.itertuples()):
         person_id = getattr(row, primary_key)
         if needed_ids is not None and person_id not in needed_ids:
@@ -176,7 +182,7 @@ def encode_documents(
 
         person_document = PersonDocument(
             person_id=person_id,
-            sentences=sentences,
+            sentences=[x.tolist() for x in sentences],
             abspos=[int(float(x)) for x in row.abspos],
             age=[int(float(x)) for x in row.age],
             segment=[int(x) for x in row.segment],
@@ -186,14 +192,17 @@ def encode_documents(
         output = global_mlm.encode_document(
             person_document,
             do_mlm=do_mlm,
+            do_print=(done_counter%LOG_THRESHOLD==0),
         )
         if output is None:
             continue
         update_data_dict(data_dict, output, do_mlm)
-        if i%LOG_THRESHOLD == 0:
+        done_counter += 1
+        if done_counter%LOG_THRESHOLD == 1:
           logging.info(
             f'''Process {process_id} --> 
-            done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}'''
+            done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}
+            created: {done_counter}, created% = {done_counter/(i+1) * 100}'''
           )
 
 
@@ -287,7 +296,10 @@ def generate_encoded_data(
     # else:
     #     indices = np.arange(total_docs)
 
-    num_processes = max(1, mp.cpu_count() - 5)
+    if paralel:
+      num_processes = min(65, mp.cpu_count() - 5)
+    else:
+      num_processes = 1
     logging.info(f"# of processes = {num_processes}")
 
     # Calculate chunk sizes for each process
@@ -372,6 +384,7 @@ if __name__ == "__main__":
           data_file_paths=data_file_paths,
           vocab_name=vocab_name,
           primary_key=primary_key,
+          num_processes=min(65, mp.cpu_count() - 5)
       )
     logging.info("Vocab is ready")
     generate_encoded_data(
