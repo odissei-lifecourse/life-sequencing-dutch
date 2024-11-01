@@ -39,14 +39,20 @@ def dump_embeddings(path, embeddings_dict):
 
 def inference(cfg, transform_to_parquet=True):
     """Run inference on trained model.
-    
+
     Args:
         cfg (dict): configuration.
-        transform_to_parquet (bool): If true (the default), the stored embeddings are copied from hdf5 into a parquet file.
+        transform_to_parquet (bool): If true (the default), the stored embeddings
+        are copied from hdf5 into a parquet file.
 
     Notes:
-       Embeddings are always stored in hdf5. If a file with the same name exists already, it 
-       is replaced. 
+       Embeddings are always stored in hdf5. If a file with the same name exists already, it
+       is replaced. If parquet files are created, they are stored in a new folder with the
+       name from `cfg["EMB_WRITE_PATH"]` (without the suffix). Moreover, storing
+       in parquet requires loading the full set of embeddings into memory, which can
+       require a lot of memory. In some situations, it might thus be better to
+       do the transformation to parquet in a separate step -- for instance when multiple
+       inferences are running on the same node and memory is relatively scarce.
     """
     hparams_path = cfg["HPARAMS_PATH"]
     hparams = read_hparams_from_file(hparams_path)
