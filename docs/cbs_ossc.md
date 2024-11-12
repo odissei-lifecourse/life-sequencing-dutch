@@ -126,32 +126,8 @@ As above, export the visible device number in the bash script. Each job should s
 
 ### Using multiple GPUs (1 node with 4 GPUs)
 
-```bash
-#SBATCH xyx
+Unclear. We have not managed to make the  `nccl`  communication backend for torch lightning work. But `nccl` itself has worked with other packages (pytorch) on the OSSC. See also [this issue](https://github.com/odissei-lifecourse/life-sequencing-dutch/issues/8).
 
-module load abc
-
-
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-
-srun --mpi=pmi2 python script.py
-
-```
-
-Currently, the `nccl` communication backend for torch lightning does not work; instead, we need to use `mpi`. The difference is that `nccl` allows GPUs to communicate directly with each other, while `mpi` needs to go throug the CPU. I think this requires pickling the data, which may slow down the code substantially. But we have not done any systematic comparison of timing.
-
-One can use the `mpi` backend in a DDP strategy in lightning as follows:
-
-
-```python
-# script.py
-from pytorch_lightning.strategies import DDPStrategy
-import pytorch_lightning as pl
-
-ddp = DDPStrategy(process_group_backend="mpi")
-trainer = pl.trainer(strategy=ddp)
-
-```
 
 ## slurm utilities
 The following are useful to have in the `~/.bashrc` file
