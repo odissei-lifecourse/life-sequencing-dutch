@@ -45,7 +45,7 @@ ENCODING_WRITE_PATH = "ENCODING_WRITE_PATH"
 TIME_RANGE_START = "TIME_RANGE_START"
 TIME_RANGE_END = "TIME_RANGE_END"
 
-MIN_EVENT_THRESHOLD = 12
+MIN_EVENT_THRESHOLD = 5 # 12
 LOG_THRESHOLD = 100
 
 logging.basicConfig(level=logging.DEBUG)
@@ -296,7 +296,7 @@ def generate_encoded_data(
     # else:
     #     indices = np.arange(total_docs)
 
-    if paralel:
+    if parallel:
       num_processes = min(65, mp.cpu_count() - 5)
     else:
       num_processes = 1

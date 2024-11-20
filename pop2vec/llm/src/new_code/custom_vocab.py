@@ -19,6 +19,9 @@ from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, 
 
 from tqdm import tqdm
 from multiprocessing import Pool
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 class DataFile():
   

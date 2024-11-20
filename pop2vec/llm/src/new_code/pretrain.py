@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import Dataset, DataLoader, random_split
 import pickle
 import torch
-from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
+from pop2vec.llm.src.new_code.load_data import CustomIterableDataset, CustomInMemoryDataset
 from pop2vec.llm.src.new_code.utils import read_json, print_now
 import os
 from pytorch_lightning.strategies import DDPStrategy
@@ -83,11 +83,11 @@ def pretrain(cfg, batch_size=None, hparams=None):
   hparams = read_hparams_from_file(hparams_path)
 
   num_val_items = cfg.get('NUM_VAL_ITEMS', 100000)
+  batch_size = cfg['BATCH_SIZE'] if not batch_size else batch_size
   val_check_interval = cfg.get(
     'VAL_CHECK_INTERVAL', 
     int(num_val_items*5/batch_size)
   )
-  batch_size = cfg['BATCH_SIZE'] if not batch_size else batch_size
   logger = CSVLogger(ckpoint_dir)  
   
   if 'RESUME_FROM_CHECKPOINT' in cfg:
@@ -133,19 +133,43 @@ def pretrain(cfg, batch_size=None, hparams=None):
       )  
   
 
-  val_dataset = CustomIterableDataset(
+  # val_dataset = CustomIterableDataset(
+  #   mlm_path, 
+  #   validation=True, 
+  #   num_val_items=num_val_items
+  # )
+  # train_dataset = CustomIterableDataset(
+  #   mlm_path, 
+  #   validation=False, 
+  #   num_val_items=num_val_items
+  # )
+
+  val_dataset = CustomInMemoryDataset(
     mlm_path, 
     validation=True, 
     num_val_items=num_val_items
   )
-  train_dataset = CustomIterableDataset(
-    mlm_path, 
-    validation=False, 
-    num_val_items=num_val_items
+  train_dataset = CustomInMemoryDataset(
+      mlm_path, 
+      validation=False, 
+      num_val_items=num_val_items
   )
-  val_dataloader = DataLoader(val_dataset, batch_size=batch_size) 
-  train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
   
+  # val_dataloader = DataLoader(val_dataset, batch_size=batch_size) 
+  # train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
+  
+  num_workers = 4  # Or any number of workers you prefer
+  val_dataloader = DataLoader(
+      val_dataset, 
+      batch_size=batch_size, 
+      num_workers=num_workers,
+  ) 
+  train_dataloader = DataLoader(
+      train_dataset, 
+      batch_size=batch_size, 
+      num_workers=num_workers,
+  )
+
   print_now("training and validation dataloaders are created")
   trainer.fit(model, train_dataloader, val_dataloader)
   
@@ -173,12 +197,15 @@ if __name__ == "__main__":
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
 
     logging.basicConfig(
-    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO
+      format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+      datefmt='%Y-%m-%d %H:%M:%S',
+      level=logging.INFO
     )
     torch.set_float32_matmul_precision("medium")
 
     print_now(CFG_PATH)
     cfg = read_json(CFG_PATH)
     pretrain(cfg, batch_size=BATCH_SIZE, hparams=HPARAMS)
+
+
+

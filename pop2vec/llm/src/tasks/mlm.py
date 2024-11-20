@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-min_event_threshold = 12
+min_event_threshold = 5
 @dataclass
 class MLM(Task):
     """
