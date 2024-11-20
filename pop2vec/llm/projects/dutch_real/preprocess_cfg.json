@@ -1,6 +1,6 @@
 {
-  "SOURCE": "projects/dutch_real/raw_data/",
-  "DEST": "projects/dutch_real/data/",
+  "SOURCE": "/projects/0/prjs1019/fake_data_v0/step1",
+  "DEST": "/projects/0/prjs1019/fake_data_v0/step3",
   "PRIMARY_KEY": "RINPERSOON",
   "RESTRICTED_SUBSTRINGS": ["RINPERSOON2"],
   "CATEGORICAL_THRESHOLD": 100,

@@ -1,12 +1,12 @@
 {
-  "DATA_PATH": "projects/dutch_real/data_oct23_0/",
-  "SEQUENCE_PATH": "projects/dutch_real/gen_data/people_10k_random.parquet",
-  "VOCAB_PATH": "projects/dutch_real/gen_data/good_vocab_10k_v0.csv",
-  "ENCODING_WRITE_PATH": "projects/dutch_real/gen_data/mlm_10k_v0/mlm",
+  "DATA_PATH": "/projects/0/prjs1019/fake_data_v0/step3/",
+  "SEQUENCE_PATH": "/projects/0/prjs1019/fake_data_v0/step4/people.parquet",
+  "VOCAB_PATH": "/projects/0/prjs1019/fake_data_v0/step5/vocab_v0.csv",
+  "ENCODING_WRITE_PATH": "/projects/0/prjs1019/fake_data_v0/step5/",
   "DO_MLM": true,
   "PRIMARY_KEY": "RINPERSOON",
-  "VOCAB_NAME": "dutch_vocab_2016_10k_v0",
+  "VOCAB_NAME": "vocab_v0",
   "TIME_RANGE_END": 16438,
   "MAX_SEQ_LEN": 512,
-  "LOAD_VOCAB": true
+  "LOAD_VOCAB": false
 }

@@ -80,10 +80,13 @@ def process_and_write(
   """
   
   global all_primaries
-    
-  if 'background' in write_path:
-    logging.info(f"background file {write_path} is kept as it is.")
-    df.to_parquet(write_path, index=False)
+
+  if 'background' in write_path:  
+    logging.info(f"shuffling background file {write_path} and not doing any other changes.")
+    new_write_path = write_path.replace('.parquet', '_shuffled.parquet')
+    logging.info(f"write_path is changed from {write_path} to {new_write_path}")
+    df = df.sample(frac=1)
+    df.to_parquet(new_write_path, index=False)
     return
   
   
