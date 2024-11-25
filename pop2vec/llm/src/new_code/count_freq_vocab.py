@@ -2,6 +2,8 @@ import h5py
 import torch
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+
 
 vocab_df = pd.read_csv('?.csv')
 freq = {}
@@ -11,7 +13,7 @@ for token in vocab_df['TOKEN']:
 
 with h5py.File('?.h5', 'r') as hdf5:
   original_sequence = torch.from_numpy(hdf5['original_sequence'][indices]).share_memory_()
-  for seq in original_sequence:
+  for seq in tqdm(original_sequence):
     for sent in seq:
       for token in sent:
         if token in freq:
