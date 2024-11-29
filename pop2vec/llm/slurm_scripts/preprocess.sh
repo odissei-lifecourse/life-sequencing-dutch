@@ -4,8 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --time=03:00:00
-#SBATCH -e /home/tislampial/logs/%x.%j.err
-#SBATCH -o /home/tislampial/logs/%x.%j.out
+#SBATCH -e logs/%x.%j.err
+#SBATCH -o logs/%x.%j.out
 #SBATCH --partition=rome
 #SBATCH --mem=30G
 
