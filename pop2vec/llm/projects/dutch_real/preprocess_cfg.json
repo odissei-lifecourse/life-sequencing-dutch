@@ -1,6 +1,6 @@
 {
-  "SOURCE": "/projects/0/prjs1019/fake_data_v0/step1",
-  "DEST": "/projects/0/prjs1019/fake_data_v0/step3",
+  "SOURCE": "/projects/0/prjs1019/data/fake_data_v0/step2",
+  "DEST": "/projects/0/prjs1019/data/fake_data_v0/step3",
   "PRIMARY_KEY": "RINPERSOON",
   "RESTRICTED_SUBSTRINGS": ["RINPERSOON2"],
   "CATEGORICAL_THRESHOLD": 100,
