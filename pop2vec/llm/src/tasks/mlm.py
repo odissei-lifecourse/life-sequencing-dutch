@@ -194,6 +194,7 @@ class MLM(Task):
                 sequence_id=sequence_id,
                 input_ids=input_ids,
                 padding_mask=padding_mask,
+                original_sequence=original_sequence,
             )
 
 
@@ -450,7 +451,7 @@ class MLMEncodedDocument(EncodedDocument[MLM]):
     original_sequence: np.ndarray
 
 @dataclass
-class SimpleEncodedDocument(EncodedDocument[MLM]):
+class `dDocument(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray
