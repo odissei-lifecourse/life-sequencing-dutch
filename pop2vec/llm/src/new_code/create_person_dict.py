@@ -273,5 +273,5 @@ class CreatePersonDict:
         ]
 
         # Write to Parquet file
-        people_df.to_parquet(write_path, index=False)
+        people_df.to_parquet(write_path, index=False, row_group_size=len(people_df)//65)
         logging.info(f"Data written to {write_path}")
