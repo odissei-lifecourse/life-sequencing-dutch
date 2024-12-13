@@ -8,24 +8,27 @@ from tqdm import tqdm
 from pop2vec.utils.constants import OSSC_ROOT
 
 DRY_RUN = False
-
-# LLM model
-data_origin = "Tanzir/LifeToVec_Nov/projects/dutch_real/gen_data/embeddings/"
-data_destination = "data/llm/embeddings/"
-
-model_emb_map = [
-    ("2017_medium2x", "cls_emb"),
-    ("2017_medium2x", "mean_emb"),
-    ("2017_medium", "cls_emb"),
-    ("2017_medium", "mean_emb"),
-    ("2017_large", "cls_emb"),
-    ("2017_large", "mean_emb"),
-]
+model = "LLM"
 
 
-data_origin = "Dakota_network/embeddings/"
-data_destination = "data/graph/embeddings/"
-model_emb_map = [("lr_steve_full_network_2010_30", "embeddings"), ("lr_steve_full_network_2020", "embeddings")]
+if model == "LLM":
+    data_origin = "data/llm/embeddings/inference_v0.1"
+    data_destination = "data/llm/embeddings/inference_v0.1"
+
+    model_emb_map = [
+        ("small", "cls_emb"),
+        ("small", "mean_emb"),
+        ("medium2x", "cls_emb"),
+        ("medium2x", "mean_emb"),
+        ("medium", "cls_emb"),
+        ("medium", "mean_emb"),
+        ("large", "cls_emb"),
+        ("large", "mean_emb"),
+    ]
+elif model == "network":
+    data_origin = "Dakota_network/embeddings/"
+    data_destination = "data/graph/embeddings/"
+    model_emb_map = [("lr_steve_full_network_2010_30", "embeddings"), ("lr_steve_full_network_2020", "embeddings")]
 
 
 def h5_array_to_pq(input_path, output_path, emb_filename, emb_type="cls_emb", id_array="sequence_id"):
