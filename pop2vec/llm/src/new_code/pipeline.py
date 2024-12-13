@@ -205,7 +205,7 @@ def init_hdf5_datasets(h5f, data_dict, dtype='i4'):
         "sequence_id", 
         shape=(0, ), 
         maxshape=(None,), 
-        dtype=h5py.special_dtype(vlen=str), 
+        dtype=np.int64,
         chunks=True, 
         compression="gzip"
       )
