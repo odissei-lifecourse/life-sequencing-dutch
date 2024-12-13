@@ -3,7 +3,7 @@
 #SBATCH --job-name=infer_small
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=03:00:00
+#SBATCH --time=10:00:00
 #SBATCH --mem=80G
 #SBATCH -p comp_env
 #SBATCH -e /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/logs/%x.%j.err
@@ -15,7 +15,7 @@ export CUDA_VISIBLE_DEVICES=3
 
 echo "job started"
 
-module purge 
+module purge
 module load 2022
 module load Python/3.10.4-GCCcore-11.3.0
 module load PyTorch/1.12.0-foss-2022a-CUDA-11.7.0
