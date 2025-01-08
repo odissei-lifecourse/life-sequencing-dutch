@@ -13,7 +13,8 @@
 echo "job started"
 
 source requirements/load_venv.sh
-srun python -m pop2vec.llm.src.new_code.pipeline pop2vec/llm/projects/dutch_real/pipeline_cfg.json
+#srun python -m pop2vec.llm.src.new_code.pipeline pop2vec/llm/projects/dutch_real/pipeline_cfg.json
+srun python -m pop2vec.llm.src.new_code.pipeline pop2vec/llm/projects/dutch_real/pipeline_no_mlm_cfg.json
 
 
 

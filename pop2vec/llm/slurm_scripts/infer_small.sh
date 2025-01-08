@@ -3,16 +3,16 @@
 #SBATCH --job-name=infer_small
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=10:00:00
+#SBATCH --time=30:00
 #SBATCH --mem=80G
 #SBATCH -p gpu
 #SBATCH --gpus 1
 #SBATCH -e logs/%x-%j.err
 #SBATCH -o logs/%x-%j.out
 
-declare PREFIX="/gpfs/ostor/ossc9424/homedir/"
+#declare PREFIX="/gpfs/ostor/ossc9424/homedir/"
 
-export CUDA_VISIBLE_DEVICES=0
+#export CUDA_VISIBLE_DEVICES=0
 
 echo "job started"
 
