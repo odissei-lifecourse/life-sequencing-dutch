@@ -1,0 +1,79 @@
+Experiment,Year,Fold,MSE,R2,MAPE,Intercept,Coeff_INPBELI_PAST,dataset_size,Coeff_birth_year,Coeff_gender,Coeff_birth_municipality_encoded,Coeff_embeddings
+Experiment 1: Only INPBELI_PAST,2017.00,mean,9.21e8,-0.04,2.56,-0.00,-0.01,492.00,nan,nan,nan,nan
+Experiment 1: Only INPBELI_PAST,2018.00,mean,8.18e8,-0.04,2.40,-0.00,-0.01,481.00,nan,nan,nan,nan
+Experiment 1: Only INPBELI_PAST,2019.00,mean,7.71e8,-0.03,1.86,-0.00,0.01,487.00,nan,nan,nan,nan
+Experiment 1: Only INPBELI_PAST,2020.00,mean,8.33e8,-0.04,2.64,-0.00,0.00,490.00,nan,nan,nan,nan
+Experiment 1: Only INPBELI_PAST,2021.00,mean,9.09e8,-0.05,3.08,0.00,-0.02,466.00,nan,nan,nan,nan
+Experiment 1: Only INPBELI_PAST,2022.00,mean,9.00e8,-0.04,4.29,-0.00,0.07,482.00,nan,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2017.00,mean,9.18e8,-0.04,2.45,-0.00,-0.01,492.00,-0.08,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2018.00,mean,8.17e8,-0.04,2.40,-0.00,-0.01,481.00,0.03,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2019.00,mean,7.70e8,-0.03,1.85,-0.00,0.01,487.00,-0.02,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2020.00,mean,8.32e8,-0.04,2.62,-0.00,-0.00,490.00,-0.05,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2021.00,mean,9.09e8,-0.05,3.09,0.00,-0.01,466.00,0.03,nan,nan,nan
+Experiment 2: INPBELI_PAST and birth_year,2022.00,mean,8.99e8,-0.04,4.28,-0.00,0.07,482.00,-0.02,nan,nan,nan
+Experiment 3: INPBELI_PAST and gender,2017.00,mean,9.20e8,-0.04,2.55,-0.03,-0.01,492.00,nan,0.07,nan,nan
+Experiment 3: INPBELI_PAST and gender,2018.00,mean,8.16e8,-0.04,2.39,0.05,-0.01,481.00,nan,-0.11,nan,nan
+Experiment 3: INPBELI_PAST and gender,2019.00,mean,7.67e8,-0.03,1.84,0.07,0.01,487.00,nan,-0.13,nan,nan
+Experiment 3: INPBELI_PAST and gender,2020.00,mean,8.33e8,-0.04,2.66,-0.02,-0.00,490.00,nan,0.04,nan,nan
+Experiment 3: INPBELI_PAST and gender,2021.00,mean,9.08e8,-0.05,3.10,-0.06,-0.02,466.00,nan,0.12,nan,nan
+Experiment 3: INPBELI_PAST and gender,2022.00,mean,8.99e8,-0.04,4.28,0.01,0.07,482.00,nan,-0.02,nan,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2017.00,mean,2.67e8,0.70,0.51,-0.00,-0.01,492.00,nan,nan,0.85,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2018.00,mean,2.58e8,0.67,0.68,-0.00,0.02,481.00,nan,nan,0.82,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2019.00,mean,2.19e8,0.71,0.38,-0.00,0.01,487.00,nan,nan,0.85,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2020.00,mean,2.58e8,0.68,1.04,-0.00,-0.00,490.00,nan,nan,0.83,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2021.00,mean,2.61e8,0.70,0.90,0.00,-0.01,466.00,nan,nan,0.85,nan
+Experiment 4: INPBELI_PAST and birth_municipality,2022.00,mean,2.39e8,0.72,0.85,-0.00,-0.00,482.00,nan,nan,0.85,nan
+Experiment 5: All excluding INPBELI_PAST,2017.00,mean,2.66e8,0.70,0.51,0.00,nan,492.00,-0.05,-0.01,0.85,nan
+Experiment 5: All excluding INPBELI_PAST,2018.00,mean,2.57e8,0.67,0.69,0.03,nan,481.00,0.02,-0.05,0.82,nan
+Experiment 5: All excluding INPBELI_PAST,2019.00,mean,2.18e8,0.71,0.38,0.00,nan,487.00,0.01,-0.01,0.85,nan
+Experiment 5: All excluding INPBELI_PAST,2020.00,mean,2.58e8,0.68,1.05,-0.02,nan,490.00,0.01,0.04,0.83,nan
+Experiment 5: All excluding INPBELI_PAST,2021.00,mean,2.62e8,0.70,0.91,-0.00,nan,466.00,0.01,0.01,0.85,nan
+Experiment 5: All excluding INPBELI_PAST,2022.00,mean,2.39e8,0.72,0.84,0.01,nan,482.00,-0.02,-0.02,0.85,nan
+Experiment 6: birth_year and gender,2017.00,mean,9.18e8,-0.04,2.44,-0.03,nan,492.00,-0.08,0.07,nan,nan
+Experiment 6: birth_year and gender,2018.00,mean,8.15e8,-0.04,2.40,0.05,nan,481.00,0.04,-0.11,nan,nan
+Experiment 6: birth_year and gender,2019.00,mean,7.67e8,-0.03,1.84,0.07,nan,487.00,-0.03,-0.13,nan,nan
+Experiment 6: birth_year and gender,2020.00,mean,8.32e8,-0.04,2.65,-0.02,nan,490.00,-0.05,0.04,nan,nan
+Experiment 6: birth_year and gender,2021.00,mean,9.08e8,-0.05,3.12,-0.06,nan,466.00,0.03,0.12,nan,nan
+Experiment 6: birth_year and gender,2022.00,mean,9.02e8,-0.05,4.37,0.01,nan,482.00,-0.02,-0.02,nan,nan
+Experiment 7: gender,2017.00,mean,9.21e8,-0.05,2.55,-0.03,nan,492.00,nan,0.07,nan,nan
+Experiment 7: gender,2018.00,mean,8.16e8,-0.04,2.39,0.05,nan,481.00,nan,-0.11,nan,nan
+Experiment 7: gender,2019.00,mean,7.67e8,-0.03,1.84,0.07,nan,487.00,nan,-0.13,nan,nan
+Experiment 7: gender,2020.00,mean,8.34e8,-0.04,2.66,-0.02,nan,490.00,nan,0.04,nan,nan
+Experiment 7: gender,2021.00,mean,9.09e8,-0.05,3.11,-0.06,nan,466.00,nan,0.12,nan,nan
+Experiment 7: gender,2022.00,mean,9.03e8,-0.05,4.39,0.01,nan,482.00,nan,-0.02,nan,nan
+Experiment 8: birth_year,2017.00,mean,9.19e8,-0.04,2.46,-0.00,nan,492.00,-0.08,nan,nan,nan
+Experiment 8: birth_year,2018.00,mean,8.18e8,-0.04,2.40,-0.00,nan,481.00,0.04,nan,nan,nan
+Experiment 8: birth_year,2019.00,mean,7.71e8,-0.04,1.86,-0.00,nan,487.00,-0.03,nan,nan,nan
+Experiment 8: birth_year,2020.00,mean,8.32e8,-0.04,2.63,-0.00,nan,490.00,-0.05,nan,nan,nan
+Experiment 8: birth_year,2021.00,mean,9.10e8,-0.05,3.09,0.00,nan,466.00,0.03,nan,nan,nan
+Experiment 8: birth_year,2022.00,mean,9.03e8,-0.05,4.39,-0.00,nan,482.00,-0.02,nan,nan,nan
+Experiment 9: Embeddings only,2017.00,mean,9.19e8,-0.04,2.56,-0.00,nan,492.00,nan,nan,nan,0.07
+Experiment 9: Embeddings only,2018.00,mean,8.15e8,-0.04,2.39,-0.00,nan,481.00,nan,nan,nan,0.08
+Experiment 9: Embeddings only,2019.00,mean,7.70e8,-0.03,1.86,-0.00,nan,487.00,nan,nan,nan,0.06
+Experiment 9: Embeddings only,2020.00,mean,8.26e8,-0.03,2.64,-0.00,nan,490.00,nan,nan,nan,0.09
+Experiment 9: Embeddings only,2021.00,mean,9.10e8,-0.05,3.09,0.00,nan,466.00,nan,nan,nan,0.04
+Experiment 9: Embeddings only,2022.00,mean,8.94e8,-0.04,4.39,-0.00,nan,482.00,nan,nan,nan,0.09
+Experiment 10: Embeddings and birth_year,2017.00,mean,9.17e8,-0.04,2.45,-0.00,nan,492.00,-0.08,nan,nan,0.07
+Experiment 10: Embeddings and birth_year,2018.00,mean,8.14e8,-0.04,2.39,-0.00,nan,481.00,0.03,nan,nan,0.08
+Experiment 10: Embeddings and birth_year,2019.00,mean,7.70e8,-0.03,1.85,-0.00,nan,487.00,-0.03,nan,nan,0.06
+Experiment 10: Embeddings and birth_year,2020.00,mean,8.24e8,-0.03,2.62,-0.00,nan,490.00,-0.05,nan,nan,0.09
+Experiment 10: Embeddings and birth_year,2021.00,mean,9.09e8,-0.05,3.09,0.00,nan,466.00,0.03,nan,nan,0.04
+Experiment 10: Embeddings and birth_year,2022.00,mean,8.94e8,-0.04,4.37,-0.00,nan,482.00,-0.02,nan,nan,0.09
+Experiment 11: Embeddings and gender,2017.00,mean,9.19e8,-0.04,2.54,-0.04,nan,492.00,nan,0.07,nan,0.07
+Experiment 11: Embeddings and gender,2018.00,mean,8.13e8,-0.04,2.38,0.05,nan,481.00,nan,-0.11,nan,0.08
+Experiment 11: Embeddings and gender,2019.00,mean,7.66e8,-0.03,1.83,0.07,nan,487.00,nan,-0.14,nan,0.07
+Experiment 11: Embeddings and gender,2020.00,mean,8.26e8,-0.03,2.65,-0.01,nan,490.00,nan,0.03,nan,0.09
+Experiment 11: Embeddings and gender,2021.00,mean,9.08e8,-0.05,3.11,-0.06,nan,466.00,nan,0.12,nan,0.03
+Experiment 11: Embeddings and gender,2022.00,mean,8.94e8,-0.04,4.37,0.02,nan,482.00,nan,-0.03,nan,0.09
+Experiment 12: Embeddings and birth_municipality,2017.00,mean,2.67e8,0.70,0.50,-0.00,nan,492.00,nan,nan,0.85,0.02
+Experiment 12: Embeddings and birth_municipality,2018.00,mean,2.58e8,0.67,0.67,-0.00,nan,481.00,nan,nan,0.82,0.01
+Experiment 12: Embeddings and birth_municipality,2019.00,mean,2.19e8,0.71,0.37,-0.00,nan,487.00,nan,nan,0.85,0.01
+Experiment 12: Embeddings and birth_municipality,2020.00,mean,2.57e8,0.68,1.04,-0.00,nan,490.00,nan,nan,0.83,0.03
+Experiment 12: Embeddings and birth_municipality,2021.00,mean,2.61e8,0.70,0.90,0.00,nan,466.00,nan,nan,0.85,0.03
+Experiment 12: Embeddings and birth_municipality,2022.00,mean,2.39e8,0.72,0.84,-0.00,nan,482.00,nan,nan,0.85,0.00
+Experiment 13: Embeddings and INPBELI_PAST,2017.00,mean,9.18e8,-0.04,2.56,-0.00,-0.01,492.00,nan,nan,nan,0.07
+Experiment 13: Embeddings and INPBELI_PAST,2018.00,mean,8.15e8,-0.04,2.39,-0.00,-0.01,481.00,nan,nan,nan,0.08
+Experiment 13: Embeddings and INPBELI_PAST,2019.00,mean,7.69e8,-0.03,1.85,-0.00,0.01,487.00,nan,nan,nan,0.06
+Experiment 13: Embeddings and INPBELI_PAST,2020.00,mean,8.25e8,-0.03,2.64,-0.00,0.00,490.00,nan,nan,nan,0.09
+Experiment 13: Embeddings and INPBELI_PAST,2021.00,mean,9.09e8,-0.05,3.08,0.00,-0.01,466.00,nan,nan,nan,0.03
+Experiment 13: Embeddings and INPBELI_PAST,2022.00,mean,8.90e8,-0.03,4.27,-0.00,0.08,482.00,nan,nan,nan,0.09

@@ -14,12 +14,13 @@ from pop2vec.llm.src.tasks.base import Task
 from pop2vec.llm.src.new_code.constants import INF
 from pop2vec.llm.src.new_code.utils import print_now
 import copy
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-min_event_threshold = 3
+min_event_threshold = 5
 @dataclass
 class MLM(Task):
     """
@@ -60,6 +61,144 @@ class MLM(Task):
       return document
 
     def encode_document(
+        self,
+        document: PersonDocument,
+        do_print: bool = False,
+        do_mlm: bool = True,
+    ) -> "MLMEncodedDocument":
+        if do_print:
+            print_now(f"RINPERSOON = {document.person_id}")
+            print_now(f"first year active = {int(2017 - (16408 - np.min(document.abspos)) / 365)})")
+            print_now(f"last year active = {int(2017 - (16408 - np.max(document.abspos)) / 365)})")
+            print_now(f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}")
+            print_now(f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}")
+            print_now(f"background\n{document.background}")
+            print_now(f"all events\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
+
+        # Slice document by time range
+        len_before = len(document.sentences)
+        document = self.slice_by_time(document)
+        len_after = len(document.sentences)
+
+        if do_print:
+            print_now(f"len_before {len_before} & len_after {len_after}")
+            print_now(f"Sentences after time slicing\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
+
+        # Get rid of all documents who have less than threshold # of events after slicing by time
+        if len(document.sentences) < min_event_threshold:
+            return None
+
+        prefix_sentence = ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]
+
+        # Apply CLS task transformations
+        document, targ_cls = self.cls_task(document)
+
+        # Construct sentences with [SEP] tokens
+        sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
+        sentence_lengths = np.array([len(s) for s in sentences])
+
+        # Calculate cumulative lengths in reverse order to determine THRESHOLD
+        reversed_lengths = sentence_lengths[1:][::-1]
+        cumsum_lengths = np.cumsum(reversed_lengths)
+        total_lengths = len(prefix_sentence) + cumsum_lengths
+
+        # Determine how many sentences can fit within max_length
+        indices = np.where(total_lengths < self.max_length)[0]
+        THRESHOLD = indices[-1] + 1 if len(indices) > 0 else 0
+
+        if do_print:
+            print_now(f"total sentences = {len(sentence_lengths)}, ok = {THRESHOLD}")
+            print_now(f"lengths of sentences = {[(i, sentence_lengths[i]) for i in range(len(sentence_lengths))]}")
+        # Slice the document to include only the sentences that fit
+        if THRESHOLD > 0:
+            document.sentences = document.sentences[-THRESHOLD:]
+            document.age = document.age[-THRESHOLD:]
+            document.abspos = document.abspos[-THRESHOLD:]
+            document.segment = document.segment[-THRESHOLD:]
+            sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
+            sentence_lengths = np.array([len(s) for s in sentences])
+        else:
+            document.sentences = []
+            document.age = []
+            document.abspos = []
+            document.segment = []
+            sentences = [prefix_sentence]
+            sentence_lengths = np.array([len(s) for s in sentences])
+
+        if do_print:
+            print_now(f"Sentences after thresholding due to max_len\n{document.sentences}")
+            print_now(f"all ages\n{document.age}")
+
+
+        # Efficiently expand properties using numpy.repeat
+        x_abspos = np.array([0] + document.abspos)
+        abspos_expanded = np.repeat(x_abspos, sentence_lengths)
+
+        x_age = np.array([0.0] + document.age)
+        age_expanded = np.repeat(x_age, sentence_lengths)
+
+        x_segment = np.array([0] + document.segment)
+        segment_expanded = np.repeat(x_segment, sentence_lengths)
+
+        # Concatenate sentences into a flat array
+        flat_sentences = np.concatenate(sentences)
+
+        # Efficient token to index mapping using pandas for vectorization
+        token2index = self.vocabulary.token2index
+        unk_id = token2index["[UNK]"]
+
+        flat_sentences_series = pd.Series(flat_sentences)
+        token_ids = flat_sentences_series.map(token2index).fillna(unk_id).astype(int).values
+
+        length = len(token_ids)
+        self.found_max_len = max(self.found_max_len, length)
+        self.found_min_len = min(self.found_min_len, length)
+
+        if do_print:
+            print(f"length = {length}, max = {self.found_max_len}, min = {self.found_min_len}")
+
+        # Create padding mask
+        padding_mask = np.zeros(self.max_length, dtype=bool)
+        padding_mask[:length] = True
+
+        # Prepare input_ids and original_sequence
+        original_sequence = np.zeros(self.max_length, dtype=int)
+        original_sequence[:length] = token_ids
+
+        sequence_id = np.array(document.person_id)
+        input_ids = np.zeros((4, self.max_length), dtype=float)
+        input_ids[1, :length] = abspos_expanded
+        input_ids[2, :length] = age_expanded
+        input_ids[3, :length] = segment_expanded
+
+        if do_mlm:
+            masked_sentences, masked_indx, masked_tokens = self.mlm_mask(
+              token_ids.copy()
+            )
+            input_ids[0, :length] = masked_sentences
+
+            return MLMEncodedDocument(
+                sequence_id=sequence_id,
+                input_ids=input_ids,
+                padding_mask=padding_mask,
+                target_tokens=masked_tokens,
+                target_pos=masked_indx,
+                target_cls=targ_cls,
+                original_sequence=original_sequence,
+            )
+        else:
+            input_ids[0, :length] = original_sequence[:length]
+            return SimpleEncodedDocument(
+                sequence_id=sequence_id,
+                input_ids=input_ids,
+                padding_mask=padding_mask,
+                original_sequence=original_sequence,
+            )
+
+
+    def old_encode_document(
       self,
       document: PersonDocument,
       do_print: bool=False,
@@ -174,12 +313,12 @@ class MLM(Task):
           )
         else:
           #print_now(f"input_ids vs original sequence shape, {input_ids.shape}, {original_sequence.shape}")
-          input_ids[0] = copy.deepcopy(original_sequence)
+          input_ids[0] = original_sequence
           return SimpleEncodedDocument(
             sequence_id=sequence_id,
             input_ids=input_ids,
             padding_mask=padding_mask,
-            original_sequence=original_sequence,
+            original_sequence=original_sequence
           )
 
     # These could (maybe should?) also be calculated in the __post_init__.
@@ -312,7 +451,7 @@ class MLMEncodedDocument(EncodedDocument[MLM]):
     original_sequence: np.ndarray
 
 @dataclass
-class SimpleEncodedDocument(EncodedDocument[MLM]):
+class Document(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray

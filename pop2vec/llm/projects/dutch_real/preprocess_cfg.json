@@ -1,13 +1,8 @@
 {
-  "SOURCE": "projects/dutch_real/raw_data/",
-  "DEST": "projects/dutch_real/data/",
-  "IMMUTABLE_COLS": ["daysSinceFirstEvent"],
+  "SOURCE": "/projects/0/prjs1019/data/fake_data_v0/step2",
+  "DEST": "/projects/0/prjs1019/data/fake_data_v0/step3",
   "PRIMARY_KEY": "RINPERSOON",
-  "RESTRICTED_SUBSTRINGS": [],
-  "MAX_UNIQUE_PER_COLUMN": 11000,
-  "TIME_KEY": -1,
-  "FIRST_EVENT_TIME": 0,
-  "CALCULATE_AGE": false,
-  "DELIMITER": ";",
-  "MISSING_SIGNIFIERS": [-1, "-1"]
+  "RESTRICTED_SUBSTRINGS": ["RINPERSOON2"],
+  "CATEGORICAL_THRESHOLD": 100,
+  "DELIMITER": ","
 }

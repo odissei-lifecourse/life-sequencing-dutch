@@ -1,0 +1,7 @@
+{
+  "DATA_PATH": "/projects/0/prjs1019/fake_data_v0/step3/",
+  "SEQUENCE_WRITE_PATH": "/projects/0/prjs1019/fake_data_v0/step4/people.parquet",
+  "VOCAB_WRITE_PATH": "/projects/0/prjs1019/fake_data_v0/step4/vocab.csv",
+  "PRIMARY_KEY": "RINPERSOON",
+  "VOCAB_NAME": "fake_vocab"
+}

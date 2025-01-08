@@ -1,12 +1,12 @@
 {
-  "data_directory_path": "projects/dutch_real/data/",
-  "SEQUENCE_WRITE_PATH": "projects/dutch_real/gen_data/people.json",
-  "vocab_write_path": "projects/dutch_real/gen_data/vocab.csv",
-  "MLM_WRITE_PATH": "projects/dutch_real/gen_data/no_mlm_gronigen_2017.pkl",
+  "DATA_PATH": "projects/dutch_real/data/",
+  "SEQUENCE_PATH": "projects/dutch_real/gen_data/people.json",
+  "VOCAB_PATH": "projects/dutch_real/gen_data/vocab.csv",
+  "ENCODING_WRITE_PATH": "projects/dutch_real/gen_data/no_mlm_gronigen_2017.pkl",
   "DO_MLM": false,
-  "primary_key": "RINPERSOON",
-  "vocab_name": "dutch_vocab_2017_v0",
-  "TIME_KEY": "daysSinceFirstEvent",
+  "PRIMARY_KEY": "RINPERSOON",
+  "VOCAB_NAME": "dutch_vocab_2017_v0",
   "TIME_RANGE_END": 16438,
+  "MAX_SEQ_LEN": 64,
   "NEEDED_IDS_PATH": "../gronigen_all_rinpersoon.json"
 }
