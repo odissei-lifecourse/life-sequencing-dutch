@@ -451,7 +451,7 @@ class MLMEncodedDocument(EncodedDocument[MLM]):
     original_sequence: np.ndarray
 
 @dataclass
-class Document(EncodedDocument[MLM]):
+class SimpleEncodedDocument(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray
