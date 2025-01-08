@@ -1,14 +1,13 @@
 {
-  "data_directory_path": "/projects/0/prjs1019/data/llm/raw/data/",
-  "SEQUENCE_PATH": "/projects/0/prjs1019/data/llm/processed/people.json",
-  "vocab_write_path": "/projects/0/prjs1019/data/llm/processed/vocab.csv",
-  "MLM_WRITE_PATH": "/projects/0/prjs1019/data/llm/processed/mlm_encoded_upto_2017",
+  "DATA_PATH": "/projects/0/prjs1019/data/fake_data_v0/step3/",
+  "SEQUENCE_PATH": "/projects/0/prjs1019/data/fake_data_v0/step4/people.parquet",
+  "VOCAB_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/vocab_v0.csv",
+  "ENCODING_WRITE_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/",
   "DO_MLM": true,
-  "primary_key": "RINPERSOON",
-  "vocab_name": "dutch_vocab_2017_v0",
-  "TIME_KEY": "daysSinceFirstEvent",
+  "PRIMARY_KEY": "RINPERSOON",
+  "VOCAB_NAME": "vocab_v0",
   "TIME_RANGE_END": 16438,
-  "SHUFFLE": true,
-  "PARALLEL": false,
-  "LOAD_VOCAB": true
+  "MAX_SEQ_LEN": 512,
+  "LOAD_VOCAB": false,
+  "PARALLEL": true
 }
