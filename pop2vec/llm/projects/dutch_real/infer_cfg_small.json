@@ -1,7 +1,7 @@
 {
-  "HPARAMS_PATH": "src/new_code/regular_hparams_small.txt",
-  "CHECKPOINT_PATH": "projects/dutch_real/models/2017_small/model-epoch=03-step=27798-val_loss=0.00.ckpt",
-  "TOKENIZED_PATH": "projects/dutch_real/gen_data/no_mlm_encoded_upto_2017.h5",
-  "EMB_WRITE_PATH": "projects/dutch_real/gen_data/embeddings/2017_small.h5",
+  "HPARAMS_PATH": "pop2vec/llm/src/new_code/regular_hparams_small.txt",
+  "CHECKPOINT_PATH": "/projects/0/prjs1019/data/fake_models_v0/model-epoch=02-step=495-val_loss=0.00.ckpt",
+  "TOKENIZED_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/chunk_64.h5",
+  "EMB_WRITE_PATH": "/projects/0/prjs1019/data/llm/embeddings/emb_test.h5",
   "BATCH_SIZE": 2048
 }
