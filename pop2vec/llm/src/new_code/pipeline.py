@@ -211,8 +211,7 @@ def encode_documents(
     if os.path.exists(write_path):
         logging.info("Deleting existing file %s", write_path)
         os.remove(write_path)
-
-    write_to_hdf5(write_path, data_dict)
+    write_to_hdf5(write_path, data_dict, dtype=np.int64)
 
 def init_hdf5_datasets(h5f, data_dict, dtype="i4"):
     """Initialize HDF5 datasets when they do not exist."""
