@@ -116,7 +116,7 @@ def init_data_dict(do_mlm):
 
 
 def update_data_dict(data_dict, output, do_mlm):
-    data_dict["sequence_id"].append(str(output.sequence_id))
+    data_dict["sequence_id"].append(output.sequence_id)
     data_dict["original_sequence"].append(output.original_sequence)
     data_dict["input_ids"].append(output.input_ids)
     data_dict["padding_mask"].append(output.padding_mask)
@@ -206,9 +206,12 @@ def encode_documents(
             created: {done_counter}, created% = {done_counter/(i+1) * 100}'''
           )
 
-
     convert_to_numpy(data_dict)
-    write_path = f"{write_path_prefix}_{process_id}.h5"
+    write_path = f"{write_path_prefix}chunk_{process_id}.h5"
+    if os.path.exists(write_path):
+        logging.info("Deleting existing file %s", write_path)
+        os.remove(write_path)
+
     write_to_hdf5(write_path, data_dict)
 
 def init_hdf5_datasets(h5f, data_dict, dtype='i4'):

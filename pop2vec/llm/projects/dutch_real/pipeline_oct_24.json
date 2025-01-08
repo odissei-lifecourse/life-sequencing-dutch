@@ -8,5 +8,6 @@
   "VOCAB_NAME": "vocab_v0",
   "TIME_RANGE_END": 16438,
   "MAX_SEQ_LEN": 512,
-  "LOAD_VOCAB": false
+  "LOAD_VOCAB": false,
+  "PARALLEL": true
 }
