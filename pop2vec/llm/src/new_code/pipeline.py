@@ -11,6 +11,7 @@ import pickle
 import subprocess
 import sys
 import time
+import pyarrow.parquet as pq
 from functools import partial
 from multiprocessing import Pool
 from tqdm import tqdm
@@ -36,9 +37,9 @@ from pop2vec.llm.src.tasks.mlm import MLM
 """
 
 
-
 PRIMARY_KEY = "PRIMARY_KEY"
-DATA_DIRECTORY_PATH = "DATA_PATH"
+DATA_PATH = "DATA_PATH"
+SEQUENCE_PATH = "SEQUENCE_PATH"
 VOCAB_NAME = "VOCAB_NAME"
 VOCAB_PATH = "VOCAB_PATH"
 ENCODING_WRITE_PATH = "ENCODING_WRITE_PATH"
@@ -272,7 +273,6 @@ def generate_encoded_data(
     needed_ids_path=None,
     shuffle=False,
     chunk_size=5000,
-    parallel=True,
     # chunk_size=5000,
     parallel=True,
     max_seq_len=512,
