@@ -7,8 +7,8 @@
 #SBATCH --mem=80G
 #SBATCH -p gpu
 #SBATCH --gpus-per-node=1
-#SBATCH -e /home/tislampial/logs/%x.%j.err
-#SBATCH -o /home/tislampial/logs/%x.%j.out
+#SBATCH -e logs/%x-%j.err
+#SBATCH -o logs/%x-%j.out
 
 source requirements/load_venv.sh
 
