@@ -1,46 +1,42 @@
 import fnmatch
+import gc
 import json
+import logging
 import math
 import os
 import shutil
 import sys
 from functools import partial
-import logging
-from typing import Dict, Union, List
-import gc
-
+from typing import Dict
+from typing import List
+from typing import Union
 import numpy as np
 import pandas as pd
-
-from pop2vec.llm.src.new_code.constants import (
-    AGE,
-    DAYS_SINCE_FIRST,
-    INF,
-    MISSING,
-)
-from pop2vec.llm.src.new_code.utils import (
-  get_column_names, 
-  print_now, 
-  load_parquet_with_metadata,
-  load_csv_and_create_metadata,
-  transform_to_percentiles,
-  replace_less_frequent
-)
+from pop2vec.llm.src.new_code.constants import AGE
+from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST
+from pop2vec.llm.src.new_code.constants import INF
+from pop2vec.llm.src.new_code.constants import MISSING
+from pop2vec.llm.src.new_code.utils import get_column_names
+from pop2vec.llm.src.new_code.utils import load_csv_and_create_metadata
+from pop2vec.llm.src.new_code.utils import load_parquet_with_metadata
+from pop2vec.llm.src.new_code.utils import print_now
+from pop2vec.llm.src.new_code.utils import replace_less_frequent
+from pop2vec.llm.src.new_code.utils import transform_to_percentiles
 
 # Set up logging configuration
 logging.basicConfig(
-  level=logging.INFO, 
-  format='%(asctime)s - %(levelname)s - %(message)s'
+  level=logging.INFO,
+  format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-SOURCE = 'SOURCE'
-DEST = 'DEST'
-IMMUTABLE_COLS = 'IMMUTABLE_COLS'
-PRIMARY_KEY = 'PRIMARY_KEY'
-RESTRICTED_SUBSTRINGS = 'RESTRICTED_SUBSTRINGS'
-DELIMITER = 'DELIMITER'
-CATEGORICAL_THRESHOLD = 'CATEGORICAL_THRESHOLD'
-REPLACE_OLD = 'REPLACE_OLD'
+SOURCE = "SOURCE"
+DEST = "DEST"
+IMMUTABLE_COLS = "IMMUTABLE_COLS"
+PRIMARY_KEY = "PRIMARY_KEY"
+RESTRICTED_SUBSTRINGS = "RESTRICTED_SUBSTRINGS"
+DELIMITER = "DELIMITER"
+CATEGORICAL_THRESHOLD = "CATEGORICAL_THRESHOLD"
+REPLACE_OLD = "REPLACE_OLD"
 # Global variables
 all_cols = {}
 all_primaries = set()
@@ -54,7 +50,7 @@ def read_cfg(path):
   Returns:
     dict: Configuration dictionary loaded from the JSON file.
   """
-  with open(path, 'r') as file:
+  with open(path) as file:
     cfg = json.load(file)
   return cfg
 
@@ -78,43 +74,42 @@ def process_and_write(
     restricted_substrings (list): Any column containing any of the substrings 
       will be dropped
   """
-  
   global all_primaries
 
-  if 'background' in write_path:  
+  if "background" in write_path:
     logging.info(f"shuffling background file {write_path} and not doing any other changes.")
-    new_write_path = write_path.replace('.parquet', '_shuffled.parquet')
+    new_write_path = write_path.replace(".parquet", "_shuffled.parquet")
     logging.info(f"write_path is changed from {write_path} to {new_write_path}")
     df = df.sample(frac=1)
     df.to_parquet(new_write_path, index=False)
     return
-  
-  
+
+
   #drop any row that has nan in time columns
   df.dropna(subset=[DAYS_SINCE_FIRST, AGE], inplace=True)
-  
+
   # convert time columns to int
   # df[AGE] = df[AGE].round().astype(int)
   # df[DAYS_SINCE_FIRST] = df[DAYS_SINCE_FIRST].round().astype(int)
-  
+
   # faster conversion below
-  df[AGE] = pd.to_numeric(df[AGE], errors='coerce').round(0).astype(int, copy=False)
-  df[DAYS_SINCE_FIRST] = pd.to_numeric(df[DAYS_SINCE_FIRST], errors='coerce').round(0).astype(int, copy=False)
+  df[AGE] = pd.to_numeric(df[AGE], errors="coerce").round(0).astype(int, copy=False)
+  df[DAYS_SINCE_FIRST] = pd.to_numeric(df[DAYS_SINCE_FIRST], errors="coerce").round(0).astype(int, copy=False)
 
   # fill all missing values (nan) by MISSING
   df.fillna(MISSING, inplace=True)
 
   for column in df.columns:
     if (
-      column == primary_key or 
-      column in immutable_cols or 
+      column == primary_key or
+      column in immutable_cols or
       column in [AGE, DAYS_SINCE_FIRST]
     ):
       continue
-    elif any(item in column for item in restricted_substrings):
+    if any(item in column for item in restricted_substrings):
       logging.info(f"dropping column = {column}; contains restricted substring")
       df.drop(columns=[column], inplace=True)
-    elif meta_dict[column] == 'Numeric':
+    elif meta_dict[column] == "Numeric":
       logging.info(
         f"transforming numeric column {column} with {df[column].nunique()} unique values to percentiles"
       )
@@ -122,13 +117,13 @@ def process_and_write(
       logging.info(
         f"{column} has {df[column].nunique()} unique values after transformation"
       )
-    elif meta_dict[column] == 'String':
+    elif meta_dict[column] == "String":
       logging.info(
         f"categorical column {column} has {len(df[column].unique())} unique values initially\n"
       )
       df[column] = replace_less_frequent(
-        df[column], 
-        keep_top_n = 100, 
+        df[column],
+        keep_top_n = 100,
         name_others = "Others",
         ignore_list = [MISSING],
       )
@@ -137,14 +132,14 @@ def process_and_write(
       )
     else:
       logging.error(f"column {column} with write_path = {write_path} has malformed meta_dict {meta_dict} ")
-  
+
   for col in df.columns:
     if col not in all_cols:
       all_cols[col] = []
     all_cols[col].append(write_path)
     if col not in [primary_key, AGE, DAYS_SINCE_FIRST]:
       df[col] = df[col].astype(str)
-  
+
   all_primaries = all_primaries | set(df[primary_key].unique())
   df.to_parquet(write_path, index=False)
   del df
@@ -152,8 +147,8 @@ def process_and_write(
 
 def get_csv_data(
   input_directory: str,
-  output_directory: str, 
-  delimiter: str, 
+  output_directory: str,
+  delimiter: str,
   categorical_threshold: int
 ) -> List[Dict[str, Union[pd.DataFrame, Dict, str]]]:
   """Process all CSV files in a given directory.
@@ -171,16 +166,16 @@ def get_csv_data(
       if file.endswith(".csv"):
         csv_path = os.path.join(root, file)
         ret.append({
-            'input_csv_path': csv_path, 
-            'write_path': os.path.join(
-              output_directory, 
-              file.replace('.csv', '.parquet')
+            "input_csv_path": csv_path,
+            "write_path": os.path.join(
+              output_directory,
+              file.replace(".csv", ".parquet")
             ),
-            'delimiter': delimiter,
-            'categorical_threshold': categorical_threshold,
-            'type': 'csv',
+            "delimiter": delimiter,
+            "categorical_threshold": categorical_threshold,
+            "type": "csv",
         })
-  
+
   return ret
 
 # def _get_data_and_metadata_from_files(files: List[str], root: str):
@@ -219,13 +214,13 @@ def get_csv_data(
 #     )
 
 #   if (
-#       os.path.splitext(data_file)[0] != 
+#       os.path.splitext(data_file)[0] !=
 #       os.path.splitext(metadata_file)[0].replace("_meta", "")
-#   ):  
+#   ):
 #     raise ValueError(
 #       f"Directory '{root}' contains parquet files but their names do not match the required pattern."
 #     )
-  
+
 #   return data_file, metadata_file
 
 def get_parquet_data(
@@ -244,11 +239,11 @@ def get_parquet_data(
   ret = []
   for root, _, files in os.walk(input_directory):
     for f1 in files:
-      if f1.endswith('_meta.parquet'):
+      if f1.endswith("_meta.parquet"):
         metadata_file = f1
         data_file = None
         for f2 in files:
-          if f2 == f1.replace('_meta.parquet', '.parquet'):
+          if f2 == f1.replace("_meta.parquet", ".parquet"):
             data_file = f2
             break
         if data_file is None:
@@ -258,13 +253,13 @@ def get_parquet_data(
         else:
           ret.append(
             {
-              'input_data_parquet_path': os.path.join(root, data_file),
-              'input_meta_parquet_path': os.path.join(root, metadata_file), 
-              'write_path': os.path.join(
-                output_directory, 
+              "input_data_parquet_path": os.path.join(root, data_file),
+              "input_meta_parquet_path": os.path.join(root, metadata_file),
+              "write_path": os.path.join(
+                output_directory,
                 os.path.basename(data_file)
               ),
-              'type': 'parquet'
+              "type": "parquet"
             }
           )
 
@@ -273,42 +268,43 @@ def get_parquet_data(
     #   ret.append(
     #     {
     #       'input_data_parquet_path': os.path.join(root, data_file),
-    #       'input_meta_parquet_path': os.path.join(root, metadata_file), 
+    #       'input_meta_parquet_path': os.path.join(root, metadata_file),
     #       'write_path': os.path.join(
-    #         output_directory, 
+    #         output_directory,
     #         os.path.basename(data_file)
     #       ),
     #       'type': 'parquet'
     #     }
     #   )
-  
+
   return ret
 
 def load_data(path_dict, primary_key):
   try:
-    if path_dict['type'] == 'csv':
+    if path_dict["type"] == "csv":
       logging.info(f"reading {path_dict['input_csv_path']}")
       df, meta = load_csv_and_create_metadata(
-        path_dict['input_csv_path'], 
-        path_dict['delimiter'], 
-        path_dict['categorical_threshold'],
+        path_dict["input_csv_path"],
+        path_dict["delimiter"],
+        path_dict["categorical_threshold"],
         primary_key,
       )
-    elif path_dict['type'] == 'parquet':
+    elif path_dict["type"] == "parquet":
       logging.info(f"reading {path_dict['input_data_parquet_path']}")
       df, meta = load_parquet_with_metadata(
-        path_dict['input_data_parquet_path'], 
-        path_dict['input_meta_parquet_path'],
+        path_dict["input_data_parquet_path"],
+        path_dict["input_meta_parquet_path"],
         primary_key,
       )
     else:
+      msg = f"path_dict['type'] should be either 'csv' or 'parquet', found {path_dict['type']}"
       raise ValueError(
-        f"path_dict['type'] should be either 'csv' or 'parquet', found {path_dict['type']}"
+        msg
       )
     return df, meta
 
   except Exception as e:
-    logging.error(
+    logging.exception(
       f"An error occurred while preparing {path_dict['write_path']}:\n {e}"
     )
     return None, None
@@ -325,21 +321,21 @@ def main():
   primary_key = cfg[PRIMARY_KEY]
   restricted_substrings = cfg.get(RESTRICTED_SUBSTRINGS, [])
   categorical_threshold = cfg.get(CATEGORICAL_THRESHOLD, 100)
-  delimiter = cfg.get(DELIMITER, ',')
+  delimiter = cfg.get(DELIMITER, ",")
   replace_old_data = cfg.get(REPLACE_OLD, True)
   if not os.path.exists(destination_dir):
-    os.mkdir(destination_dir)  
+    os.mkdir(destination_dir)
 
   path_dicts = get_csv_data(
-    source_dir, 
+    source_dir,
     destination_dir,
     delimiter,
     categorical_threshold,
   )
   path_dicts.extend(get_parquet_data(source_dir, destination_dir))
-  
+
   for path_dict in path_dicts:
-    if os.path.exists(path_dict['write_path']):
+    if os.path.exists(path_dict["write_path"]):
       if replace_old_data:
         logging.info(f"Replacing already existing {path_dict['write_path']}.")
       else:
@@ -350,7 +346,7 @@ def main():
       process_and_write(
         df=df,
         meta_dict=meta,
-        write_path=path_dict['write_path'],
+        write_path=path_dict["write_path"],
         primary_key=primary_key,
         immutable_cols=immutable_cols,
         restricted_substrings=restricted_substrings,
