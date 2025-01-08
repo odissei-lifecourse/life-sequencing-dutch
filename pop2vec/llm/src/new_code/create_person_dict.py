@@ -1,21 +1,19 @@
-import os
 import json
-import pandas as pd
 import logging
-
-from pop2vec.llm.src.new_code.constants import (
-    GENDER,
-    BIRTH_MONTH,
-    BIRTH_YEAR,
-    ORIGIN,
-    DAYS_SINCE_FIRST,
-    AGE,
-    IGNORE_COLUMNS,
-    MISSING,
-)
+import os
+import pandas as pd
+from pop2vec.llm.src.new_code.constants import AGE
+from pop2vec.llm.src.new_code.constants import BIRTH_MONTH
+from pop2vec.llm.src.new_code.constants import BIRTH_YEAR
+from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST
+from pop2vec.llm.src.new_code.constants import GENDER
+from pop2vec.llm.src.new_code.constants import IGNORE_COLUMNS
+from pop2vec.llm.src.new_code.constants import MISSING
+from pop2vec.llm.src.new_code.constants import ORIGIN
 from pop2vec.llm.src.new_code.utils import print_now
 
 logging.basicConfig(level=logging.INFO)
+
 
 class CreatePersonDict:
     """Optimized class to create person data dictionary from Parquet files."""
@@ -54,10 +52,9 @@ class CreatePersonDict:
         """
         if vocab is not None:
             return vocab
-        elif vocab_path is not None:
+        if vocab_path is not None:
             return self._load_vocab(vocab_path)
-        else:
-            return None
+        return None
 
     def _load_vocab(self, vocab_path):
         """Loads vocabulary from a file.
@@ -68,7 +65,7 @@ class CreatePersonDict:
         Returns:
             dict: Vocabulary dictionary.
         """
-        with open(vocab_path, 'r') as f:
+        with open(vocab_path) as f:
             return json.load(f)
 
     def _get_background_file(self, file_paths):
@@ -80,12 +77,9 @@ class CreatePersonDict:
         Returns:
             str: Background file path.
         """
-        background_file_path = [
-            fp for fp in file_paths if 'background' in os.path.basename(fp)
-        ]
+        background_file_path = [fp for fp in file_paths if "background" in os.path.basename(fp)]
         assert len(background_file_path) == 1, (
-          f"Unique Background file not found.\n"
-          f"found background files list: {background_file_path}"
+            f"Unique Background file not found.\n" f"found background files list: {background_file_path}"
         )
         return background_file_path[0]
 
@@ -101,22 +95,20 @@ class CreatePersonDict:
         background_df.set_index(self.primary_key, inplace=True)
 
         logging.info(f"{len(background_df)} people in background file")
-        logging.info(
-          f"Columns in background file: {list(background_df.columns)}"
-        )
+        logging.info(f"Columns in background file: {list(background_df.columns)}")
 
         # Create 'background' column
-        background_df['background'] = background_df.apply(
+        background_df["background"] = background_df.apply(
             lambda row: {
-                'birth_year': f"{BIRTH_YEAR}_{row[BIRTH_YEAR]}",
-                'birth_month': f"{BIRTH_MONTH}_{row[BIRTH_MONTH]}",
-                'gender': f"{GENDER}_{row[GENDER]}",
-                'origin': f"{ORIGIN}_{row[ORIGIN]}",
+                "birth_year": f"{BIRTH_YEAR}_{row[BIRTH_YEAR]}",
+                "birth_month": f"{BIRTH_MONTH}_{row[BIRTH_MONTH]}",
+                "gender": f"{GENDER}_{row[GENDER]}",
+                "origin": f"{ORIGIN}_{row[ORIGIN]}",
             },
             axis=1,
         )
 
-        background_df = background_df[['background']]
+        background_df = background_df[["background"]]
         return background_df
 
     def _process_event_files(self, valid_ids):
@@ -140,37 +132,28 @@ class CreatePersonDict:
             if df.empty:
                 logging.info(f"No valid records in {source_path} after filtering.")
                 continue
-            else:
-              logging.info(
+            logging.info(
                 f"""Initial size of {source_path} df = {initial_size}
                 Final size after filtering using background = {len(df)}"""
-              )
+            )
             # Fill missing values
             df = df.fillna(MISSING)
 
             # Get event-specific columns (excluding primary_key, DAYS_SINCE_FIRST, AGE, 'Index')
-            event_columns = [
-                col
-                for col in df.columns
-                if col
-                not in [self.primary_key, DAYS_SINCE_FIRST, AGE, 'Index']
-            ]
+            event_columns = [col for col in df.columns if col not in [self.primary_key, DAYS_SINCE_FIRST, AGE, "Index"]]
 
             # Create 'sentence' column
             for col in event_columns:
-                df[col] = col + '_' + df[col].astype(str)
+                df[col] = col + "_" + df[col].astype(str)
 
-            df['sentence'] = df[event_columns].values.tolist()
+            df["sentence"] = df[event_columns].values.tolist()
 
             # Keep only necessary columns
-            df = df[[self.primary_key, 'sentence', DAYS_SINCE_FIRST, AGE]]
+            df = df[[self.primary_key, "sentence", DAYS_SINCE_FIRST, AGE]]
 
             event_dfs.append(df)
 
-            logging.info(
-                f"Files processed: {file_count + 1}, "
-                f"Remaining: {len(self.source_paths) - file_count - 1}"
-            )
+            logging.info(f"Files processed: {file_count + 1}, " f"Remaining: {len(self.source_paths) - file_count - 1}")
 
         if event_dfs:
             merged_df = pd.concat(event_dfs, ignore_index=True)
@@ -190,23 +173,15 @@ class CreatePersonDict:
         Returns:
             pd.DataFrame: Grouped events DataFrame with aggregated event information.
         """
-
-
         # events_df = events_df.copy()
-        
+
         # Sort and group events by id and DAYS_SINCE_FIRST
-        events_df = events_df.sort_values(
-            by=[self.primary_key, DAYS_SINCE_FIRST]
-        )
-        grouped = events_df.groupby(self.primary_key).agg(
-            {'sentence': list, DAYS_SINCE_FIRST: list, AGE: list}
-        )
-        grouped = grouped.rename(
-            columns={DAYS_SINCE_FIRST: 'abspos', AGE: 'age'}
-        )
+        events_df = events_df.sort_values(by=[self.primary_key, DAYS_SINCE_FIRST])
+        grouped = events_df.groupby(self.primary_key).agg({"sentence": list, DAYS_SINCE_FIRST: list, AGE: list})
+        grouped = grouped.rename(columns={DAYS_SINCE_FIRST: "abspos", AGE: "age"})
 
         # Compute 'segment' per person
-        grouped['segment'] = grouped['abspos'].apply(self._compute_segment)
+        grouped["segment"] = grouped["abspos"].apply(self._compute_segment)
         return grouped
 
     def _compute_segment(self, abspos):
@@ -238,7 +213,7 @@ class CreatePersonDict:
 
         # Process event data
         events_df = self._process_event_files(valid_ids)
-        
+
         if not events_df.empty:
             # Process events and group by id
             grouped_events = self._process_events(events_df)
@@ -246,32 +221,26 @@ class CreatePersonDict:
             # Merge background and events data
             people_df = background_df.merge(
                 grouped_events,
-                how='left',
+                how="left",
                 left_index=True,
                 right_index=True,
             )
         else:
             # If no events, create empty columns
             people_df = background_df.copy()
-            people_df['sentence'] = [[] for _ in range(len(people_df))]
-            people_df['abspos'] = [[] for _ in range(len(people_df))]
-            people_df['age'] = [[] for _ in range(len(people_df))]
-            people_df['segment'] = [[] for _ in range(len(people_df))]
+            people_df["sentence"] = [[] for _ in range(len(people_df))]
+            people_df["abspos"] = [[] for _ in range(len(people_df))]
+            people_df["age"] = [[] for _ in range(len(people_df))]
+            people_df["segment"] = [[] for _ in range(len(people_df))]
 
         # Replace NaN lists with empty lists
-        for col in ['sentence', 'abspos', 'age', 'segment']:
-            people_df[col] = people_df[col].apply(
-                lambda x: x if isinstance(x, list) else []
-            )
+        for col in ["sentence", "abspos", "age", "segment"]:
+            people_df[col] = people_df[col].apply(lambda x: x if isinstance(x, list) else [])
 
         # Reset index and reorder columns
-        people_df = people_df.reset_index().rename(
-            columns={'index': self.primary_key}
-        )
-        people_df = people_df[
-            [self.primary_key, 'background', 'sentence', 'abspos', 'age', 'segment']
-        ]
+        people_df = people_df.reset_index().rename(columns={"index": self.primary_key})
+        people_df = people_df[[self.primary_key, "background", "sentence", "abspos", "age", "segment"]]
 
         # Write to Parquet file
-        people_df.to_parquet(write_path, index=False, row_group_size=len(people_df)//65)
+        people_df.to_parquet(write_path, index=False, row_group_size=len(people_df) // 65)
         logging.info(f"Data written to {write_path}")
