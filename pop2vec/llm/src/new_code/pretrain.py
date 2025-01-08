@@ -1,21 +1,29 @@
 import argparse
+import logging
+import os
+import pickle
 import re
-import pop2vec.llm.src.transformer
-from pop2vec.llm.src.transformer.models import TransformerEncoder
-# from omegaconf import OmegaConf
-from pytorch_lightning import seed_everything, Trainer
 import sys
 from pathlib import Path
-import logging
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from torch.utils.data import Dataset, DataLoader, random_split
-import pickle
 import torch
-from pop2vec.llm.src.new_code.load_data import CustomIterableDataset, CustomInMemoryDataset
-from pop2vec.llm.src.new_code.utils import read_json, print_now
-import os
-from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning import Trainer
+
+# from omegaconf import OmegaConf
+from pytorch_lightning import seed_everything
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
+from pytorch_lightning.strategies import DDPStrategy
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from torch.utils.data import random_split
+import pop2vec.llm.src.transformer
+from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
+from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
+from pop2vec.llm.src.new_code.utils import print_now
+from pop2vec.llm.src.new_code.utils import read_json
+from pop2vec.llm.src.transformer.models import TransformerEncoder
+
 
 def is_float(string):
     try:
@@ -26,7 +34,7 @@ def is_float(string):
 
 # Read hparams from the text file
 def read_hparams_from_file(file_path):
-    with open(file_path, 'r') as file:
+    with open(file_path) as file:
         lines = file.readlines()
         hparams = {}
         for line in lines:
@@ -34,12 +42,12 @@ def read_hparams_from_file(file_path):
               continue
             #print(line)
 
-            line = line.strip().split('#')[0]
+            line = line.strip().split("#")[0]
 
-            key, value = line.strip().split(': ')
-            value = value.replace('"','')
-            if value in ['True', 'False']:
-              if value == 'True':
+            key, value = line.strip().split(": ")
+            value = value.replace('"',"")
+            if value in ["True", "False"]:
+              if value == "True":
                 value = True
               else:
                 value = False
@@ -57,8 +65,8 @@ def get_callbacks(ckpoint_dir, val_check_interval):
   callbacks = [
     ModelCheckpoint(
       dirpath=ckpoint_dir,#'projects/baseball/models/2010',
-      filename='model-{epoch:02d}-{step}-{val_loss:.2f}',
-      monitor='val_loss_combined',
+      filename="model-{epoch:02d}-{step}-{val_loss:.2f}",
+      monitor="val_loss_combined",
       save_top_k=3,
       save_last=False,
       save_weights_only=False,
@@ -69,42 +77,42 @@ def get_callbacks(ckpoint_dir, val_check_interval):
   return callbacks
 
 def pretrain(cfg, batch_size=None, hparams=None):
-  """Train the model with lightning trainer
+  """Train the model with lightning trainer.
 
   Args:
     cfg (dict): configuration dict from json config file
     batch_size (int, optional): batch size to use. If None, uses batch size specified in config.
     hparams (str, optional): path to file with hyperparameters. If None, uses file specified in config.
   """
-  ckpoint_dir = cfg['CHECKPOINT_DIR']
-  mlm_path = cfg['MLM_PATH']
+  ckpoint_dir = cfg["CHECKPOINT_DIR"]
+  mlm_path = cfg["MLM_PATH"]
 
-  hparams_path = cfg['HPARAMS_PATH'] if not hparams else hparams
+  hparams_path = cfg["HPARAMS_PATH"] if not hparams else hparams
   hparams = read_hparams_from_file(hparams_path)
 
-  num_val_items = cfg.get('NUM_VAL_ITEMS', 100000)
-  batch_size = cfg['BATCH_SIZE'] if not batch_size else batch_size
+  num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
+  batch_size = cfg["BATCH_SIZE"] if not batch_size else batch_size
   val_check_interval = cfg.get(
-    'VAL_CHECK_INTERVAL', 
+    "VAL_CHECK_INTERVAL",
     int(num_val_items*5/batch_size)
   )
-  logger = CSVLogger(ckpoint_dir)  
-  
-  if 'RESUME_FROM_CHECKPOINT' in cfg:
+  logger = CSVLogger(ckpoint_dir)
+
+  if "RESUME_FROM_CHECKPOINT" in cfg:
     print_now(f"resuming training from checkpoint {cfg['RESUME_FROM_CHECKPOINT']}")
     model = TransformerEncoder.load_from_checkpoint(
-      cfg['RESUME_FROM_CHECKPOINT'], 
+      cfg["RESUME_FROM_CHECKPOINT"],
       hparams=hparams
     )
   else:
     model = TransformerEncoder(hparams)
-  
+
   callbacks = get_callbacks(ckpoint_dir, val_check_interval+1)
   if DDP_STRATEGY == "auto":
     trainer = Trainer(
       default_root_dir=ckpoint_dir,
       callbacks=callbacks,
-      max_epochs=cfg['MAX_EPOCHS'],
+      max_epochs=cfg["MAX_EPOCHS"],
       val_check_interval=val_check_interval,
       accelerator=ACCELERATOR,
       devices=N_DEVICES,
@@ -119,69 +127,69 @@ def pretrain(cfg, batch_size=None, hparams=None):
       elif DDP_STRATEGY == "gloo":
           ddp = DDPStrategy(process_group_backend="gloo")
 
-      
+
       trainer = Trainer(
         strategy=ddp,
         default_root_dir=ckpoint_dir,
         callbacks=callbacks,
-        max_epochs=cfg['MAX_EPOCHS'],
+        max_epochs=cfg["MAX_EPOCHS"],
         val_check_interval=val_check_interval,
         accelerator=ACCELERATOR,
         devices=N_DEVICES,
         logger=logger,
         precision="16-mixed"
-      )  
-  
+      )
+
 
   # val_dataset = CustomIterableDataset(
-  #   mlm_path, 
-  #   validation=True, 
+  #   mlm_path,
+  #   validation=True,
   #   num_val_items=num_val_items
   # )
   # train_dataset = CustomIterableDataset(
-  #   mlm_path, 
-  #   validation=False, 
+  #   mlm_path,
+  #   validation=False,
   #   num_val_items=num_val_items
   # )
 
   val_dataset = CustomInMemoryDataset(
-    mlm_path, 
-    validation=True, 
+    mlm_path,
+    validation=True,
     num_val_items=num_val_items
   )
   train_dataset = CustomInMemoryDataset(
-      mlm_path, 
-      validation=False, 
+      mlm_path,
+      validation=False,
       num_val_items=num_val_items
   )
-  
-  # val_dataloader = DataLoader(val_dataset, batch_size=batch_size) 
+
+  # val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
   # train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
-  
+
   num_workers = 4  # Or any number of workers you prefer
   val_dataloader = DataLoader(
-      val_dataset, 
-      batch_size=batch_size, 
+      val_dataset,
+      batch_size=batch_size,
       num_workers=num_workers,
-  ) 
+  )
   train_dataloader = DataLoader(
-      train_dataset, 
-      batch_size=batch_size, 
+      train_dataset,
+      batch_size=batch_size,
       num_workers=num_workers,
   )
 
   print_now("training and validation dataloaders are created")
   trainer.fit(model, train_dataloader, val_dataloader)
-  
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, …)")
     parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
-    parser.add_argument("--devices", default=1, help=f"Number of devices")
+    parser.add_argument("--devices", default=1, help="Number of devices")
     parser.add_argument("--batch", default=None, type=int, help="Batch size to use. If None, uses `batch` size specified in the config file")
     parser.add_argument("--hparams", default=None, type=str, help="Path to hyperparameters file. If `None`, uses file specified in the config file")
-    parser.add_argument("--config", required=True, help=f".json config",type=str)    
+    parser.add_argument("--config", required=True, help=".json config",type=str)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -197,8 +205,8 @@ if __name__ == "__main__":
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
 
     logging.basicConfig(
-      format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-      datefmt='%Y-%m-%d %H:%M:%S',
+      format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+      datefmt="%Y-%m-%d %H:%M:%S",
       level=logging.INFO
     )
     torch.set_float32_matmul_precision("medium")

@@ -4,16 +4,16 @@ import json
 import logging
 import multiprocessing as mp
 import os
-import h5py
-import numpy as np
-import torch
 import pickle
 import subprocess
 import sys
 import time
-import pyarrow.parquet as pq
 from functools import partial
 from multiprocessing import Pool
+import h5py
+import numpy as np
+import pyarrow.parquet as pq
+import torch
 from tqdm import tqdm
 from pop2vec.llm.src.data_new.types import Background
 from pop2vec.llm.src.data_new.types import PersonDocument
@@ -60,7 +60,7 @@ def worker_initializer(custom_vocab, time_range, max_seq_len):
     global global_custom_vocab
     global global_mlm
     global_custom_vocab = custom_vocab
-    global_mlm = MLM('dutch_v0', max_seq_len)
+    global_mlm = MLM("dutch_v0", max_seq_len)
     global_mlm.set_vocabulary(global_custom_vocab)
     if time_range:
         global_mlm.set_time_range(time_range)
@@ -70,9 +70,9 @@ def get_raw_file_name(path):
     return os.path.basename(path).split(".")[0]
 
 def create_vocab(
-  vocab_write_path, 
-  data_file_paths, 
-  vocab_name, 
+  vocab_write_path,
+  data_file_paths,
+  vocab_name,
   primary_key,
   num_processes=1,
 ):
@@ -93,16 +93,16 @@ def create_vocab(
     return custom_vocab
 
 def get_ids(path):
-    with open(path, 'r') as f:
+    with open(path) as f:
         ids = json.load(f)
     return set(ids)
 
 def init_data_dict(do_mlm):
     data_dict = {
-        'input_ids': [],
-        'padding_mask': [],
-        'original_sequence': [],
-        'sequence_id': [],
+        "input_ids": [],
+        "padding_mask": [],
+        "original_sequence": [],
+        "sequence_id": [],
     }
     if do_mlm:
         data_dict.update(
@@ -127,15 +127,15 @@ def update_data_dict(data_dict, output, do_mlm):
 
 
 def convert_to_numpy(data_dict):
-    if len(data_dict['original_sequence']) == 0:
+    if len(data_dict["original_sequence"]) == 0:
         return
-    context_len = data_dict['original_sequence'][0].shape[0]
+    context_len = data_dict["original_sequence"][0].shape[0]
 
     for key, value in data_dict.items():
-        if key == 'sequence_id':
+        if key == "sequence_id":
             data_dict[key] = np.array(value)
             continue
-        if key in ['target_tokens', 'target_pos']:
+        if key in ["target_tokens", "target_pos"]:
             np_value = np.full((len(value), context_len), -1)
             for i, row in enumerate(value):
                 np_value[i][:len(row)] = row
@@ -144,11 +144,11 @@ def convert_to_numpy(data_dict):
             data_dict[key] = np.stack(value)
 
 def encode_documents(
-  chunk_indices, 
-  parquet_file_path, 
-  primary_key, 
-  write_path_prefix, 
-  needed_ids, 
+  chunk_indices,
+  parquet_file_path,
+  primary_key,
+  write_path_prefix,
+  needed_ids,
   do_mlm
 ):
     start_idx, end_idx, process_id = chunk_indices
@@ -160,7 +160,7 @@ def encode_documents(
 
     # Use PyArrow to read only the required rows
     parquet_file = pq.ParquetFile(parquet_file_path)
-    columns = [primary_key, 'sentence', 'abspos', 'age', 'segment', 'background']
+    columns = [primary_key, "sentence", "abspos", "age", "segment", "background"]
 
     # Calculate row indices for the required rows
     row_group_indices = list(range(start_idx, end_idx))
@@ -201,9 +201,9 @@ def encode_documents(
         done_counter += 1
         if done_counter%LOG_THRESHOLD == 1:
           logging.info(
-            f'''Process {process_id} --> 
+            f"""Process {process_id} --> 
             done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}
-            created: {done_counter}, created% = {done_counter/(i+1) * 100}'''
+            created: {done_counter}, created% = {done_counter/(i+1) * 100}"""
           )
 
     convert_to_numpy(data_dict)
@@ -214,10 +214,10 @@ def encode_documents(
 
     write_to_hdf5(write_path, data_dict)
 
-def init_hdf5_datasets(h5f, data_dict, dtype='i4'):
+def init_hdf5_datasets(h5f, data_dict, dtype="i4"):
     """Initialize HDF5 datasets when they do not exist."""
     for key in data_dict:
-        if key == 'sequence_id':
+        if key == "sequence_id":
             h5f.create_dataset(
                 "sequence_id",
                 data=data_dict[key],
@@ -261,7 +261,7 @@ def write_to_hdf5(write_path, data_dict, dtype="i4", mode="a"):
     dtype: data types for arrays except the `sequence_id` array.
 
     """
-    if len(data_dict['sequence_id']) == 0:
+    if len(data_dict["sequence_id"]) == 0:
         return
     with h5py.File(write_path, mode) as h5f:
         init_hdf5_datasets(h5f, data_dict, dtype)
@@ -283,9 +283,9 @@ def generate_encoded_data(
     logging.debug("Starting generate_encoded_data function")
     if needed_ids_path:
         needed_ids = get_ids(needed_ids_path)
-        logging.info('needed ids # = %s', len(needed_ids))
+        logging.info("needed ids # = %s", len(needed_ids))
         random_id = list(needed_ids)[0]
-        logging.info('a random id is %s, type is %s', random_id, type(random_id))
+        logging.info("a random id is %s, type is %s", random_id, type(random_id))
     else:
         needed_ids = None
 
@@ -340,7 +340,7 @@ def generate_encoded_data(
 def get_data_files_from_directory(directory, primary_key):
     data_files = []
     for root, dirs, files in os.walk(directory):
-        for filename in fnmatch.filter(files, '*.parquet'):
+        for filename in fnmatch.filter(files, "*.parquet"):
             current_file_path = os.path.join(root, filename)
             columns = get_column_names(current_file_path)
             if (
@@ -361,8 +361,8 @@ def get_time_range(cfg):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.INFO
     )
     CFG_PATH = sys.argv[1]
@@ -376,7 +376,7 @@ if __name__ == "__main__":
     )
     logging.info("# of data_files_paths = %s", len(data_file_paths))
 
-    if cfg.get('LOAD_VOCAB', False):
+    if cfg.get("LOAD_VOCAB", False):
       logging.info(f"Loading Vocab from {vocab_path}")
       custom_vocab = CustomVocabulary(name=vocab_name)
       custom_vocab.load_vocab(vocab_path)
@@ -396,9 +396,9 @@ if __name__ == "__main__":
         write_path_prefix=cfg[ENCODING_WRITE_PATH],
         primary_key=primary_key,
         time_range=get_time_range(cfg),
-        do_mlm=cfg['DO_MLM'],
-        needed_ids_path=cfg.get('NEEDED_IDS_PATH', None),
-        shuffle=cfg.get('SHUFFLE', False),
+        do_mlm=cfg["DO_MLM"],
+        needed_ids_path=cfg.get("NEEDED_IDS_PATH", None),
+        shuffle=cfg.get("SHUFFLE", False),
         #chunk_size=cfg.get('CHUNK_SIZE', 5000),
         parallel=cfg.get("PARALLEL", True),
         max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
