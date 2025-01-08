@@ -90,7 +90,7 @@ def inference(cfg, transform_to_parquet=True):
             print_now(f"len(outputs) = {len(outputs)}")
             print_now(f"batch length = {len(batch['sequence_id'])}")
 
-        sequence_id = [x.decode() for x in batch["sequence_id"]]
+        sequence_id = batch["sequence_id"]
         cls_emb = outputs[:, 0, :].cpu()
         mean_emb = torch.mean(outputs, axis=1).cpu()
         data_dict = {"sequence_id": sequence_id, "cls_emb": cls_emb, "mean_emb": mean_emb}
