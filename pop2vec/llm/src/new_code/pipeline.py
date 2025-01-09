@@ -205,7 +205,12 @@ def encode_documents(chunk_indices, parquet_file_path, primary_key, write_path_p
             )
 
     convert_to_numpy(data_dict)
-    write_path = f"{write_path_prefix}chunk_{process_id}.h5"
+    write_path = f"{write_path_prefix}chunk_{process_id}"
+    if not do_mlm:
+        write_path += "_no_mlm"
+
+    write_path += ".h5"
+
     if os.path.exists(write_path):
         logging.info("Deleting existing file %s", write_path)
         os.remove(write_path)
