@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
+from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
 from pop2vec.llm.src.new_code.pipeline import write_to_hdf5
 from pop2vec.llm.src.new_code.pretrain import read_hparams_from_file
 from pop2vec.llm.src.new_code.utils import print_now
@@ -62,10 +62,11 @@ def inference(cfg, transform_to_parquet=True):
     model = load_model(checkpoint_path, hparams)
 
     logging.info("Reading from tokenzied path: %s", tokenized_path)
-    dataset = CustomIterableDataset(
+    dataset = CustomInMemoryDataset(
         tokenized_path,
         validation=False,
         inference=True,
+        mlm_encoded=False
     )
     dataset.set_mlm_encoded(False)
 
@@ -99,7 +100,10 @@ def inference(cfg, transform_to_parquet=True):
             print_now(f"Replacing file {write_path} with new embeddings.")
             Path(write_path).unlink()
 
-        write_to_hdf5(write_path, data_dict, np.float32)
+        write_to_hdf5(
+                write_path=write_path, 
+                data_dict=data_dict, 
+                dtype=np.float64)
 
     if transform_to_parquet:
         write_path = Path(write_path)
