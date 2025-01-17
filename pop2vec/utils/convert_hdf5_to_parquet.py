@@ -5,7 +5,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 from tqdm import tqdm
-from pop2vec.utils.constants import OSSC_ROOT
+
 
 DRY_RUN = False
 model = "LLM"
@@ -70,6 +70,8 @@ def h5_array_to_pq(
 
 def main():
     """Iterate over inputs and convert hdf5 embeddings to parquet."""
+    from pop2vec.utils.constants import OSSC_ROOT
+    
     source_path = Path(OSSC_ROOT, data_origin)
     write_path = Path(OSSC_ROOT, data_destination)
 

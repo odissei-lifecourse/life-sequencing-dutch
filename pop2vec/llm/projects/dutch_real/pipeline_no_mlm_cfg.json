@@ -3,11 +3,11 @@
   "SEQUENCE_PATH": "/projects/0/prjs1019/data/fake_data_v0/step4/people.parquet",
   "VOCAB_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/vocab_v0.csv",
   "ENCODING_WRITE_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/",
-  "DO_MLM": true,
+  "DO_MLM": false,
   "PRIMARY_KEY": "RINPERSOON",
   "VOCAB_NAME": "vocab_v0",
   "TIME_RANGE_END": 16438,
   "MAX_SEQ_LEN": 512,
   "LOAD_VOCAB": false,
   "PARALLEL": true
- }
+}
