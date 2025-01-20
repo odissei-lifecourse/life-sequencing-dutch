@@ -26,6 +26,8 @@ from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
+from pop2vec.utils.merge_hdf5 import merge_hdf5_files
+
 
 """
   The pipeline is like the following:
@@ -397,10 +399,15 @@ if __name__ == "__main__":
             num_processes=min(65, mp.cpu_count() - 5),
         )
     logging.info("Vocab is ready")
+    write_path_prefix = cfg[ENCODING_WRITE_PATH]
+    chunk_dir = f"{write_path_prefix}chunks/"
+    if not os.path.exists(chunk_dir):
+        os.mkdir(chunk_dir)
+
     generate_encoded_data(
         custom_vocab=custom_vocab,
         sequence_path=cfg[SEQUENCE_PATH],
-        write_path_prefix=cfg[ENCODING_WRITE_PATH],
+        write_path_prefix=chunk_dir,
         primary_key=primary_key,
         time_range=get_time_range(cfg),
         do_mlm=cfg["DO_MLM"],
@@ -410,3 +417,11 @@ if __name__ == "__main__":
         parallel=cfg.get("PARALLEL", True),
         max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
     )
+   
+    logging.info("Chunks are ready, merging them and deleting")
+    chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
+    mlm = "mlm" if cfg["DO_MLM"] else "no_mlm"
+    file_name = f"{mlm}_encoded.h5"
+    merge_hdf5_files(chunk_files, f"{write_path_prefix}{file_name}")
+    [os.remove(f) for f in chunk_files]
+    logging.info("All done.")
