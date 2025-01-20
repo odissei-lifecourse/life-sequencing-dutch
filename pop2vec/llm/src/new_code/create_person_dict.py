@@ -78,9 +78,9 @@ class CreatePersonDict:
             str: Background file path.
         """
         background_file_path = [fp for fp in file_paths if "background" in os.path.basename(fp)]
-        assert len(background_file_path) == 1, (
-            f"Unique Background file not found.\n" f"found background files list: {background_file_path}"
-        )
+        if len(background_file_path) != 1:
+            msg = f"Unique background file not found. Instead, found this list: {background_file_path}"
+            raise RuntimeError(msg)
         return background_file_path[0]
 
     def _process_background_data(self):
