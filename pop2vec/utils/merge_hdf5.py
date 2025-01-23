@@ -1,20 +1,26 @@
+import os
+from pathlib import Path
+import h5py
+import numpy as np
+
+
 def merge_hdf5_files(input_files, output_file, chunk_size=1000):
     if os.path.exists(output_file):
         os.remove(output_file)
 
     # Open all input files
-    h5_files = [h5py.File(f, 'r') for f in input_files]
+    h5_files = [h5py.File(f, "r") for f in input_files]
 
     # Open the output file
-    with h5py.File(output_file, 'w') as h5f_out:
+    with h5py.File(output_file, "w") as h5f_out:
         # Initialize datasets in the output file
         for key in h5_files[0].keys():
             shape = list(h5_files[0][key].shape)
             shape[0] = None  # Unlimited size along the first axis
             maxshape = tuple(shape)
             dtype = h5_files[0][key].dtype
-            if key == 'sequence_id':
-                dtype = h5py.special_dtype(vlen=str)
+            if key == "sequence_id":
+                dtype = np.int64
             h5f_out.create_dataset(
                 key,
                 shape=(0,) + h5_files[0][key].shape[1:],
