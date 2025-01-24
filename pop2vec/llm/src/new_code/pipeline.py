@@ -28,6 +28,11 @@ from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
 from pop2vec.utils.merge_hdf5 import merge_hdf5_files
 
+import hydra
+from omegaconf import DictConfig
+from omegaconf import OmegaConf
+
+
 """
   The pipeline is like the following:
   1. Create life_sequence Parquet files (data is stored in Parquet format)
@@ -37,6 +42,9 @@ from pop2vec.utils.merge_hdf5 import merge_hdf5_files
   3. Read rows from the Parquet file and run MLM to get mlmencoded documents
 """
 
+CONFIG_PATH = "../../projects/dutch_real/conf" 
+# this is constant across all scripts
+# it can be an ENV variable defined in a bash script sourced before any scripts are called
 
 PRIMARY_KEY = "PRIMARY_KEY"
 DATA_PATH = "DATA_PATH"
@@ -371,14 +379,10 @@ def get_time_range(cfg):
     return time_range
 
 
-import hydra
-from omegaconf import DictConfig
-from omegaconf import OmegaConf
 
-config_path = "popvec/llm/projects/dutch_real/conf/"
-
-@hydra.main(version_base=None, config_path=config_path, config_name="pipeline")
+@hydra.main(version_base=None, config_path=CONFIG_PATH, config_name="pipeline")
 def main(cfg: DictConfig) -> None:
+
 
     #CFG_PATH = sys.argv[1]
     #cfg = read_json(CFG_PATH)
