@@ -28,7 +28,6 @@ from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
 from pop2vec.utils.merge_hdf5 import merge_hdf5_files
 
-
 """
   The pipeline is like the following:
   1. Create life_sequence Parquet files (data is stored in Parquet format)
@@ -372,12 +371,17 @@ def get_time_range(cfg):
     return time_range
 
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO
-    )
-    CFG_PATH = sys.argv[1]
-    cfg = read_json(CFG_PATH)
+import hydra
+from omegaconf import DictConfig
+from omegaconf import OmegaConf
+
+config_path = "popvec/llm/projects/dutch_real/conf/"
+
+@hydra.main(version_base=None, config_path=config_path, config_name="pipeline")
+def main(cfg: DictConfig) -> None:
+
+    #CFG_PATH = sys.argv[1]
+    #cfg = read_json(CFG_PATH)
 
     primary_key = cfg[PRIMARY_KEY]
     vocab_path = cfg[VOCAB_PATH]
@@ -392,32 +396,32 @@ if __name__ == "__main__":
     else:
         logging.info(f"Creating Vocab and saving at {vocab_path}")
         custom_vocab = create_vocab(
-            vocab_write_path=vocab_path,
-            data_file_paths=data_file_paths,
-            vocab_name=vocab_name,
-            primary_key=primary_key,
-            num_processes=min(65, mp.cpu_count() - 5),
-        )
-    logging.info("Vocab is ready")
-    write_path_prefix = cfg[ENCODING_WRITE_PATH]
-    chunk_dir = f"{write_path_prefix}chunks/"
-    if not os.path.exists(chunk_dir):
-        os.mkdir(chunk_dir)
+                vocab_write_path=vocab_path,
+                data_file_paths=data_file_paths,
+                vocab_name=vocab_name,
+                primary_key=primary_key,
+                num_processes=min(65, mp.cpu_count() - 5),
+                )
+        logging.info("Vocab is ready")
+        write_path_prefix = cfg[ENCODING_WRITE_PATH]
+        chunk_dir = f"{write_path_prefix}chunks/"
+        if not os.path.exists(chunk_dir):
+            os.mkdir(chunk_dir)
 
     generate_encoded_data(
-        custom_vocab=custom_vocab,
-        sequence_path=cfg[SEQUENCE_PATH],
-        write_path_prefix=chunk_dir,
-        primary_key=primary_key,
-        time_range=get_time_range(cfg),
-        do_mlm=cfg["DO_MLM"],
-        needed_ids_path=cfg.get("NEEDED_IDS_PATH", None),
-        shuffle=cfg.get("SHUFFLE", False),
-        # chunk_size=cfg.get('CHUNK_SIZE', 5000),
-        parallel=cfg.get("PARALLEL", True),
-        max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
-    )
-   
+                    custom_vocab=custom_vocab,
+                    sequence_path=cfg[SEQUENCE_PATH],
+                    write_path_prefix=chunk_dir,
+                    primary_key=primary_key,
+                    time_range=get_time_range(cfg),
+                    do_mlm=cfg["DO_MLM"],
+                    needed_ids_path=cfg.get("NEEDED_IDS_PATH", None),
+                    shuffle=cfg.get("SHUFFLE", False),
+                    # chunk_size=cfg.get('CHUNK_SIZE', 5000),
+                    parallel=cfg.get("PARALLEL", True),
+                    max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
+                    )
+
     logging.info("Chunks are ready, merging them and deleting")
     chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
     mlm = "mlm" if cfg["DO_MLM"] else "no_mlm"
@@ -425,3 +429,9 @@ if __name__ == "__main__":
     merge_hdf5_files(chunk_files, f"{write_path_prefix}{file_name}")
     [os.remove(f) for f in chunk_files]
     logging.info("All done.")
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO
+    )
+    main()
