@@ -93,7 +93,7 @@ class MLM(Task):
         prefix_sentence = ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]
 
         # Apply CLS task transformations
-        document, targ_cls = self.cls_task(document)
+        document, targ_cls = self.cls_task(document, do_mlm)
 
         # Construct sentences with [SEP] tokens
         sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
@@ -343,7 +343,10 @@ class MLM(Task):
         )
         return cast(List[Tuple[int, int]], token_groups)
 
-    def cls_task(self, document: PersonDocument):
+    def cls_task(self, document: PersonDocument, do_mlm: bool=True):
+        if not do_mlm:
+            return document, 0
+
         p = np.random.rand(1)
         if p <0.05:
             document.sentences.reverse()
