@@ -93,7 +93,7 @@ class MLM(Task):
         prefix_sentence = ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]
 
         # Apply CLS task transformations
-        document, targ_cls = self.cls_task(document)
+        document, targ_cls = self.cls_task(document, do_mlm)
 
         # Construct sentences with [SEP] tokens
         sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
@@ -343,12 +343,32 @@ class MLM(Task):
         )
         return cast(List[Tuple[int, int]], token_groups)
 
-    def cls_task(self, document: PersonDocument):
+    def cls_task(self, document: PersonDocument, do_mlm: bool=True, permute_prob: float=0.05):
+        """Convert sequence for CLS task.
+
+        Arguments:
+            document: PersonDocument to encode.
+            do_mlm: boolean indicating if MLM encoding or not. Default
+            is True. If False, document is returned as it is.
+            permute_prob: Probability of permuting sequences. For `permute_prob`
+            of sequences, the sentences are reversed. For `permute_prob` of
+            sequences, the sentences are randomly shuffled. This means that
+            a fraction of (1 - 2*permute_prob) sequences are kept as they are.
+        """
+        max_prob = 0.5
+
+        if not do_mlm:
+            return document, 0
+
+        if permute_prob >= max_prob:
+            msg = "Set permutation probability to less than 0.5"
+            raise ValueError(msg)
+
         p = np.random.rand(1)
-        if p <0.05:
+        if p < permute_prob:
             document.sentences.reverse()
             targ_cls = 1
-        elif p>0.95:
+        elif p > 1 - permute_prob:
             shuffle(document.sentences)
             targ_cls = 2
         else:
