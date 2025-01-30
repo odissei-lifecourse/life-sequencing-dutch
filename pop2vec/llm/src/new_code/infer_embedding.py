@@ -93,7 +93,13 @@ def inference(cfg, transform_to_parquet=True):
 
         sequence_id = batch["sequence_id"]
         cls_emb = outputs[:, 0, :].cpu()
-        mean_emb = torch.mean(outputs, axis=1).cpu()
+
+        padding_mask = batch["padding_mask"].bool()  # Convert to boolean mask
+        valid_token_counts = padding_mask.sum(dim=1, keepdim=True)  # Count non-padding tokens
+        valid_token_counts = valid_token_counts.clamp(min=1)  # Avoid division by zero
+        mean_emb = (outputs * padding_mask.unsqueeze(-1)).sum(dim=1) / valid_token_counts
+        mean_emb = mean_emb.cpu()
+
         data_dict = {"sequence_id": sequence_id, "cls_emb": cls_emb, "mean_emb": mean_emb}
 
         if i == 0 and Path(write_path).is_file():
