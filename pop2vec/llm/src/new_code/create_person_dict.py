@@ -242,5 +242,5 @@ class CreatePersonDict:
         people_df = people_df[[self.primary_key, "background", "sentence", "abspos", "age", "segment"]]
 
         # Write to Parquet file
-        people_df.to_parquet(write_path, index=False, row_group_size=len(people_df) // 65)
+        people_df.to_parquet(write_path, index=False)
         logging.info(f"Data written to {write_path}")

@@ -28,7 +28,6 @@ from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
 from pop2vec.utils.merge_hdf5 import merge_hdf5_files
 
-
 """
   The pipeline is like the following:
   1. Create life_sequence Parquet files (data is stored in Parquet format)
@@ -150,9 +149,8 @@ def convert_to_numpy(data_dict):
             data_dict[key] = np.stack(value)
 
 
-def encode_documents(chunk_indices, parquet_file_path, primary_key, write_path_prefix, needed_ids, do_mlm):
-    start_idx, end_idx, process_id = chunk_indices
-    logging.info(f"Process {process_id} starting with row groups {start_idx} to {end_idx}")
+def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_prefix, needed_ids, do_mlm):
+    logging.info(f"Chunk {row_group_id} starting")
     global global_custom_vocab
     global global_mlm  # Use the global MLM object
 
@@ -162,14 +160,8 @@ def encode_documents(chunk_indices, parquet_file_path, primary_key, write_path_p
     parquet_file = pq.ParquetFile(parquet_file_path)
     columns = [primary_key, "sentence", "abspos", "age", "segment", "background"]
 
-    # Calculate row indices for the required rows
-    row_group_indices = list(range(start_idx, end_idx))
-    if len(row_group_indices) == 0:
-        return
-
     # Read the specified rows
-    # table = parquet_file.read(columns=columns, use_threads=False)#, row_indices=row_indices)
-    table = parquet_file.read_row_groups(row_groups=row_group_indices, columns=columns, use_threads=False)
+    table = parquet_file.read_row_group(row_group_id, use_threads=False, columns=columns)
     df = table.to_pandas()
     done_counter = 0
     for i, row in enumerate(df.itertuples()):
@@ -200,14 +192,14 @@ def encode_documents(chunk_indices, parquet_file_path, primary_key, write_path_p
         update_data_dict(data_dict, output, do_mlm)
         done_counter += 1
         if done_counter % LOG_THRESHOLD == 1:
-            logging.info(
-                f"""Process {process_id} -->
+            logging.debug(
+                f"""Chunk {row_group_id} -->
             done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}
             created: {done_counter}, created% = {done_counter/(i+1) * 100}"""
             )
 
     convert_to_numpy(data_dict)
-    write_path = f"{write_path_prefix}chunk_{process_id}"
+    write_path = f"{write_path_prefix}chunk_{row_group_id}"
     if not do_mlm:
         write_path += "_no_mlm"
 
@@ -289,8 +281,6 @@ def generate_encoded_data(
     do_mlm=True,
     needed_ids_path=None,
     shuffle=False,
-    chunk_size=5000,
-    # chunk_size=5000,
     parallel=True,
     max_seq_len=512,
 ):
@@ -314,18 +304,16 @@ def generate_encoded_data(
     #     indices = np.arange(total_docs)
 
     if parallel:
-        num_processes = min(65, mp.cpu_count() - 5)
+        num_processes = len(os.sched_getaffinity(0)) - 2
     else:
         num_processes = 1
     logging.info(f"# of processes = {num_processes}")
 
-    # Calculate chunk sizes for each process
-    chunks_per_process = parquet_file.num_row_groups // num_processes  # total_docs // num_processes
-    chunk_indices = []
-    for i in range(num_processes):
-        start_idx = i * chunks_per_process
-        end_idx = (i + 1) * chunks_per_process if i != num_processes - 1 else parquet_file.num_row_groups
-        chunk_indices.append((start_idx, end_idx, i))
+
+    num_row_groups = parquet_file.num_row_groups
+    num_workers = min(num_processes, num_row_groups)
+
+    row_group_ids = list(range(num_row_groups))
 
     helper_encode_documents = partial(
         encode_documents,
@@ -336,18 +324,18 @@ def generate_encoded_data(
         do_mlm=do_mlm,
     )
 
-    if parallel:
-        logging.info("Starting multiprocessing")
-        with Pool(
-            processes=num_processes,
-            initializer=worker_initializer,
-            initargs=(custom_vocab, time_range, max_seq_len),
-        ) as pool:
-            list(tqdm(pool.imap_unordered(helper_encode_documents, chunk_indices), total=num_processes))
-    else:
-        worker_initializer(custom_vocab, time_range, max_seq_len)
-        for chunk in tqdm(chunk_indices, desc="Encoding documents", unit="chunk"):
-            helper_encode_documents(chunk)
+    logging.info("Starting multiprocessing")
+    with Pool(
+        processes=num_workers,
+        initializer=worker_initializer,
+        initargs=(custom_vocab, time_range, max_seq_len),
+    ) as pool:
+        _ = list(
+                tqdm(pool.imap(helper_encode_documents, row_group_ids),
+                     total=num_row_groups,
+                     desc="Processing row groups",
+                     unit="group")
+                )
 
     logging.debug("Finished generate_encoded_data function")
 
@@ -413,11 +401,10 @@ if __name__ == "__main__":
         do_mlm=cfg["DO_MLM"],
         needed_ids_path=cfg.get("NEEDED_IDS_PATH", None),
         shuffle=cfg.get("SHUFFLE", False),
-        # chunk_size=cfg.get('CHUNK_SIZE', 5000),
         parallel=cfg.get("PARALLEL", True),
         max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
     )
-   
+
     logging.info("Chunks are ready, merging them and deleting")
     chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
     mlm = "mlm" if cfg["DO_MLM"] else "no_mlm"
