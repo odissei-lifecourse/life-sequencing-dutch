@@ -17,12 +17,15 @@ ndim=128
 window_size=10
 max_epochs=50
 
+# NOTE: `--gpus` should be 0 as long as using a single device. The argument
+# value is not tied to the index of the visible devices set above.
+
 python -m pop2vec.graph.src.deepwalk \
     --dim "$ndim" \
     --window_size "$window_size" \
     --num_walks 1 \
     --only_gpu \
-    --gpus 1 \
+    --gpus 0 \
     --print_loss \
     --start_index 0 \
     --max_epochs "$max_epochs" \
