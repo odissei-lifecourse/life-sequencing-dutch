@@ -3,8 +3,8 @@
 #SBATCH --job-name=infer_small
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
-#SBATCH --time=30:00
-#SBATCH --mem=80G
+#SBATCH --time=5:30:00
+#SBATCH --mem=100G
 #SBATCH -p gpu
 #SBATCH --gpus 1
 #SBATCH -e logs/%x-%j.err

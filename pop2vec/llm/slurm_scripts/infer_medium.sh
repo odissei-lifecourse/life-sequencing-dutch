@@ -4,10 +4,10 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --time=10:00:00
-#SBATCH --mem=80G
+#SBATCH --mem=100G
 #SBATCH -p comp_env
-#SBATCH -e /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/logs/%x.%j.err
-#SBATCH -o /gpfs/ostor/ossc9424/homedir/Tanzir/LifeToVec_Nov/projects/dutch_real/logs/%x.%j.out
+#SBATCH -e logs/%x-%j.err
+#SBATCH -o logs/%x-%j.out
 
 declare PREFIX="/gpfs/ostor/ossc9424/homedir/"
 
