@@ -4,10 +4,12 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --time=48:00:00
-#SBATCH --mem=50GB
+#SBATCH --mem=80GB
 #SBATCH -p comp_env
 #SBATCH -e logs/%x-%j.err
 #SBATCH -o logs/%x-%j.out
+
+# NOTE: for years > 2016, need 80GB mem; before 50GB is enough
 
 source requirements/load_venv.sh
 
