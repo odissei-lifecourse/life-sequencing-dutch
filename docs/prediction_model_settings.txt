@@ -1,0 +1,50 @@
+We plan to test out different settings for the prediction model to figure out the optimal setting for us.
+
+There are three different axes along which different settings can be applied. 
+
+1) Embedding type: 
+   a) CLS embedding
+   b) mean pooled embedding
+   c) all output token embeddings as a sequence
+
+2) Prediction Layer:
+   a) one linear layer
+   b) one linear layer, one non-linear activation layer, one linear (output) layer (Huggingface AutoModelForSequenceClassification implementation)
+   c) learnable vector to compute attention matrix to do weighted sum of the output token embeddings sequence (1.c)
+   d) a biLSTM to process ouput token embedding sequence (1.c)
+   e) Gradient Bossted Trees
+   f) Random Forest
+   g) Nearest Neighbor
+
+3) Freezing LLM layers:
+  a) Freeze the LLM completely and only train the new prediction layer, treating the LLM output as static feature vectors
+  b) Fine-tune end-to-end. Update parameters of the LLM completely or as much as needed (e.g., unfreezing a few of the latter layers only)
+
+Till now we have tried both 1a-2a-3a and 1b-2a-3a. We found 1a-2a-3a to be a weak setting. We hypothesize because of the model's easy/weak pretraining objective
+for CLS training, the CLS embedding is not a true representative of the sequence. 
+
+We are in principle happy with any setting that uses 3a along with any combination for 1 and 2. 3a is necessary because we want to provide
+static embeddings as files to future researchers so that they can use them in any way they see fit. 
+
+The following list tells us the settings used by other prominent models:
+-- BERT:
+(1a-2a-3b) for sentence level tasks 
+(1c-2a-3b) for token level tasks 
+(1c-2d-3a) for token level tasks 
+
+-- Life2Vec:
+(1a-2b-3b) for personality prediction
+(1c-2c-3b) for mortality prediction
+
+-- Huggingface API:
+(1a-2b-3b) 
+
+
+Our plans right now (in decreasing order of priority):
+(1b-2b-3a)
+(1b-2a-3a)
+(1b-2b-3b)
+(1b-2a-3b)
+.....
+(1c-2c-3a)
+(1c-2d-3a)
