@@ -409,6 +409,8 @@ if __name__ == "__main__":
     chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
     mlm = "mlm" if cfg["DO_MLM"] else "no_mlm"
     file_name = f"{mlm}_encoded.h5"
+    if "_dryrun" in cfg[SEQUENCE_PATH]:
+        file_name = f"{mlm}_encoded_dryrun.h5"
     merge_hdf5_files(chunk_files, f"{write_path_prefix}{file_name}")
     [os.remove(f) for f in chunk_files]
     logging.info("All done.")
