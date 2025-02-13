@@ -9,7 +9,7 @@ and saves a single model plus a row of results in CSV.
 
 This version:
 - Uses MSE as the training loss for numeric tasks.
-- Reports average MSE, MAE, and R² (Avg_R²) as validation metrics for numeric tasks.
+- Reports average MSE, MAE, and R2 (Avg_R2) as validation metrics for numeric tasks.
 - For classification (binary/categorical), reports accuracy and F1.
 
 Follows Google's Python style guide as much as possible.
@@ -29,12 +29,13 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, accuracy_score, mean_squared_error, r2_score
 from tqdm import tqdm
 
-PRIMARY_KEY = 'rinpersoon_id'
+PRIMARY_KEY = 'RINPERSOON'
 EARLY_STOP_PATIENCE = 3
 MAX_EPOCHS = 50
 DROPOUT_RATE = 0.15
 BATCH_SIZE = 128
-
+LR = 1e-3
+DRY_RUN = True
 
 class SimpleMLP(nn.Module):
   """Simple MLP with either 1 or 2 layers, depending on config."""
@@ -98,7 +99,10 @@ def load_and_merge_data(cfg):
   """
   data_df = pd.read_csv(cfg['data_path'])
   emb_df = pd.read_parquet(cfg['emb_path'])
-
+  if DRY_RUN:
+    emb_df = emb_df.sample(n=min(len(emb_df), 100000))
+  for df in [data_df, emb_df]:
+    df.rename(columns={'rinpersoon_id': PRIMARY_KEY}, inplace=True)
   # Keep only the primary key and target columns
   target_cols = list(cfg['target_column'].keys())
   data_cols_to_keep = [PRIMARY_KEY] + target_cols
@@ -149,8 +153,10 @@ def encode_target(y, target_type):
     ValueError: If the target_type is not recognized or if a binary target
       does not have exactly 2 unique values.
   """
+  print("--------------- Data Statistics -------------------")
   if target_type == 'numeric':
     # Numeric targets remain unchanged (e.g., continuous values).
+    print(f"min = {np.min(y)}, median = {np.median(y)}, max = {np.max(y)}, mean = {np.mean(y)}, std = {np.std(y)}")
     return y, 1
 
   unique_vals = sorted(set(y))
@@ -162,6 +168,10 @@ def encode_target(y, target_type):
           f"Binary target must have exactly 2 unique values, "
           f"but got {len(unique_vals)} ({unique_vals})."
       )
+    for i in range(2):
+      print(f"Count      -- class {unique_vals[i]}: {np.sum(y==unique_vals[i])}")
+      print(f"Percentage -- class {unique_vals[i]}: {np.sum(y==unique_vals[i])/len(y)*100}")
+      
     mapping = {unique_vals[0]: 0, unique_vals[1]: 1}
     y_encoded = np.array([mapping[val] for val in y])
     return y_encoded, 1
@@ -169,6 +179,10 @@ def encode_target(y, target_type):
   if target_type == 'categorical':
     # For categorical, label encode the targets.
     class_to_idx = {val: i for i, val in enumerate(unique_vals)}
+    for i in range(len(unique_vals)):
+      print(f"Count      -- class {unique_vals[i]}: {np.sum(y==unique_vals[i])}")
+      print(f"Percentage -- class {unique_vals[i]}: {np.sum(y==unique_vals[i])/len(y)*100}")
+
     y_encoded = np.array([class_to_idx[val] for val in y])
     return y_encoded, len(unique_vals)
 
@@ -199,7 +213,7 @@ def select_criterion_and_optimizer(model, target_type):
   """Selects the appropriate loss function and initializes the optimizer.
 
   For numeric targets, we use MSELoss for backprop. We will track MSE, MAE,
-  and R² as metrics, but the criterion is MSE.
+  and R2 as metrics, but the criterion is MSE.
 
   Args:
     model: nn.Module, the model to optimize.
@@ -233,54 +247,75 @@ def train_one_epoch(model, train_loader, criterion, optimizer, target_type):
     tuple of:
       - float, average train loss (MSE for numeric, CE/BCE for classification)
       - float or None, second metric (MAE for numeric, Accuracy for classification)
-      - float or None, third metric (R² for numeric, F1 for classification)
+      - float or None, third metric (R2 for numeric, F1 for classification)
   """
   model.train()
   train_losses = []
 
-  # For numeric tasks, track MSE-based loss but also compute MAE, R²
+  # For numeric tasks, track MSE-based loss but also compute MAE, R2
   abs_errors = []
   preds_list, trues_list = [], []
+  with tqdm(total=len(train_loader), unit=" batch") as tepoch:
+    tepoch.set_description("Training")
+    for batch_idx, (xb, yb) in enumerate(train_loader):
+      optimizer.zero_grad()
+      preds = model(xb)
 
-  for xb, yb in tqdm(train_loader, desc="Training", leave=False):
-    optimizer.zero_grad()
-    preds = model(xb)
+      if target_type == 'categorical':
+        loss = criterion(preds.squeeze(), yb)
+      else:
+        loss = criterion(preds.squeeze(), yb.float())
 
-    if target_type == 'numeric':
-      # MSE as loss
-      loss = criterion(preds.squeeze(), yb.float())
-    else:
-      loss = criterion(preds.squeeze(), yb)
+      loss.backward()
+      optimizer.step()
+      train_losses.append(loss.item())
 
-    loss.backward()
-    optimizer.step()
+      # Collect additional metrics
+      if target_type == 'numeric':
+        preds_np = preds.squeeze().detach().cpu().numpy()
+        targets_np = yb.detach().cpu().numpy()
+        preds_list.extend(preds_np if preds_np.ndim == 1 else preds_np.flatten())
+        trues_list.extend(targets_np if targets_np.ndim == 1 else targets_np.flatten())
+        abs_errors.append(np.abs(preds_np - targets_np))
+        tepoch.set_postfix(
+          {
+            "Batch": batch_idx + 1,
+            "Loss": f"{loss.item():.4f}",
+            "Min": np.min(preds_np),
+            "Median": np.median(preds_np),
+            "Max": np.max(preds_np),
+            "Mean": np.mean(preds_np),
+          }
+        )
+      else:
+        # Classification
+        tqdm_dict = {
+            "Batch": batch_idx + 1,
+            "Loss": f"{loss.item():.4f}",
+        }
+        if target_type == 'binary':
+          p = torch.sigmoid(preds).detach().cpu().numpy()
+          p = (p > 0.5).astype(int).ravel()
+          for i in range(2):
+            tqdm_dict[f"class_{i}_%"] = np.sum(p == i) / len(p) * 100
+        else:  # 'categorical'
+          p = torch.argmax(preds, dim=1).detach().cpu().numpy()
+          for i in range(len(preds[0])):
+            tqdm_dict[f"class_{i}_%"] = np.sum(p == i) / len(p) * 100
+        tepoch.set_postfix(tqdm_dict)
+        preds_list.extend(p)
+        trues_list.extend(yb.cpu().numpy())
 
-    train_losses.append(loss.item())
+      # This ensures each batch increments the progress bar,
+      # enabling proper time estimation.
+      tepoch.update(1)
 
-    # Collect additional metrics
-    if target_type == 'numeric':
-      preds_np = preds.squeeze().detach().cpu().numpy()
-      targets_np = yb.detach().cpu().numpy()
-      preds_list.extend(preds_np if preds_np.ndim == 1 else preds_np.flatten())
-      trues_list.extend(targets_np if targets_np.ndim == 1 else targets_np.flatten())
-      abs_errors.append(np.abs(preds_np - targets_np))
-    else:
-      # Classification
-      if target_type == 'binary':
-        p = torch.sigmoid(preds).detach().cpu().numpy()
-        p = (p > 0.5).astype(int).ravel()
-      else:  # 'categorical'
-        p = torch.argmax(preds, dim=1).detach().cpu().numpy()
-
-      preds_list.extend(p)
-      trues_list.extend(yb.cpu().numpy())
-
+  tepoch.close()
   train_loss_avg = np.mean(train_losses)
 
   if target_type == 'numeric':
     mae = np.mean(np.concatenate(abs_errors)) if abs_errors else 0.0
-    # R² for train set
-    # Might be less common to track R² at train time, but we'll do it for completeness
+    # R2 for train set
     if len(preds_list) > 0:
       r2_val = r2_score(trues_list, preds_list)
     else:
@@ -306,7 +341,7 @@ def validate_one_epoch(model, val_loader, criterion, target_type):
     tuple of:
       - float, average validation loss (MSE for numeric, CE/BCE for classification)
       - float or None, second metric (MAE for numeric, Accuracy for classification)
-      - float or None, third metric (R² for numeric, F1 for classification)
+      - float or None, third metric (R2 for numeric, F1 for classification)
   """
   model.eval()
   val_losses = []
@@ -317,12 +352,11 @@ def validate_one_epoch(model, val_loader, criterion, target_type):
   with torch.no_grad():
     for xb, yb in val_loader:
       preds = model(xb)
-
-      if target_type == 'numeric':
-        loss = criterion(preds.squeeze(), yb.float())
-      else:
+      if target_type == 'categorical':
         loss = criterion(preds.squeeze(), yb)
-
+      else:
+        loss = criterion(preds.squeeze(), yb.float())      
+      
       val_losses.append(loss.item())
 
       # Collect metrics
@@ -345,7 +379,7 @@ def validate_one_epoch(model, val_loader, criterion, target_type):
 
   if target_type == 'numeric':
     mae = np.mean(np.concatenate(abs_errors)) if abs_errors else 0.0
-    # R² on the validation set
+    # R2 on the validation set
     r2_val = r2_score(trues_list, preds_list) if len(preds_list) > 0 else 0.0
     return val_loss_avg, mae, r2_val
 
@@ -392,7 +426,7 @@ def train_single_fold(
   fold_model = SimpleMLP(input_dim, output_dim, num_layers, activation_name).to(device)
   fold_model.load_state_dict(model.state_dict())
 
-  optimizer = optim.Adam(fold_model.parameters(), lr=1e-4)
+  optimizer = optim.Adam(fold_model.parameters(), lr=LR)
 
   train_sampler = SubsetRandomSampler(train_indices)
   val_sampler = SubsetRandomSampler(val_indices)
@@ -413,12 +447,12 @@ def train_single_fold(
     )
 
     if target_type == 'numeric':
-      # train_metric_1 = MAE, train_metric_2 = R²
-      # val_metric_1 = MAE, val_metric_2 = R²
+      # train_metric_1 = MAE, train_metric_2 = R2
+      # val_metric_1 = MAE, val_metric_2 = R2
       print(
           f'[Epoch {epoch + 1}] '
-          f'Train Loss (MSE): {train_loss:.4f}, Train MAE: {train_metric_1:.4f}, Train R²: {train_metric_2:.4f} | '
-          f'Val Loss (MSE): {val_loss:.4f}, Val MAE: {val_metric_1:.4f}, Val R²: {val_metric_2:.4f}'
+          f'Train Loss (MSE): {train_loss:.4f}, Train MAE: {train_metric_1:.4f}, Train R2: {train_metric_2:.4f} | '
+          f'Val Loss (MSE): {val_loss:.4f}, Val MAE: {val_metric_1:.4f}, Val R2: {val_metric_2:.4f}'
       )
     else:
       # train_metric_1 = Acc, train_metric_2 = F1
@@ -452,7 +486,7 @@ def train_single_fold(
     pred_vals = fold_model(val_x).squeeze().cpu().numpy()
 
   if target_type == 'numeric':
-    # For numeric: final fold metric = (MAE, MSE, R²)
+    # For numeric: final fold metric = (MAE, MSE, R2)
     fold_mae = np.mean(np.abs(pred_vals - val_y))
     fold_mse = mean_squared_error(val_y, pred_vals)
     fold_r2 = r2_score(val_y, pred_vals)
@@ -479,8 +513,8 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
 
   For numeric:
     - We use MSE as training loss.
-    - We compute MSE, MAE, and R² on validation sets.
-    - The final fold metric is (MAE, MSE, R²), and we average them across folds.
+    - We compute MSE, MAE, and R2 on validation sets.
+    - The final fold metric is (MAE, MSE, R2), and we average them across folds.
   For binary/categorical:
     - We compute accuracy and macro-F1 on validation sets.
 
@@ -496,7 +530,7 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
 
     (avg_mae, avg_mse, avg_r2, avg_acc, avg_f1, model_path)
 
-    - For numeric tasks: all numeric metrics are filled (MAE, MSE, R²), and
+    - For numeric tasks: all numeric metrics are filled (MAE, MSE, R2), and
       (avg_acc, avg_f1) will be None.
     - For classification tasks: (avg_acc, avg_f1) are filled, and
       (avg_mae, avg_mse, avg_r2) will be None.
@@ -537,14 +571,14 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
 
   # Summaries
   if target_type == 'numeric':
-    # each fold_metric = (MAE, MSE, R²)
+    # each fold_metric = (MAE, MSE, R2)
     avg_mae = np.mean([m[0] for m in all_fold_results])
     avg_mse = np.mean([m[1] for m in all_fold_results])
     avg_r2 = np.mean([m[2] for m in all_fold_results])
     avg_acc, avg_f1 = None, None
     summary_str = (f'Avg MAE: {avg_mae:.4f}, '
                    f'Avg MSE: {avg_mse:.4f}, '
-                   f'Avg R²: {avg_r2:.4f}')
+                   f'Avg R2: {avg_r2:.4f}')
   else:
     # each fold_metric = (acc, f1)
     avg_acc = np.mean([m[0] for m in all_fold_results])
