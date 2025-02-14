@@ -27,14 +27,15 @@ import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, SubsetRandomSampler
 from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, accuracy_score, mean_squared_error, r2_score
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
 PRIMARY_KEY = 'RINPERSOON'
-EARLY_STOP_PATIENCE = 3
-MAX_EPOCHS = 50
-DROPOUT_RATE = 0.15
-BATCH_SIZE = 128
-LR = 1e-3
+EARLY_STOP_PATIENCE = None
+MAX_EPOCHS = None
+DROPOUT_RATE = None
+BATCH_SIZE = None
+LR = None
 DRY_RUN = True
 
 class SimpleMLP(nn.Module):
@@ -51,7 +52,8 @@ class SimpleMLP(nn.Module):
     super().__init__()
     self.num_layers = num_layers
     self.activation = getattr(nn, activation_fn, nn.ReLU)()
-
+    if isinstance(self.activation, nn.modules.activation.ReLU) and activation_fn != 'ReLU':
+      print(f"passed activation_fn {activation_fn} is invalid, using ReLU instead")
     if num_layers == 1:
       self.net = nn.Linear(input_dim, output_dim)
     else:
@@ -68,6 +70,7 @@ class SimpleMLP(nn.Module):
       x = self.drop1(x)
       x = self.lin1(x)
       x = self.activation(x)
+      x = self.drop2(x)
       x = self.lin2(x)
       return x
 
@@ -97,7 +100,12 @@ def load_and_merge_data(cfg):
       - data_df with [PRIMARY_KEY, target_columns]
       - emb_df with [PRIMARY_KEY, embedding features]
   """
-  data_df = pd.read_csv(cfg['data_path'])
+  if cfg['data_path'].endswith('.csv'):
+    data_df = pd.read_csv(cfg['data_path'])
+  elif cfg['data_path'].endswith('.parquet'):
+    data_df = pd.read_parquet(cfg['data_path'])
+  else:
+    raise ValueError(f"data_path must be csv or parquet, got {cfg['data_path']}")
   emb_df = pd.read_parquet(cfg['emb_path'])
   if DRY_RUN:
     emb_df = emb_df.sample(n=min(len(emb_df), 100000))
@@ -127,12 +135,16 @@ def prepare_data_for_target(data_df, emb_df, target_col):
   Returns:
     pd.DataFrame, combined DataFrame with no NaNs for the target column.
   """
-  df = pd.concat([data_df[[PRIMARY_KEY, target_col]], emb_df], axis=1)
+  df = data_df[[PRIMARY_KEY, target_col]] 
+  if target_col in emb_df.columns:
+    emb_df.rename(columns={target_col: f'input_{target_col}'}, inplace=True)
+
+  df = df.merge(emb_df, on=PRIMARY_KEY, how='inner')
   df = df.dropna(subset=[target_col]).reset_index(drop=True)
   return df
 
 
-def encode_target(y, target_type):
+def encode_target(X, y, target_type, cfg):
   """Encodes targets for numeric, binary, or categorical tasks.
 
   For numeric, the original y is returned as is.
@@ -153,16 +165,41 @@ def encode_target(y, target_type):
     ValueError: If the target_type is not recognized or if a binary target
       does not have exactly 2 unique values.
   """
+  if 'special_value' in cfg:
+    sp_values = cfg['special_value']
+    for v in sp_values:
+      mask = y!=v
+      X, y = X[mask], y[mask]
+
   print("--------------- Data Statistics -------------------")
   if target_type == 'numeric':
     # Numeric targets remain unchanged (e.g., continuous values).
     print(f"min = {np.min(y)}, median = {np.median(y)}, max = {np.max(y)}, mean = {np.mean(y)}, std = {np.std(y)}")
-    return y, 1
+    print(f"dataset size = {len(y)}")
+    if 'transformation' in cfg:
+      if cfg['transformation'] == 'LOG':
+        mask = y > 1
+        X, y = X[mask], y[mask]
+        y = np.log(y)
+      elif cfg['transformation'] == 'STANDARDIZE':
+        scaler = StandardScaler()
+        y = scaler.fit_transform(y.reshape(-1, 1)).flatten()
+      elif cfg['transformation'] == 'MIN-MAX-SCALING':
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        y = scaler.fit_transform(y.reshape(-1, 1)).flatten()
 
-  unique_vals = sorted(set(y))
+      print("--------------- (After Transformation) Data Statistics -------------------")
+      print(f"min = {np.min(y)}, median = {np.median(y)}, max = {np.max(y)}, mean = {np.mean(y)}, std = {np.std(y)}")  
+      print(f"dataset size = {len(y)}")
+    return X, y, 1
 
+  
   if target_type == 'binary':
     # For binary, map any two distinct labels to 0 and 1.
+    if 'transformation' in cfg:
+      if cfg['transformation'] == 'MEDIAN-BOUNDARY':
+        y = (y > np.median(y)).astype(int)
+    unique_vals = sorted(set(y))
     if len(unique_vals) != 2:
       raise ValueError(
           f"Binary target must have exactly 2 unique values, "
@@ -174,9 +211,10 @@ def encode_target(y, target_type):
       
     mapping = {unique_vals[0]: 0, unique_vals[1]: 1}
     y_encoded = np.array([mapping[val] for val in y])
-    return y_encoded, 1
+    return X, y_encoded, 1
 
   if target_type == 'categorical':
+    unique_vals = sorted(set(y))
     # For categorical, label encode the targets.
     class_to_idx = {val: i for i, val in enumerate(unique_vals)}
     for i in range(len(unique_vals)):
@@ -184,7 +222,7 @@ def encode_target(y, target_type):
       print(f"Percentage -- class {unique_vals[i]}: {np.sum(y==unique_vals[i])/len(y)*100}")
 
     y_encoded = np.array([class_to_idx[val] for val in y])
-    return y_encoded, len(unique_vals)
+    return X, y_encoded, len(unique_vals)
 
   raise ValueError(
       f"Invalid target_type: '{target_type}'. Must be one of "
@@ -209,7 +247,7 @@ def create_model(input_dim, output_dim, cfg):
   return model
 
 
-def select_criterion_and_optimizer(model, target_type):
+def select_criterion(model, target_type):
   """Selects the appropriate loss function and initializes the optimizer.
 
   For numeric targets, we use MSELoss for backprop. We will track MSE, MAE,
@@ -228,9 +266,7 @@ def select_criterion_and_optimizer(model, target_type):
     criterion = nn.CrossEntropyLoss()
   else:  # 'binary'
     criterion = nn.BCEWithLogitsLoss()
-
-  optimizer = optim.Adam(model.parameters(), lr=1e-4)
-  return criterion, optimizer
+  return criterion
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, target_type):
@@ -324,7 +360,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, target_type):
 
   # For classification
   acc = accuracy_score(trues_list, preds_list)
-  f1 = f1_score(trues_list, preds_list, average='macro')
+  f1 = f1_score(trues_list, preds_list, average='weighted')
   return train_loss_avg, acc, f1
 
 
@@ -385,7 +421,7 @@ def validate_one_epoch(model, val_loader, criterion, target_type):
 
   # Classification
   acc = accuracy_score(trues_list, preds_list)
-  f1 = f1_score(trues_list, preds_list, average='macro')
+  f1 = f1_score(trues_list, preds_list, average='weighted')
   return val_loss_avg, acc, f1
 
 
@@ -502,7 +538,7 @@ def train_single_fold(
       pred_bools = torch.argmax(logits_tensor, dim=1).numpy()
 
     acc = accuracy_score(val_y, pred_bools)
-    f1 = f1_score(val_y, pred_bools, average='macro')
+    f1 = f1_score(val_y, pred_bools, average='weighted')
     fold_metric = (acc, f1)
 
   return best_state, best_val_loss, fold_metric
@@ -516,7 +552,7 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
     - We compute MSE, MAE, and R2 on validation sets.
     - The final fold metric is (MAE, MSE, R2), and we average them across folds.
   For binary/categorical:
-    - We compute accuracy and macro-F1 on validation sets.
+    - We compute accuracy and weighted-F1 on validation sets.
 
   Args:
     data_df: pd.DataFrame with columns [PRIMARY_KEY, target_col].
@@ -541,7 +577,7 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
   y = df[target_col].values
 
   # Encode target if needed
-  y, output_dim = encode_target(y, target_type)
+  X, y, output_dim = encode_target(X, y, target_type, cfg)
 
   # Move data to torch
   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -556,7 +592,7 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
   # Build base model
   input_dim = X.shape[1]
   base_model = create_model(input_dim, output_dim, cfg)
-  criterion, _ = select_criterion_and_optimizer(base_model, target_type)
+  criterion = select_criterion(base_model, target_type)
 
   # 5-fold CV
   kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -596,10 +632,21 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
   return avg_mae, avg_mse, avg_r2, avg_acc, avg_f1, save_name
 
 
+def load_global_settings(config):
+  global EARLY_STOP_PATIENCE, MAX_EPOCHS, DROPOUT_RATE, BATCH_SIZE, LR, DRY_RUN
+  EARLY_STOP_PATIENCE = config.get('EARLY_STOP_PATIENCE', 3)
+  MAX_EPOCHS = config.get('MAX_EPOCHS', 50)
+  DROPOUT_RATE = config.get('DROPOUT_RATE', 0.15)
+  BATCH_SIZE = config.get('BATCH_SIZE', 128)
+  LR = config.get('LR', 1e-3)
+  DRY_RUN = config.get('DRY_RUN', False)
+
+
 def main():
   """Main entry point for script execution."""
   cfg_path = sys.argv[1]
   cfg = load_config(cfg_path)
+  load_global_settings(cfg)
   data_df, emb_df = load_and_merge_data(cfg)
 
   # Prepare CSV for results
