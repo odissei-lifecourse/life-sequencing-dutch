@@ -1,10 +1,14 @@
 """Taken from code for layered walk. Can be made more general."""
 
-from collections import OrderedDict
+from __future__ import annotations
 from pathlib import Path
-import numpy as np
+from typing import TYPE_CHECKING
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+if TYPE_CHECKING:
+    from collections import OrderedDict
+    import numpy as np
 
 # ruff: noqa: PLR0913
 
@@ -35,9 +39,27 @@ def save_to_parquet(
         [pa.array(data[:, 0], type=pa.int64())] + [data[:, i] for i in range(1, n_cols)], names=col_names
     )
 
-    partitions = [f"{key}={value}" for key, value in parquet_nests.items()]
-    save_dir = Path(parquet_root) / Path(*partitions)
+    save_path = create_nested_dir(parquet_nests, parquet_root, filename)
+
+    pq.write_table(table, save_path)
+
+
+def create_nested_dir(nests: dict, root_dir: Path | str, filename: str) -> Path:
+    """Create path to a file with parquet-like nesting directories.
+
+    Args:
+        nests (dict): dictionary of key-value pairs for nesting.
+        root_dir (str or Path): root directory to create the nesting structure.
+        filename (str): the filename to be saved.
+
+    Returns:
+        A Path to a file in the nested directory with the given filename.
+    """
+    partitions = [f"{key}={value}" for key, value in nests.items()]
+    if isinstance(root_dir, str):
+        root_dir = Path(root_dir)
+
+    save_dir = root_dir / Path(*partitions)
 
     save_dir.mkdir(parents=True, exist_ok=True)
-    save_path = save_dir / Path(filename)
-    pq.write_table(table, save_path)
+    return save_dir / Path(filename)

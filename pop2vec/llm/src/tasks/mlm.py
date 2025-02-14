@@ -1,36 +1,43 @@
+import copy
 import logging
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
-from typing import List, Tuple, TypeVar, cast
-from xml.dom.minidom import Document
-
-import numpy as np
-import torch
 from random import shuffle
-
-from pop2vec.llm.src.data_new.types import Background, PersonDocument, EncodedDocument
-from pop2vec.llm.src.tasks.base import Task
+from typing import List
+from typing import Tuple
+from typing import TypeVar
+from typing import cast
+from xml.dom.minidom import Document
+import numpy as np
+import pandas as pd
+import torch
+from pop2vec.llm.src.data_new.types import Background
+from pop2vec.llm.src.data_new.types import EncodedDocument
+from pop2vec.llm.src.data_new.types import PersonDocument
 from pop2vec.llm.src.new_code.constants import INF
 from pop2vec.llm.src.new_code.utils import print_now
-import copy
-import pandas as pd
+from pop2vec.llm.src.tasks.base import Task
+from pop2vec.llm.src.tasks.sentence_masking import find_sentences_to_mask
+from pop2vec.llm.src.tasks.sentence_masking import mask_tokens_in_sentences
 
 log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
 min_event_threshold = 5
+
+
 @dataclass
 class MLM(Task):
-    """
-    Task for used with Masked language modelling.
+    """Task for used with Masked language modelling.
 
     .. todo::
         Describe MLM
 
     :param mask_ratio: Fraction of tokens to mask.
     :param smart_masking: Whether to apply smart masking (use tokens from the same group when choosing randoms).
+    :param event_masking: Whether to apply masking at the event level. Default is False.
     """
 
     # MLM Specific params
@@ -40,25 +47,30 @@ class MLM(Task):
     found_max_len = -1
     found_min_len = 1000000000
     time_range = [-INF, INF]
+    masking: str = "random"
+
+    def __post_init__(self):
+        if self.masking not in ["random", "event"]:
+            raise NotImplementedError
 
     def set_time_range(self, time_range: Tuple[int, int]):
-      self.time_range = time_range
-    
+        self.time_range = time_range
+
     def set_vocabulary(self, vocabulary=None):
-      if vocabulary is None:
-        vocabulary = self.datamodule.vocabulary
-      self.vocabulary = vocabulary
+        if vocabulary is None:
+            vocabulary = self.datamodule.vocabulary
+        self.vocabulary = vocabulary
 
     def slice_by_time(self, document):
-      if self.time_range == (-INF, +INF):
+        if self.time_range == (-INF, +INF):
+            return document
+        lower_bound = np.searchsorted(document.abspos, self.time_range[0], side="left")
+        upper_bound = np.searchsorted(document.abspos, self.time_range[1], side="right")
+        document.sentences = document.sentences[lower_bound:upper_bound]
+        document.age = document.age[lower_bound:upper_bound]
+        document.abspos = document.abspos[lower_bound:upper_bound]
+        document.segment = document.segment[lower_bound:upper_bound]
         return document
-      lower_bound = np.searchsorted(document.abspos, self.time_range[0], side='left')
-      upper_bound = np.searchsorted(document.abspos, self.time_range[1], side='right')
-      document.sentences = document.sentences[lower_bound:upper_bound]
-      document.age = document.age[lower_bound:upper_bound]
-      document.abspos = document.abspos[lower_bound:upper_bound]
-      document.segment = document.segment[lower_bound:upper_bound]
-      return document
 
     def encode_document(
         self,
@@ -70,7 +82,9 @@ class MLM(Task):
             print_now(f"RINPERSOON = {document.person_id}")
             print_now(f"first year active = {int(2017 - (16408 - np.min(document.abspos)) / 365)})")
             print_now(f"last year active = {int(2017 - (16408 - np.max(document.abspos)) / 365)})")
-            print_now(f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}")
+            print_now(
+                f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}"
+            )
             print_now(f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}")
             print_now(f"background\n{document.background}")
             print_now(f"all events\n{document.sentences}")
@@ -131,7 +145,6 @@ class MLM(Task):
             print_now(f"Sentences after thresholding due to max_len\n{document.sentences}")
             print_now(f"all ages\n{document.age}")
 
-
         # Efficiently expand properties using numpy.repeat
         x_abspos = np.array([0] + document.abspos)
         abspos_expanded = np.repeat(x_abspos, sentence_lengths)
@@ -174,9 +187,7 @@ class MLM(Task):
         input_ids[3, :length] = segment_expanded
 
         if do_mlm:
-            masked_sentences, masked_indx, masked_tokens = self.mlm_mask(
-              token_ids.copy()
-            )
+            masked_sentences, masked_indx, masked_tokens = self.mlm_mask(token_ids.copy())
             input_ids[0, :length] = masked_sentences
 
             return MLMEncodedDocument(
@@ -188,138 +199,14 @@ class MLM(Task):
                 target_cls=targ_cls,
                 original_sequence=original_sequence,
             )
-        else:
-            input_ids[0, :length] = original_sequence[:length]
-            return SimpleEncodedDocument(
-                sequence_id=sequence_id,
-                input_ids=input_ids,
-                padding_mask=padding_mask,
-                original_sequence=original_sequence,
-            )
 
-
-    def old_encode_document(
-      self,
-      document: PersonDocument,
-      do_print: bool=False,
-      do_mlm: bool=True,
-    ) -> "MLMEncodedDocument":
-        
-        if do_print:
-          print_now(f"first year active = {int(2017 - (16408 - np.min(document.abspos))/365)})")
-          print_now(f"last year active = {int(2017 - (16408 - np.max(document.abspos))/365)})")
-          print_now(f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}")
-          print_now(f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}")          
-          print_now(f"background\n{document.background}")
-          print_now(f"all events\n{document.sentences}")
-        
-        len_before = len(document.sentences)
-        document = self.slice_by_time(document)
-        len_after = len(document.sentences)
-        
-        if do_print:
-          print_now(f"len_before {len_before} & len_after {len_after}")
-          
-
-        if len(document.sentences) < min_event_threshold:
-          return None
-
-        prefix_sentence = (
-            ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]
-        )
-
-        ############################################
-        ### CLS TASK
-        document, targ_cls = self.cls_task(document)
-        ############################################
-        # THRESHOLD = 1
-        sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
-        sentence_lengths = [len(x) for x in sentences]
-        total_length = len(prefix_sentence)
-        ok = 0
-        for i in range(len(sentence_lengths)-1, 0, -1):
-          total_length += sentence_lengths[i]
-          if total_length >= self.max_length:
-            break 
-          ok += 1
-
-        THRESHOLD = ok
-        if do_print:
-          print_now(f"total sentences = {len(sentence_lengths)}, ok = {ok}")
-        
-        document.sentences = document.sentences[-THRESHOLD:]
-        document.age = document.age[-THRESHOLD:]
-        document.abspos = document.abspos[-THRESHOLD:]
-        document.segment = document.segment[-THRESHOLD:]
-        
-        sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
-        sentence_lengths = [len(x) for x in sentences]
-
-        def expand(x: List[T]) -> List[T]:
-            assert len(x) == len(sentence_lengths)
-            return list(
-                chain.from_iterable(
-                    length * [i] for length, i in zip(sentence_lengths, x)
-                )
-            )
-
-        abspos_expanded = expand([0] + document.abspos)
-        age_expanded = expand([0.0] + document.age)
-        assert document.segment is not None
-        segment_expanded = expand([0] + document.segment)
-
-        flat_sentences = np.concatenate(sentences)
-
-        token2index = self.vocabulary.token2index
-      
-
-        unk_id = token2index["[UNK]"]
-
-        #print(flat_sentences[500:550])
-        token_ids = np.array([token2index.get(x, unk_id) for x in flat_sentences])
-        length = len(token_ids)
-        self.found_max_len = max(self.found_max_len, length)
-        self.found_min_len = min(self.found_min_len, length)
-        if do_print:
-          print(f"length = {length}, max = {self.found_max_len}, min = {self.found_min_len}")
-
-        padding_mask = np.repeat(False, self.max_length)
-        padding_mask[:length] = True
-
-        # TODO: Consider renaming, to document/sentences instead of sequence...
-        # would require refactoring of the modelling also though
-
-        original_sequence = np.zeros(self.max_length)
-        original_sequence[:length] = token_ids
-
-        sequence_id = np.array(document.person_id)
-        input_ids = np.zeros((4, self.max_length))
-        input_ids[1, :length] = abspos_expanded
-        input_ids[2, :length] = age_expanded
-        input_ids[3, :length] = segment_expanded
-
-        if do_mlm:
-          masked_sentences, masked_indx, masked_tokens = self.mlm_mask(token_ids.copy())          
-          input_ids[0, :length] = masked_sentences
-
-          return MLMEncodedDocument(
-              sequence_id=sequence_id,
-              input_ids=input_ids,
-              padding_mask=padding_mask,
-              target_tokens=masked_tokens,
-              target_pos=masked_indx,
-              target_cls=targ_cls,
-              original_sequence=original_sequence,
-          )
-        else:
-          #print_now(f"input_ids vs original sequence shape, {input_ids.shape}, {original_sequence.shape}")
-          input_ids[0] = original_sequence
-          return SimpleEncodedDocument(
+        input_ids[0, :length] = original_sequence[:length]
+        return SimpleEncodedDocument(
             sequence_id=sequence_id,
             input_ids=input_ids,
             padding_mask=padding_mask,
-            original_sequence=original_sequence
-          )
+            original_sequence=original_sequence,
+        )
 
     # These could (maybe should?) also be calculated in the __post_init__.
     # Accessing the serialized methods in a parallel context may give problems down
@@ -329,9 +216,8 @@ class MLM(Task):
         """Return pairs of first and last index for each token category in the
         vocabulary excluding GENERAL.
         """
-
         vocab = self.vocabulary.vocab()
-        
+
         no_general = vocab.CATEGORY != "GENERAL"
         token_groups = (
             vocab.loc[no_general]
@@ -343,7 +229,7 @@ class MLM(Task):
         )
         return cast(List[Tuple[int, int]], token_groups)
 
-    def cls_task(self, document: PersonDocument, do_mlm: bool=True, permute_prob: float=0.05):
+    def cls_task(self, document: PersonDocument, do_mlm: bool = True, permute_prob: float = 0.05):
         """Convert sequence for CLS task.
 
         Arguments:
@@ -376,11 +262,8 @@ class MLM(Task):
 
         return document, targ_cls
 
-    def mlm_mask(
-        self, token_ids: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Mask out the tokens for mlm training"""
-
+    def mlm_mask(self, token_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Mask out the tokens for mlm training."""
         vocabulary = self.vocabulary
         token2index = vocabulary.token2index
 
@@ -388,11 +271,45 @@ class MLM(Task):
         mask_id = token2index["[MASK]"]
         sep_id = token2index["[SEP]"]
 
+        max_masked_num = np.floor(self.mask_ratio * self.max_length).astype(np.int32)
+
+        if self.masking == "event":
+            ignore_tokens = vocabulary.general_tokens
+            ignore_tokens = [token2index[x] for x in ignore_tokens]
+            return self._mask_events(
+                    token_ids, mask_id, sep_id, ignore_tokens, max_masked_num)
+
+        vocab_size = len(token2index)
+        n_general_tokens = len(vocabulary.general_tokens)
+        return self._mask_single_tokens(
+                token_ids, mask_id, sep_id, unk_id,
+                vocab_size, n_general_tokens, max_masked_num)
+
+    def _mask_events(self, token_ids, mask_id, sep_id, ignore_tokens, len_target_array):
+        sentence_start_pos, sentences_to_mask = find_sentences_to_mask(
+            token_ids, sep_id, self.mask_ratio, ignore_tokens
+        )
+        return mask_tokens_in_sentences(
+                token_ids, sentence_start_pos, sentences_to_mask, mask_id,
+                len_target_array, int(self.max_length - 1)
+                )
+
+
+    def _mask_single_tokens(
+            self,
+            token_ids,
+            mask_id,
+            sep_id,
+            unk_id,
+            vocab_size,
+            n_general_tokens,
+            max_masked_num):
+        """Mask tokens individually. Copied from old code."""
         # limit is length of an actual sequence
         n_tokens = len(token_ids)
 
         num_tokens_to_mask = np.floor(n_tokens * self.mask_ratio).astype(np.int32)
-        # firt 10% of tokens won't be changed
+        # first 10% of tokens won't be changed
         pos_unchange = np.floor(num_tokens_to_mask * 0.1).astype(np.int32)
         # last 10% of tokens would be random ; the rest will be changed
         pos_random = num_tokens_to_mask - pos_unchange
@@ -401,11 +318,9 @@ class MLM(Task):
         legal_mask = (token_ids[1:] != sep_id) & (token_ids[1:] != unk_id)
         legal_indx = np.arange(start=1, stop=n_tokens)[legal_mask]
 
-        indx_to_mask = np.random.choice(
-            a=legal_indx, size=num_tokens_to_mask, replace=False
-        )
+        indx_to_mask = np.random.choice(a=legal_indx, size=num_tokens_to_mask, replace=False)
 
-        max_masked_num = np.floor(self.mask_ratio * self.max_length).astype(np.int32)
+        #max_masked_num = np.floor(self.mask_ratio * self.max_length).astype(np.int32)
 
         # positions of the masked tokens
         y_indx = np.full(shape=max_masked_num, fill_value=int(self.max_length - 1))
@@ -419,11 +334,7 @@ class MLM(Task):
         # ratio?
         token_ids[indx_to_mask[pos_unchange:pos_random]] = mask_id
 
-        vocab_size = len(token2index)
-        n_general_tokens = len(vocabulary.general_tokens)
-
         if self.smart_masking:
-
             smart_edge = int(pos_random + int(pos_unchange * 0.3))
 
             # Random 7% of all random cases
@@ -453,7 +364,7 @@ class MLM(Task):
 
     @staticmethod
     def smart_masked(x: np.ndarray, min_i: int, max_i: int) -> np.ndarray:
-        """Applies the smart_masking scheme"""
+        """Applies the smart_masking scheme."""
         ix = np.argwhere((x >= min_i) & (x < max_i))
         if len(ix) > 0:
             x[ix] = np.random.randint(low=min_i, high=max_i, size=(len(ix), 1))
@@ -470,10 +381,10 @@ class MLMEncodedDocument(EncodedDocument[MLM]):
     target_cls: np.ndarray
     original_sequence: np.ndarray
 
+
 @dataclass
 class SimpleEncodedDocument(EncodedDocument[MLM]):
     sequence_id: np.ndarray
     input_ids: np.ndarray
     padding_mask: np.ndarray
     original_sequence: np.ndarray
-    
