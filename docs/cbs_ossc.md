@@ -144,7 +144,7 @@ recentfiles() {
 ```
 For more slurm aliases, see [here](https://gist.github.com/pansapiens/1b770fdbafa75f9aacb851d99a2aa9e2)
 
-## visualizing gpu utilization
+## Visualizing gpu utilization
 The regular way is to do watch -n 1 nvidia-smi
 
 To get a better visualization, we can do 
@@ -152,7 +152,7 @@ To get a better visualization, we can do
 module load 2022; module load nvtop/<tab complete>; nvtop
 ```
 
-## opening a jupyter notebook on the RA
+## Opening a jupyter notebook on the RA
 ```
 M:\mambaforge\envs\9469\Scripts\jupyter-notebook.exe --notebook-dir="H:/"
 ```
