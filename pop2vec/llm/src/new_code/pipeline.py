@@ -27,6 +27,7 @@ from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
 from pop2vec.utils.merge_hdf5 import merge_hdf5_files
+from pop2vec.utils.save_to_parquet import create_nested_dir
 
 """
   The pipeline is like the following:
@@ -58,11 +59,11 @@ global_custom_vocab = None
 global_mlm = None
 
 
-def worker_initializer(custom_vocab, time_range, max_seq_len):
+def worker_initializer(custom_vocab, time_range, max_seq_len, masking="random"):
     global global_custom_vocab
     global global_mlm
     global_custom_vocab = custom_vocab
-    global_mlm = MLM("dutch_v0", max_seq_len)
+    global_mlm = MLM("dutch_v0", max_seq_len, masking=masking)
     global_mlm.set_vocabulary(global_custom_vocab)
     if time_range:
         global_mlm.set_time_range(time_range)
@@ -283,6 +284,7 @@ def generate_encoded_data(
     shuffle=False,
     parallel=True,
     max_seq_len=512,
+    masking="random",
 ):
     logging.debug("Starting generate_encoded_data function")
     if needed_ids_path:
@@ -328,7 +330,7 @@ def generate_encoded_data(
     with Pool(
         processes=num_workers,
         initializer=worker_initializer,
-        initargs=(custom_vocab, time_range, max_seq_len),
+        initargs=(custom_vocab, time_range, max_seq_len, masking),
     ) as pool:
         _ = list(
                 tqdm(pool.imap(helper_encode_documents, row_group_ids),
@@ -371,6 +373,7 @@ if __name__ == "__main__":
     vocab_path = cfg[VOCAB_PATH]
     vocab_name = cfg[VOCAB_NAME]
     data_file_paths = get_data_files_from_directory(cfg[DATA_PATH], primary_key)
+    dryrun = "_dryrun" in cfg["SEQUENCE_PATH"]
     logging.info("# of data_files_paths = %s", len(data_file_paths))
 
     if cfg.get("LOAD_VOCAB", False):
@@ -403,14 +406,19 @@ if __name__ == "__main__":
         shuffle=cfg.get("SHUFFLE", False),
         parallel=cfg.get("PARALLEL", True),
         max_seq_len=cfg.get("MAX_SEQ_LEN", 512),
+        masking=cfg.get("MASKING", "random"),
     )
 
     logging.info("Chunks are ready, merging them and deleting")
     chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
-    mlm = "mlm" if cfg["DO_MLM"] else "no_mlm"
-    file_name = f"{mlm}_encoded.h5"
-    if "_dryrun" in cfg[SEQUENCE_PATH]:
-        file_name = f"{mlm}_encoded_dryrun.h5"
-    merge_hdf5_files(chunk_files, f"{write_path_prefix}{file_name}")
+
+    nests = {
+            "encoding": "mlm" if cfg["DO_MLM"] else "nomlm",
+            "masking": cfg.get("MASKING", "random")
+            }
+    filename = "encoded.h5" if not dryrun else "encoded_dryrun.h5"
+
+    save_file = create_nested_dir(nests, write_path_prefix, filename)
+    merge_hdf5_files(chunk_files, save_file)
     [os.remove(f) for f in chunk_files]
     logging.info("All done.")
