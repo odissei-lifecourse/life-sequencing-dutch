@@ -106,7 +106,7 @@ def mask_tokens_in_sentences(  # noqa: PLR0913
     - The second entry are the indices of the masked tokens
     - The third entry are the true values of the masked tokens
     """
-    if len(sentences_to_mask) == 0:  # TODO: this will also have to be fixed
+    if len(sentences_to_mask) == 0:
         masked_sequence = token_sequence
         target_idx = np.array([])
         target_tokens = np.array([])
