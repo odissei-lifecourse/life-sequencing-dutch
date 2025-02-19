@@ -57,3 +57,7 @@ Sometimes it makes sense to turn off checks for a specific line. This can be don
 ```python
 assert not_recommended # noqa: S101
 ```
+
+
+### Generative AI statement
+The code in this repository has been partly generated and/or refined using ChatGPT 4, Claude 3.5 Sonnet, and/or GitHub Copilot Individual. All AI-generated output has been verified for correctness, accuracy, and completeness, adapted where needed, and approved by the authors.
