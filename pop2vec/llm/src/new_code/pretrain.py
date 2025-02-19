@@ -24,6 +24,7 @@ from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 
+PRECISION = "32-true"
 
 def is_float(string):
     try:
@@ -117,7 +118,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
       accelerator=ACCELERATOR,
       devices=N_DEVICES,
       logger=logger,
-      precision="16-mixed"
+      precision=PRECISION,
     )
   else:
       if DDP_STRATEGY == "ddp":
@@ -137,7 +138,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
         accelerator=ACCELERATOR,
         devices=N_DEVICES,
         logger=logger,
-        precision="16-mixed"
+        precision=PRECISION
       )
 
 
