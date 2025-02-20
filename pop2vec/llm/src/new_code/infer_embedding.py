@@ -15,7 +15,9 @@ from pop2vec.llm.src.transformer.models import TransformerEncoder
 from pop2vec.utils.convert_hdf5_to_parquet import h5_array_to_pq
 
 
-def load_model(checkpoint_path, hparams):
+
+def load_model(checkpoint_path, hparams_path):
+    hparams = read_hparams_from_file(hparams_path)    
     model = TransformerEncoder.load_from_checkpoint(checkpoint_path, hparams=hparams)
     model = model.transformer
     model.eval()
@@ -54,27 +56,19 @@ def inference(cfg, transform_to_parquet=True):
        do the transformation to parquet in a separate step -- for instance when multiple
        inferences are running on the same node and memory is relatively scarce.
     """
-    hparams_path = cfg["HPARAMS_PATH"]
-    hparams = read_hparams_from_file(hparams_path)
-    checkpoint_path = cfg["CHECKPOINT_PATH"]
     write_path = cfg["EMB_WRITE_PATH"]
     tokenized_path = cfg["TOKENIZED_PATH"]
-    model = load_model(checkpoint_path, hparams)
-
-    logging.info("Reading from tokenzied path: %s", tokenized_path)
+    model = load_model(cfg['checkpoint_path'], cfg['HPARAMS_PATH'])
+    save_token_embs = cfg.get('save_token_embs', False)
+    logging.info("Reading from tokenized path: %s", tokenized_path)
     dataset = CustomInMemoryDataset(
         tokenized_path,
         validation=False,
         inference=True,
         mlm_encoded=False
     )
-    dataset.set_mlm_encoded(False)
-
-    if "BATCH_SIZE" in cfg:
-        batch_size = cfg["BATCH_SIZE"]
-    else:
-        batch_size = 512
-    dataloader = DataLoader(dataset, batch_size=batch_size)
+    # dataset.set_mlm_encoded(False)
+    dataloader = DataLoader(dataset, batch_size=cfg.get('BATCH_SIZE', 512))
 
     for i, batch in enumerate(tqdm(dataloader, desc="Inferring by batch")):
         if torch.cuda.is_available():
@@ -101,15 +95,19 @@ def inference(cfg, transform_to_parquet=True):
         mean_emb = mean_emb.cpu()
 
         data_dict = {"sequence_id": sequence_id, "cls_emb": cls_emb, "mean_emb": mean_emb}
+        if save_token_embs:
+            data_dict['token_embs'] = outputs
+            data_dict['padding_mask'] = batch['padding_mask']
 
         if i == 0 and Path(write_path).is_file():
             print_now(f"Replacing file {write_path} with new embeddings.")
             Path(write_path).unlink()
 
         write_to_hdf5(
-                write_path=write_path, 
-                data_dict=data_dict, 
-                dtype=np.float64)
+            write_path=write_path, 
+            data_dict=data_dict, 
+            dtype=np.float64
+        )
 
     if transform_to_parquet:
         write_path = Path(write_path)
@@ -119,6 +117,21 @@ def inference(cfg, transform_to_parquet=True):
                 output_path=write_path.parent,
                 emb_filename=write_path.stem,
                 emb_type=emb_type,
+                id_array="sequence_id",
+            )
+        if save_token_embs:
+            h5_array_to_pq(
+                input_path=write_path.parent,
+                output_path=write_path.parent,
+                emb_filename=write_path.stem,
+                emb_type='token_embs',
+                id_array="sequence_id",
+            )
+            h5_array_to_pq(
+                input_path=write_path.parent,
+                output_path=write_path.parent,
+                emb_filename=write_path.stem,
+                emb_type='padding_mask',
                 id_array="sequence_id",
             )
 
