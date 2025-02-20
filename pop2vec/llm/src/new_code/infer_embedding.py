@@ -58,7 +58,7 @@ def inference(cfg, transform_to_parquet=True):
     """
     write_path = cfg["EMB_WRITE_PATH"]
     tokenized_path = cfg["TOKENIZED_PATH"]
-    model = load_model(cfg['checkpoint_path'], cfg['HPARAMS_PATH'])
+    model = load_model(cfg['CHECKPOINT_PATH'], cfg['HPARAMS_PATH'])
     save_token_embs = cfg.get('save_token_embs', False)
     logging.info("Reading from tokenized path: %s", tokenized_path)
     dataset = CustomInMemoryDataset(
@@ -96,8 +96,8 @@ def inference(cfg, transform_to_parquet=True):
 
         data_dict = {"sequence_id": sequence_id, "cls_emb": cls_emb, "mean_emb": mean_emb}
         if save_token_embs:
-            data_dict['token_embs'] = outputs
-            data_dict['padding_mask'] = batch['padding_mask']
+            data_dict['token_embs'] = outputs.cpu()
+            data_dict['padding_mask'] = batch['padding_mask'].cpu()
 
         if i == 0 and Path(write_path).is_file():
             print_now(f"Replacing file {write_path} with new embeddings.")
@@ -106,7 +106,7 @@ def inference(cfg, transform_to_parquet=True):
         write_to_hdf5(
             write_path=write_path, 
             data_dict=data_dict, 
-            dtype=np.float64
+            dtype=np.float16#np.float64
         )
 
     if transform_to_parquet:
@@ -119,22 +119,6 @@ def inference(cfg, transform_to_parquet=True):
                 emb_type=emb_type,
                 id_array="sequence_id",
             )
-        if save_token_embs:
-            h5_array_to_pq(
-                input_path=write_path.parent,
-                output_path=write_path.parent,
-                emb_filename=write_path.stem,
-                emb_type='token_embs',
-                id_array="sequence_id",
-            )
-            h5_array_to_pq(
-                input_path=write_path.parent,
-                output_path=write_path.parent,
-                emb_filename=write_path.stem,
-                emb_type='padding_mask',
-                id_array="sequence_id",
-            )
-
 
 if __name__ == "__main__":
     logging.basicConfig(
