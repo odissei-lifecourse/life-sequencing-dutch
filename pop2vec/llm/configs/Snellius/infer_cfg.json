@@ -1,0 +1,7 @@
+{
+  "HPARAMS_PATH": "src/new_code/regular_hparams.txt",
+  "CHECKPOINT_PATH": "projects/dutch_real/models/2017/model-epoch=00-v1.ckpt",
+  "TOKENIZED_PATH": "projects/dutch_real/gen_data/no_mlm_gronigen_2017.pkl",
+  "CLS_WRITE_PATH": "projects/dutch_real/gen_data/cls_embedding_2010.json",
+  "MEAN_WRITE_PATH": "projects/dutch_real/gen_data/mean_embedding_2010.json"
+}

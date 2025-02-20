@@ -1,0 +1,8 @@
+
+{
+  "HPARAMS_PATH": "pop2vec/llm/src/new_code/regular_hparams_medium2x.txt",
+  "CHECKPOINT_PATH": "/gpfs/ostor/ossc9424/homedir/data/llm/models/inference_v0.1/medium2x.ckpt",
+  "TOKENIZED_PATH": "/gpfs/ostor/ossc9424/homedir/data/llm/gen_data/no_mlm_encoded.h5",
+  "EMB_WRITE_PATH": "/gpfs/ostor/ossc9424/homedir/data/llm/embeddings/inference_v0.1.2/medium2x.h5",
+  "BATCH_SIZE": 1024
+}

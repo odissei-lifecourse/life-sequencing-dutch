@@ -1,0 +1,7 @@
+{
+  "HPARAMS_PATH": "pop2vec/llm/src/new_code/regular_hparams_small.txt",
+  "CHECKPOINT_PATH": "/projects/0/prjs1019/data/fake_models_v0/model-epoch=02-step=495-val_loss=0.00.ckpt",
+  "TOKENIZED_PATH": "/projects/0/prjs1019/data/fake_data_v0/step5/no_mlm_encoded_test.h5",
+  "EMB_WRITE_PATH": "/projects/0/prjs1019/data/fake_embs/jan_29_fixed_test2.h5",
+  "BATCH_SIZE": 2048
+}

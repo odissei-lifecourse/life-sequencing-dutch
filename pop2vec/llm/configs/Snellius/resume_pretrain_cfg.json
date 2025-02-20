@@ -1,0 +1,8 @@
+{
+  "HPARAMS_PATH": "src/new_code/regular_hparams.txt",
+  "CHECKPOINT_DIR": "projects/dutch_real/models/2017",   
+  "MLM_PATH": "projects/dutch_real/gen_data/mlm_2017.pkl",
+  "MAX_EPOCHS": 100,
+  "BATCH_SIZE": 192,
+  "RESUME_FROM_CHECKPOINT": "projects/dutch_real/models/2017/model-epoch=03.ckpt"
+}

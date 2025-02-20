@@ -1,0 +1,12 @@
+{
+  "data_directory_path": "projects/dutch_real/data/",
+  "SEQUENCE_WRITE_PATH": "projects/dutch_real/gen_data/people.json",
+  "vocab_write_path": "projects/dutch_real/gen_data/vocab.csv",
+  "MLM_WRITE_PATH": "projects/dutch_real/gen_data/no_mlm_full_2017_1.pkl",
+  "DO_MLM": false,
+  "primary_key": "RINPERSOON",
+  "vocab_name": "dutch_vocab_2017_v0",
+  "TIME_KEY": "daysSinceFirstEvent",
+  "TIME_RANGE_END": 16438,
+  "NEEDED_IDS_PATH": "projects/dutch_real/gen_data/rinpersoon1.json"
+}

@@ -1,0 +1,8 @@
+{
+  "HPARAMS_PATH": "src/new_code/regular_hparams_large.txt",
+  "CHECKPOINT_DIR": "projects/dutch_real/models/2017_large/",   
+  "MLM_PATH": "projects/dutch_real/gen_data/mlm_encoded_upto_2017.h5",
+  "MAX_EPOCHS": 30,
+  "BATCH_SIZE": 512,
+  "NUM_VAL_ITEMS": 10000
+}

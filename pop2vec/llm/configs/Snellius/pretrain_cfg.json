@@ -1,0 +1,7 @@
+{
+  "HPARAMS_PATH": "src/new_code/regular_hparams.txt",
+  "CHECKPOINT_DIR": "/projects/0/prjs1019/data/llm/models/2017_checkpoints_0/",   
+  "MLM_PATH": "/projects/0/prjs1019/data/llm/processed/mlm_encoded_upto_2017.h5",
+  "MAX_EPOCHS": 30,
+  "BATCH_SIZE": 192
+}
