@@ -15,6 +15,7 @@ import logging
 import pop2vec.llm.src.transformer
 from pop2vec.llm.src.transformer.transformer_utils import *
 from pop2vec.llm.src.transformer.transformer import CLS_DecoderS, Transformer, MaskedLanguageModel
+from pop2vec.llm.src.new_code.utils import get_cosine_similarities
 
 log = logging.getLogger(__name__)
 HOME_PATH = str(Path.home())
@@ -57,6 +58,9 @@ class TransformerEncoder(pl.LightningModule):
         self.total_val_loss = 0.0
         self.total_val_mlm_loss = 0.0
         self.total_val_cls_loss = 0.0
+
+        self.last_embs = None
+
 
     def init_metrics(self):
         ##### TRAIN
@@ -171,7 +175,7 @@ class TransformerEncoder(pl.LightningModule):
             task="multiclass",
         )
         
-    def forward(self, batch):
+    def forward(self, batch, return_embs=False):
         """Forward pass"""
         ## 1. ENCODER INPUT
         predicted = self.transformer(
@@ -182,12 +186,16 @@ class TransformerEncoder(pl.LightningModule):
         mlm_pred = self.mlm_decoder(predicted, batch)
         ## 3. CLS TASK
         cls_pred  = self.cls_decoder(predicted[:,0])
-        return mlm_pred, cls_pred
+        if return_embs:
+            mlm_pred, cls_pred, predicted
+        else:
+            return mlm_pred, cls_pred
 
     def training_step(self, batch, batch_idx):
         """Training Iteration"""
         ## 1. ENCODER-DECODER
-        mlm_preds, cls_preds = self(batch)
+        mlm_preds, cls_preds, embs = self(batch, return_embs=True)
+        self.last_embs = embs.detach().cpu() # store the *last* batch's embeddings
         ## 2. LOSS
         mlm_targs = batch["target_tokens"].long()
         cls_targs = batch["target_cls"].long()
@@ -237,9 +245,31 @@ class TransformerEncoder(pl.LightningModule):
         self.total_train_loss = 0.0
         self.total_mlm_loss = 0.0
         self.total_cls_loss = 0.0
+
+        if self.last_embs is not None:
+            # Construct a plots folder path inside the logger directory
+            plot_dir = Path(self.logger.log_dir) / "plots"
+            plot_dir.mkdir(parents=True, exist_ok=True)  # ensure folder exists
+
+            # Create a file name that includes the current epoch
+            plot_path = plot_dir / f"cosine_sim_epoch_{self.current_epoch}.png"
+
+            # Call get_cosine_similarities on the last batch
+            min_sim, median_sim, max_sim, mean_sim, std_sim = get_cosine_similarities(
+                self.last_embs,
+                n=1000,
+                plot_path=str(plot_path)   # pass in the string path
+            )
+            self.log_dict(
+                get_cosine_similarities(
+                    self.last_embs,
+                    plot_path=str(plot_path)
+                ),
+                rank_zero_only=True,
+            )
+
         if self.hparams.attention_type == "performer":
             self.transformer.redraw_projection_matrix(-1)
-
 
     def on_validation_epoch_end(self) -> None:
         """Save the embedding on validation epoch end"""

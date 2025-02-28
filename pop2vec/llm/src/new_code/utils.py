@@ -18,6 +18,9 @@ from pop2vec.llm.src.new_code.constants import (
     SPECIAL_STR_ZERO
 )
 
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
+
 from typing import Union
 
 print_now = partial(print, flush=True)
@@ -327,3 +330,60 @@ def shuffle_json_memory_efficient(input_file_path, output_file_path):
                 output_file.write(line)
 
 
+
+
+def get_cosine_similarities(embs, n=1000, plot_path=None):
+    """
+    Gets pairwise cosine similarity statistics of embeddings.
+
+    Args:
+        embs (array-like): A collection (e.g., list of lists, numpy array) of embeddings.
+                           Shape: (num_samples, embedding_dim).
+        n (int): Number of embeddings to randomly sample (default=1000).
+        plot_path (str, optional): If not None, saves a histogram of the distribution
+                                   of pairwise cosine similarities to the specified path.
+
+    Returns:
+        (min_sim, median_sim, max_sim, mean_sim, std_sim) : tuple of float
+            The minimum, median, maximum, mean, and standard deviation of
+            pairwise cosine similarities among the selected embeddings.
+    """
+    if hasattr(embs, "cpu") and hasattr(embs, "detach"):
+        embs = embs.cpu().detach().numpy()
+
+    # Convert to a numpy array (if not already)
+    embs = np.array(embs)
+    
+    # Subsample to at most n embeddings
+    if len(embs) > n:
+        subset = embs[random.sample(range(len(embs)), n)]
+    else:
+        subset = embs
+
+    # Compute the cosine similarity matrix for these embeddings
+    similarity_matrix = cosine_similarity(subset)
+
+    # Extract the upper triangular (or lower) without the diagonal
+    # np.triu_indices(n, k=1) gives indices above the diagonal
+    triu_indices = np.triu_indices(len(subset), k=1)
+    similarities = similarity_matrix[triu_indices]
+
+    # Optionally, plot and save the distribution
+    if plot_path is not None:
+        plt.figure(figsize=(6, 4))
+        plt.hist(similarities, bins=50, color='blue', alpha=0.7)
+        plt.title("Cosine Similarities Distribution")
+        plt.xlabel("Cosine Similarity")
+        plt.ylabel("Frequency")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
+
+    return {
+        "sim_min": np.min(similarities), 
+        "sim_med": np.median(similarities), 
+        "sim_max": np.max(similarities), 
+        "sim_mean": np.mean(similarities), 
+        "sim_std": np.std(similarities)
+    }
