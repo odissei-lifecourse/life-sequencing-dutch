@@ -8,7 +8,6 @@ from pathlib import Path
 import torch
 from pytorch_lightning import Trainer
 
-# from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -141,18 +140,6 @@ def pretrain(cfg, batch_size=None, hparams=None):
         precision=PRECISION
       )
 
-
-  # val_dataset = CustomIterableDataset(
-  #   mlm_path,
-  #   validation=True,
-  #   num_val_items=num_val_items
-  # )
-  # train_dataset = CustomIterableDataset(
-  #   mlm_path,
-  #   validation=False,
-  #   num_val_items=num_val_items
-  # )
-
   val_dataset = CustomInMemoryDataset(
     mlm_path,
     validation=True,
@@ -161,7 +148,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
   train_dataset = CustomInMemoryDataset(
       mlm_path,
       validation=False,
-      num_val_items=num_val_items
+      num_val_items=num_val_items,
   )
 
   # val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
@@ -177,6 +164,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
       train_dataset,
       batch_size=batch_size,
       num_workers=num_workers,
+      shuffle=True
   )
 
   print_now("training and validation dataloaders are created")
