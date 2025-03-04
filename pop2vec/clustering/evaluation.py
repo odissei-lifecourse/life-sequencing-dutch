@@ -44,7 +44,7 @@ def plot2d(cluster_df: pl.DataFrame, embs_df: pl.DataFrame) -> Figure:
 
     """
     x = embs_df[:, 1:]
-    tsne = TSNE(n_components=2, learning_rate="auto", init="random", perplexity=30, random_state=5802352351)
+    tsne = TSNE(n_components=2, learning_rate="auto", init="random", perplexity=30, random_state=580251)
     x_proj = tsne.fit_transform(x)
     plot_df = pl.DataFrame(x_proj, schema=["x_coord", "y_coord"])
     plot_df = plot_df.with_columns(embs_df.select("rinpersoon_id"))
