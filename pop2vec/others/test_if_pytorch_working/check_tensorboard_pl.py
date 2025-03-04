@@ -22,7 +22,7 @@ class SimpleModel(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
-        print("train end ok", flush=True)
+        self.log("lossy", loss.detach(), on_step=True)
         return loss
 
     def configure_optimizers(self):
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
   # Create a PyTorch Lightning Trainer
   tb_logger = TensorBoardLogger(save_dir='logss', name='my_model')
-  trainer = pl.Trainer(max_epochs=5, accelerator='gpu', devices=1, num_nodes=1, log_every_n_steps=3, logger=tb_logger)
+  trainer = pl.Trainer(max_epochs=50, accelerator='gpu', devices=1, num_nodes=1, log_every_n_steps=2, logger=tb_logger)
 
   # Train the model using the Trainer
   trainer.fit(model, train_loader)
