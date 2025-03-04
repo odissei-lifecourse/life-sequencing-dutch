@@ -1,11 +1,16 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from sklearn.manifold import TSNE
 from sklearn.metrics import calinski_harabasz_score
 from sklearn.metrics import davies_bouldin_score
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 
 def summarise_cluster(cluster_df):
@@ -24,7 +29,43 @@ def summarise_cluster(cluster_df):
     )
 
 
-def barplot_cluster_sizes(cluster_df):
+def plot2d(cluster_df: pl.DataFrame, embs_df: pl.DataFrame) -> Figure:
+    """Plot clusters in 2d.
+
+    Reduce embeddings to 2 dimensions with TSNE, and plot in this space,
+    with coloring according to clusters.
+
+    Args:
+        cluster_df (pl.DataFrame): dataframe with person IDs and assigned clusters.
+        embs_df (pl.DataFrame): dataframe with person IDs and embeddings.
+
+    Returns:
+        plt.Figure
+
+    """
+    x = embs_df[:, 1:]
+    tsne = TSNE(n_components=2, learning_rate="auto", init="random", perplexity=3)
+    x_proj = tsne.fit_transform(x)
+    plot_df = pl.DataFrame(x_proj, schema=["x_coord", "y_coord"])
+    plot_df = plot_df.with_columns(embs_df.select("rinpersoon_id"))
+    plot_df = plot_df.with_columns(cluster_df.select("cluster"))
+
+    pdf = plot_df.to_pandas()
+
+    fig = plt.figure(figsize=(8, 6))
+    scatter = plt.scatter(pdf["x_coord"], pdf["y_coord"], c=pdf["cluster"], cmap="viridis")
+
+    plt.colorbar(scatter, label="Cluster ID")
+
+    plt.xlabel("X Coordinate")
+    plt.ylabel("Y Coordinate")
+    plt.title("2D Scatter Plot of Clusters")
+    plt.tight_layout()
+
+    return fig  # type: ignore[attr-defined]
+
+
+def barplot_cluster_sizes(cluster_df: pl.DataFrame) -> Figure:
     """Create a bar plot of cluster sizes and return the figure object for further handling.
 
     Parameters:
@@ -57,7 +98,7 @@ def barplot_cluster_sizes(cluster_df):
     plt.tight_layout()
 
     # Return the figure object
-    return fig
+    return fig  # type: ignore[attr-defined]
 
 
 def fraction_closest_own_centroid(units_emb, cluster_emb, cluster_df):
