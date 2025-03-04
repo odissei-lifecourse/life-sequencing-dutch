@@ -14,7 +14,7 @@ from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 from pop2vec.utils.convert_hdf5_to_parquet import h5_array_to_pq
 
-
+DTYPE = np.float16 #np.float64
 
 def load_model(checkpoint_path, hparams_path):
     hparams = read_hparams_from_file(hparams_path)    
@@ -106,7 +106,7 @@ def inference(cfg, transform_to_parquet=True):
         write_to_hdf5(
             write_path=write_path, 
             data_dict=data_dict, 
-            dtype=np.float16#np.float64
+            dtype=DTYPE
         )
 
     if transform_to_parquet:
