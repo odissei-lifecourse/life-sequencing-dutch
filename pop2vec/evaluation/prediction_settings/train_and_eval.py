@@ -25,7 +25,7 @@ import numpy as np
 
 from torch.utils.data import DataLoader, TensorDataset, SubsetRandomSampler
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, accuracy_score, mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import f1_score, accuracy_score, mean_squared_error, r2_score, roc_auc_score, precision_recall_fscore_support
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
@@ -190,6 +190,7 @@ def encode_target(X, y, target_type, cfg):
     Encodes y for numeric/binary/categorical tasks. Also handles 'special_value' filtering.
     Returns (X, y, output_dim).
     """
+    global F1_AGG
     # Remove special values if specified
     if 'special_value' in cfg:
         for v in cfg['special_value']:
@@ -205,6 +206,7 @@ def encode_target(X, y, target_type, cfg):
         return X, y, 1
 
     if target_type == 'binary':
+        F1_AGG = 'binary'
         if 'transformation' in cfg and cfg['transformation'] == 'MEDIAN-BOUNDARY':
             y = (y > np.median(y)).astype(int)
         unique_vals = sorted(set(y))
@@ -222,6 +224,7 @@ def encode_target(X, y, target_type, cfg):
         return X, y_encoded, 1
 
     if target_type == 'categorical':
+        F1_AGG = 'weighted'
         unique_vals = sorted(set(y))
         class_to_idx = {val: i for i, val in enumerate(unique_vals)}
         for val in unique_vals:
@@ -282,7 +285,7 @@ def select_criterion(target_type, y):
     elif target_type == 'categorical':
         return nn.CrossEntropyLoss()
     else:
-        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor((y==0).sum()/(y==1).sum()))
+        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor((y==0).sum()/(2*(y==1).sum())))
 
 
 def run_epoch(model, data_loader, criterion, target_type, optimizer=None):
@@ -350,7 +353,7 @@ def run_epoch(model, data_loader, criterion, target_type, optimizer=None):
                     all_probas.extend(probas)
                     # Hard predictions for accuracy/f1
                     p = (probas > 0.5).astype(int)
-                    all_preds.extend(p)
+                    all_preds.extend(p)     
                 else:
                     # multi-class => use softmax for probabilities
                     probas = torch.softmax(preds_cpu, dim=1).numpy()
@@ -376,6 +379,9 @@ def _aggregate_epoch_metrics(losses, all_preds, all_trues, all_probas, abs_error
        numeric => (MSE, MAE, R2, None)
        classification => (Loss, Acc, F1, ROC-AUC)
     """
+    if target_type == 'binary':
+        print(f"precision, recall, f1, support = {precision_recall_fscore_support(all_trues, all_preds, average='binary')}")
+    
     avg_loss = np.mean(losses)
 
     if target_type == 'numeric':
@@ -387,7 +393,7 @@ def _aggregate_epoch_metrics(losses, all_preds, all_trues, all_probas, abs_error
     # classification
     # Accuracy & F1
     acc = accuracy_score(all_trues, all_preds)
-    f1 = f1_score(all_trues, all_preds, average='weighted')
+    f1 = f1_score(all_trues, all_preds, average=F1_AGG)
 
     # Compute ROC-AUC only if we have at least two classes present
     # (roc_auc_score will fail if there's only one class)
@@ -428,7 +434,7 @@ def train_single_fold(model, dataset, train_indices, val_indices, target_type, c
     train_loader = DataLoader(dataset, sampler=SubsetRandomSampler(train_indices), batch_size=BATCH_SIZE)
     val_loader = DataLoader(dataset, sampler=SubsetRandomSampler(val_indices), batch_size=BATCH_SIZE)
 
-    best_val_loss = float('inf')
+    best_val_m2 = float('-inf')
     no_improve_count = 0
     best_state = None
 
@@ -446,10 +452,10 @@ def train_single_fold(model, dataset, train_indices, val_indices, target_type, c
             print(f"[Epoch {epoch+1}] "
                   f"Train(Loss={train_loss:.4f}, Acc={train_m1:.3f}, F1={train_m2:.3f}, ROC-AUC={train_roc:.3f}) | "
                   f"Val(Loss={val_loss:.4f}, Acc={val_m1:.3f}, F1={val_m2:.3f}, ROC-AUC={val_roc:.3f})")
-
+            
         # Early stopping logic on val_loss
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_m2 > best_val_m2:
+            best_val_m2 = val_m2
             best_state = copy.deepcopy(fold_model.state_dict())
             no_improve_count = 0
         else:
@@ -457,6 +463,7 @@ def train_single_fold(model, dataset, train_indices, val_indices, target_type, c
 
         if no_improve_count >= EARLY_STOP_PATIENCE:
             print("Early stopping triggered.")
+            print(f"best_val_m2 (F1 or R2[linear]) = {best_val_m2}")
             break
 
     # Final fold metrics from best model
@@ -483,6 +490,7 @@ def train_single_fold(model, dataset, train_indices, val_indices, target_type, c
                 roc_val = roc_auc_score(val_y_np, probas)
             except ValueError:
                 roc_val = float('nan')
+            print(f"precision, recall, f1, support = {precision_recall_fscore_support(val_y_np, preds_label, average='binary')}")
         else:
             # Multiclass
             preds_2d = fold_model(val_x).cpu()
@@ -500,10 +508,10 @@ def train_single_fold(model, dataset, train_indices, val_indices, target_type, c
                 )
 
         acc = accuracy_score(val_y_np, preds_label)
-        f1 = f1_score(val_y_np, preds_label, average='weighted')
+        f1 = f1_score(val_y_np, preds_label, average=F1_AGG)
         fold_metrics = (acc, f1, roc_val)
-
-    return best_state, best_val_loss, fold_metrics
+        print(f"final fold f1 = {f1}, during training best val f1 = {best_val_m2}")
+    return best_state, best_val_m2, fold_metrics
 
 
 def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
@@ -559,6 +567,8 @@ def train_and_evaluate(data_df, emb_df, target_col, target_type, cfg):
         # For classification:
         # binary => (acc, f1, roc)
         # multiclass => (acc, f1, roc)
+        print(f"len(fold_results) = {len(fold_results)}")
+        print(f"fold f1s = {[m[1] for m in fold_results]}")
         avg_acc = np.mean([m[0] for m in fold_results])
         avg_f1 = np.mean([m[1] for m in fold_results])
         # For numeric, third is None, for class = roc
