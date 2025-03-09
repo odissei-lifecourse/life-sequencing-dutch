@@ -7,7 +7,6 @@ from pop2vec.llm.src.new_code.constants import BIRTH_MONTH
 from pop2vec.llm.src.new_code.constants import BIRTH_YEAR
 from pop2vec.llm.src.new_code.constants import DAYS_SINCE_FIRST
 from pop2vec.llm.src.new_code.constants import GENDER
-from pop2vec.llm.src.new_code.constants import IGNORE_COLUMNS
 from pop2vec.llm.src.new_code.constants import MISSING
 from pop2vec.llm.src.new_code.constants import ORIGIN
 from pop2vec.llm.src.new_code.utils import print_now
@@ -123,7 +122,6 @@ class CreatePersonDict:
 
             df = pd.read_parquet(
                 source_path,
-                # columns=lambda column: column not in IGNORE_COLUMNS,
             )
             # Filter out IDs not present in background data
             initial_size = len(df)
@@ -241,6 +239,16 @@ class CreatePersonDict:
         people_df = people_df.reset_index().rename(columns={"index": self.primary_key})
         people_df = people_df[[self.primary_key, "background", "sentence", "abspos", "age", "segment"]]
 
+        people_df = people_df.sample(frac=1)
+
         # Write to Parquet file
-        people_df.to_parquet(write_path, index=False)
+        size_in_bytes = people_df.memory_usage(deep=True).sum()
+        bytes_per_row = size_in_bytes/len(people_df)
+        # ensuring each row_group is at most 64 MB
+        row_group_size = int((64 * 10**6)//bytes_per_row) 
+        people_df.to_parquet(
+            write_path, 
+            index=False, 
+            row_group_size=row_group_size
+        )
         logging.info(f"Data written to {write_path}")

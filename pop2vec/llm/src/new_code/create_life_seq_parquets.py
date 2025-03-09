@@ -11,13 +11,13 @@ import logging
 
 PRIMARY_KEY = "PRIMARY_KEY"
 DATA_PATH = 'DATA_PATH'
-SEQUENCE_WRITE_PATH = "SEQUENCE_WRITE_PATH"
+SEQUENCE_WRITE_DIR = "SEQUENCE_WRITE_DIR"
 
 logging.basicConfig(level=logging.INFO)
 
 
 
-def create_person_sequence(file_paths, custom_vocab, write_path, primary_key):
+def create_person_sequence(file_paths, custom_vocab, write_dir, primary_key):
     """Creates person sequence data and writes it to a Parquet file.
 
     Args:
@@ -31,7 +31,7 @@ def create_person_sequence(file_paths, custom_vocab, write_path, primary_key):
         primary_key=primary_key,
         vocab=custom_vocab,
     )
-    creator.generate_people_data(write_path)
+    creator.generate_people_data(os.path.join(write_dir, "sequences.parquet"))
 
 def data_integrity_check(fp, primary_key):
   columns = get_column_names(fp)
@@ -42,7 +42,7 @@ def data_integrity_check(fp, primary_key):
     logging.info(f"{fp} passes data_integrity_check")
     return True
   else:
-    logging.info(
+    logging.warning(
       f"""{fp} cannot be processed
       columns = {columns}
       primary_key ({primary_key}) in columns = {primary_key in columns}
@@ -84,6 +84,6 @@ if __name__ == "__main__":
     create_person_sequence(
         file_paths=data_file_paths,
         custom_vocab=None,  # Replace with custom_vocab if available
-        write_path=cfg[SEQUENCE_WRITE_PATH],
+        write_dir=cfg[SEQUENCE_WRITE_DIR],
         primary_key=cfg[PRIMARY_KEY],
     )
