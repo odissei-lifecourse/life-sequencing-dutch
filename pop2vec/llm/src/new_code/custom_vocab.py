@@ -15,7 +15,7 @@ from pop2vec.llm.src.data_new.decorators import save_pickle, save_tsv
 from pop2vec.llm.src.data_new.serialize import DATA_ROOT
 from pop2vec.llm.src.data_new.sources.base import TokenSource
 
-from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, IGNORE_COLUMNS, MISSING, DELIMITER
+from pop2vec.llm.src.new_code.constants import BIRTH_YEAR, BIRTH_MONTH, ORIGIN, GENDER, TIME_COLUMNS, MISSING, DELIMITER
 
 from tqdm import tqdm
 from multiprocessing import Pool
@@ -56,7 +56,6 @@ class DataFile():
     for column in df.columns:
       if (
         column not in TIME_COLUMNS and 
-        column not in IGNORE_COLUMNS and 
         column != self.primary_key
       ):
         unique_tokens_by_category.append(
