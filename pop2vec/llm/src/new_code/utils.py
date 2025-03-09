@@ -4,19 +4,24 @@ from typing import List, Dict
 import ast
 import csv
 import json
-import time
+import logging
 import numpy as np
 import os
 import pandas as pd
+import polars as pl
 import pyarrow.parquet 
 import random
-import logging
+import shutil
+import time
+import yaml
+
 from pop2vec.llm.src.new_code.constants import (
     AGE,
     DAYS_SINCE_FIRST,
     SPECIAL_NUMERIC_ZERO,
     SPECIAL_STR_ZERO
 )
+
 
 from typing import Union
 
@@ -192,7 +197,7 @@ def _load_parquet_and_transform_data(
   
   for _, row in metadata_df.iterrows():
     col_name = row['Name']
-    if col_name in [primary_key, AGE, DAYS_SINCE_FIRST]:
+    if col_name in [primary_key, AGE, DAYS_SINCE_FIRST] or col_name not in data_df.columns:
       continue
     col_type = row['Type']
     value_labels = row[
@@ -327,3 +332,108 @@ def shuffle_json_memory_efficient(input_file_path, output_file_path):
                 output_file.write(line)
 
 
+
+def create_subsampled_parquets(source_dir, dest_dir, n=10000, id_column="RINPERSOON"):
+    """
+    1) Find a parquet file in source_dir whose name contains 'background' (excluding _meta files).
+    2) Read only its id_column, randomly sample n rows, and store those ids in keep_ids.
+    3) Recursively mirror the directory structure of source_dir into dest_dir.
+       - Copy any *_meta.parquet files verbatim.
+       - For regular parquet files, filter out rows where `id_column` is not in keep_ids
+         and write out the result. Uses lazy scanning and sink to avoid loading
+         the entire file into memory at once (where Polars streaming is supported).
+    """
+    # 1) Locate the 'background' parquet file (excluding meta)
+    background_file = None
+    for root, dirs, files in os.walk(source_dir):
+        for file in files:
+            if "background" in file and file.endswith(".parquet") and not file.endswith("_meta.parquet"):
+                background_file = os.path.join(root, file)
+                break
+        if background_file:
+            break
+
+    if background_file is None:
+        raise FileNotFoundError("No background parquet file found in source_dir.")
+
+    # 2) Sample n IDs from the background file
+    #    We only scan the id_column to reduce memory usage.
+    bg_ids = pd.read_parquet(background_file, columns=[id_column])
+
+    n = min(n, len(bg_ids))
+
+    df_sampled = bg_ids.sample(n=n)
+    keep_ids = set(df_sampled[id_column].to_list())
+
+    # 3) Create dest_dir (raise error if it already exists)
+    if os.path.exists(dest_dir):
+        raise FileExistsError(f"Destination directory '{dest_dir}' already exists.")
+    os.makedirs(dest_dir)
+
+    # 4) Walk through source_dir and process each file
+    for root, dirs, files in os.walk(source_dir):
+        # Create the corresponding subdirectory in dest_dir
+        rel_dir = os.path.relpath(root, source_dir)
+        dest_subdir = (
+            os.path.join(dest_dir, rel_dir) if rel_dir != "." else dest_dir
+        )
+        if not os.path.exists(dest_subdir):
+            os.makedirs(dest_subdir)
+
+        for file in files:
+            source_file_path = os.path.join(root, file)
+            dest_file_path = os.path.join(dest_subdir, file)
+
+            # a) Copy *_meta.parquet files verbatim
+            if file.endswith("_meta.parquet"):
+                shutil.copy2(source_file_path, dest_file_path)
+
+            # b) For regular .parquet files, filter rows whose id_column is in keep_ids
+            elif file.endswith(".parquet"):
+                df = pd.read_parquet(source_file_path)
+                filtered = df[df[id_column].isin(keep_ids)]
+                filtered.to_parquet(dest_file_path, index=False)
+
+def is_float(string):
+    try:
+      float(string)
+      return True
+    except ValueError:
+      return False
+
+# Read hparams from the text file
+def read_hparams_from_txt(file_path):
+    with open(file_path) as file:
+        lines = file.readlines()
+        hparams = {}
+        for line in lines:
+            if len(line) < 2 or line.startswith("#"):
+              continue
+            
+            line = line.strip().split("#")[0]
+
+            key, value = line.strip().split(": ")
+            value = value.replace('"',"")
+            if value in ["True", "False"]:
+              if value == "True":
+                value = True
+              else:
+                value = False
+            elif value.isdigit():
+              value = int(value)
+            elif is_float(value):
+              value = float(value)
+            hparams[key] = value # float(value) if value.isdigit() else value
+            
+        return hparams
+
+def read_yaml(path):
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return data
+
+def read_hparams(file_path):
+    if file_path.endswith('.yaml'):
+        return read_yaml(file_path)
+    else:
+        return read_hparams_from_txt(file_path)

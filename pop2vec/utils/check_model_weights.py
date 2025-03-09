@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 import torch
 from pop2vec.llm.src.new_code.infer_embedding import load_model
-from pop2vec.llm.src.new_code.pretrain import read_hparams_from_file
+from pop2vec.llm.src.new_code.utils import read_hparams_from_file
 from pop2vec.llm.src.new_code.utils import read_json
 
 cfg_root = "pop2vec/llm/projects/dutch_real/"

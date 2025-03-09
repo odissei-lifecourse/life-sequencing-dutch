@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import os
 from pathlib import Path
 import numpy as np
 import torch
@@ -8,17 +9,19 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
 from pop2vec.llm.src.new_code.pipeline import write_to_hdf5
-from pop2vec.llm.src.new_code.pretrain import read_hparams_from_file
+from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 from pop2vec.utils.convert_hdf5_to_parquet import h5_array_to_pq
 
-DTYPE = np.float16 #np.float64
+DTYPE = np.float64
 
 def load_model(checkpoint_path, hparams_path):
-    hparams = read_hparams_from_file(hparams_path)    
-    model = TransformerEncoder.load_from_checkpoint(checkpoint_path, hparams=hparams)
+    model = TransformerEncoder.load_from_checkpoint(
+        checkpoint_path, 
+        hparams=read_hparams(hparams_path) 
+    )
     model = model.transformer
     model.eval()
     device = str(next(model.parameters()).device)
@@ -68,7 +71,11 @@ def inference(cfg, transform_to_parquet=True):
         mlm_encoded=False
     )
     # dataset.set_mlm_encoded(False)
-    dataloader = DataLoader(dataset, batch_size=cfg.get('BATCH_SIZE', 512))
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=cfg.get('BATCH_SIZE', 512), 
+        num_workers=max(1, len(os.sched_getaffinity(0)) - 2)
+    )
 
     for i, batch in enumerate(tqdm(dataloader, desc="Inferring by batch")):
         if torch.cuda.is_available():
@@ -127,4 +134,6 @@ if __name__ == "__main__":
     CFG_PATH = sys.argv[1]
     print_now(CFG_PATH)
     cfg = read_json(CFG_PATH)
+    os.makedirs(os.path.dirname(cfg['EMB_WRITE_PATH']), exist_ok=False)
+
     inference(cfg)
