@@ -1,7 +1,5 @@
-vocab_size: 2918 #this one you should knwo in advance (fix later)
-max_epochs: 100
-train_split: 0.8
-batch_size: 10
+epochs: 30
+batch_size: 64
 max_length: 512
 hidden_size: 280
 hidden_ff: 2210
