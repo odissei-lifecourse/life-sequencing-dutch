@@ -22,21 +22,12 @@ from pop2vec.llm.src.new_code.constants import INF
 from pop2vec.llm.src.new_code.custom_vocab import CustomVocabulary
 from pop2vec.llm.src.new_code.custom_vocab import DataFile
 from pop2vec.llm.src.new_code.utils import get_column_names
-from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.new_code.utils import shuffle_json
 from pop2vec.llm.src.tasks.mlm import MLM
 from pop2vec.utils.merge_hdf5 import merge_hdf5_files
 from pop2vec.utils.save_to_parquet import create_nested_dir
 
-"""
-  The pipeline is like the following:
-  1. Create life_sequence Parquet files (data is stored in Parquet format)
-  2. Create vocab. Vocab must be created using the same data files as the ones
-     used for creating life sequence Parquet files.
-     TODO: Add functionality for loading vocab from directory.
-  3. Read rows from the Parquet file and run MLM to get mlmencoded documents
-"""
 
 
 PRIMARY_KEY = "PRIMARY_KEY"
@@ -49,10 +40,14 @@ TIME_RANGE_START = "TIME_RANGE_START"
 TIME_RANGE_END = "TIME_RANGE_END"
 
 MIN_EVENT_THRESHOLD = 5  # 12
-LOG_THRESHOLD = 100
+LOG_THRESHOLD = 5000
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    format="%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S", 
+    level=logging.DEBUG
+)
 
+logger = logging.getLogger(__name__)
 
 # Global variables for worker processes
 global_custom_vocab = None
@@ -80,7 +75,7 @@ def create_vocab(
     primary_key,
     num_processes=1,
 ):
-    logging.debug("Starting create_vocab function")
+    logger.debug("Starting create_vocab function")
     data_files = []
     for path in data_file_paths:
         data_files.append(
@@ -93,7 +88,7 @@ def create_vocab(
 
     custom_vocab = CustomVocabulary(name=vocab_name, data_files=data_files)
     custom_vocab.save_vocab(vocab_write_path, num_processes)
-    logging.debug("Finished create_vocab function")
+    logger.debug("Finished create_vocab function")
     return custom_vocab
 
 
@@ -151,7 +146,7 @@ def convert_to_numpy(data_dict):
 
 
 def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_prefix, needed_ids, do_mlm):
-    logging.info(f"Chunk {row_group_id} starting")
+    logger.info(f"Chunk {row_group_id} starting")
     global global_custom_vocab
     global global_mlm  # Use the global MLM object
 
@@ -186,14 +181,14 @@ def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_pr
         output = global_mlm.encode_document(
             person_document,
             do_mlm=do_mlm,
-            do_print=(done_counter % LOG_THRESHOLD == 0),
+            do_log=(done_counter % LOG_THRESHOLD == 0 and row_group_id==0),
         )
         if output is None:
             continue
         update_data_dict(data_dict, output, do_mlm)
         done_counter += 1
         if done_counter % LOG_THRESHOLD == 1:
-            logging.debug(
+            logger.debug(
                 f"""Chunk {row_group_id} -->
             done: {i+1},remaining: {len(df)-i-1}, done% = {(i+1)*100/len(df)}
             created: {done_counter}, created% = {done_counter/(i+1) * 100}"""
@@ -207,7 +202,7 @@ def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_pr
     write_path += ".h5"
 
     if os.path.exists(write_path):
-        logging.info("Deleting existing file %s", write_path)
+        logger.info("Deleting existing file %s", write_path)
         os.remove(write_path)
     write_to_hdf5(write_path, data_dict, dtype=np.int64)
 
@@ -236,19 +231,19 @@ def init_hdf5_datasets(h5f, data_dict, dtype="i4"):
 
 
 def debug_log_hdf5(data_dict, h5f):
-    logging.debug("data dict shape printing")
+    logger.debug("data dict shape printing")
     for key, val in data_dict.items():
         if key == "sequence_id":
-            logging.debug("%s, %s", key, len(val))
+            logger.debug("%s, %s", key, len(val))
         else:
-            logging.debug("%s, %s", key, val.shape)
+            logger.debug("%s, %s", key, val.shape)
 
-    logging.debug("After resize, h5f shape printing")
+    logger.debug("After resize, h5f shape printing")
     for key, val in h5f.items():
         if key == "sequence_id":
-            logging.debug("%s, %s", key, len(val))
+            logger.debug("%s, %s", key, len(val))
         else:
-            logging.debug("%s, %s", key, val.shape)
+            logger.debug("%s, %s", key, val.shape)
 
 
 def write_to_hdf5(write_path, data_dict, dtype="i4", mode="a"):
@@ -286,12 +281,12 @@ def generate_encoded_data(
     max_seq_len=512,
     masking="random",
 ):
-    logging.debug("Starting generate_encoded_data function")
+    logger.debug("Starting generate_encoded_data function")
     if needed_ids_path:
         needed_ids = get_ids(needed_ids_path)
-        logging.info("needed ids # = %s", len(needed_ids))
+        logger.info("needed ids # = %s", len(needed_ids))
         random_id = list(needed_ids)[0]
-        logging.info("a random id is %s, type is %s", random_id, type(random_id))
+        logger.info("a random id is %s, type is %s", random_id, type(random_id))
     else:
         needed_ids = None
 
@@ -309,7 +304,7 @@ def generate_encoded_data(
         num_processes = len(os.sched_getaffinity(0)) - 2
     else:
         num_processes = 1
-    logging.info(f"# of processes = {num_processes}")
+    logger.info(f"# of processes = {num_processes}")
 
 
     num_row_groups = parquet_file.num_row_groups
@@ -326,7 +321,7 @@ def generate_encoded_data(
         do_mlm=do_mlm,
     )
 
-    logging.info("Starting multiprocessing")
+    logger.info("Starting multiprocessing")
     with Pool(
         processes=num_workers,
         initializer=worker_initializer,
@@ -339,7 +334,7 @@ def generate_encoded_data(
                      unit="group")
                 )
 
-    logging.debug("Finished generate_encoded_data function")
+    logger.debug("Finished generate_encoded_data function")
 
 
 def get_data_files_from_directory(directory, primary_key):
@@ -363,25 +358,22 @@ def get_time_range(cfg):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.INFO
-    )
     CFG_PATH = sys.argv[1]
     cfg = read_json(CFG_PATH)
 
     primary_key = cfg[PRIMARY_KEY]
     vocab_path = cfg[VOCAB_PATH]
     vocab_name = cfg[VOCAB_NAME]
-    data_file_paths = get_data_files_from_directory(cfg[DATA_PATH], primary_key)
     dryrun = "_dryrun" in cfg["SEQUENCE_PATH"]
-    logging.info("# of data_files_paths = %s", len(data_file_paths))
-
+    
     if cfg.get("LOAD_VOCAB", False):
-        logging.info(f"Loading Vocab from {vocab_path}")
+        logger.info(f"Loading Vocab from {vocab_path}")
         custom_vocab = CustomVocabulary(name=vocab_name)
         custom_vocab.load_vocab(vocab_path)
     else:
-        logging.info(f"Creating Vocab and saving at {vocab_path}")
+        logger.info(f"Creating Vocab and saving at {vocab_path}")
+        data_file_paths = get_data_files_from_directory(cfg[DATA_PATH], primary_key)
+        logger.info("# of data_files_paths = %s", len(data_file_paths))
         custom_vocab = create_vocab(
             vocab_write_path=vocab_path,
             data_file_paths=data_file_paths,
@@ -389,9 +381,9 @@ if __name__ == "__main__":
             primary_key=primary_key,
             num_processes=min(65, mp.cpu_count() - 5),
         )
-    logging.info("Vocab is ready")
+    logger.info("Vocab is ready")
     write_path_prefix = cfg[ENCODING_WRITE_PATH]
-    chunk_dir = f"{write_path_prefix}chunks/"
+    chunk_dir = f"{write_path_prefix}temp_chunks/"
     if not os.path.exists(chunk_dir):
         os.mkdir(chunk_dir)
 
@@ -409,7 +401,7 @@ if __name__ == "__main__":
         masking=cfg.get("MASKING", "random"),
     )
 
-    logging.info("Chunks are ready, merging them and deleting")
+    logger.info("Chunks are ready, merging them and deleting")
     chunk_files = [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir)]
 
     nests = {
@@ -421,4 +413,4 @@ if __name__ == "__main__":
     save_file = create_nested_dir(nests, write_path_prefix, filename)
     merge_hdf5_files(chunk_files, save_file)
     [os.remove(f) for f in chunk_files]
-    logging.info("All done.")
+    logger.info("All done.")

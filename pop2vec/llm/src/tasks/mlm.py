@@ -16,12 +16,15 @@ from pop2vec.llm.src.data_new.types import Background
 from pop2vec.llm.src.data_new.types import EncodedDocument
 from pop2vec.llm.src.data_new.types import PersonDocument
 from pop2vec.llm.src.new_code.constants import INF
-from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.tasks.base import Task
 from pop2vec.llm.src.tasks.sentence_masking import find_sentences_to_mask
 from pop2vec.llm.src.tasks.sentence_masking import mask_tokens_in_sentences
 
-log = logging.getLogger(__name__)
+logging.basicConfig(
+    format="%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S", 
+    level=logging.DEBUG
+)
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -75,30 +78,33 @@ class MLM(Task):
     def encode_document(
         self,
         document: PersonDocument,
-        do_print: bool = False,
+        do_log: bool = False,
         do_mlm: bool = True,
     ) -> "MLMEncodedDocument":
-        if do_print:
-            print_now(f"RINPERSOON = {document.person_id}")
-            print_now(f"first year active = {int(2017 - (16408 - np.min(document.abspos)) / 365)})")
-            print_now(f"last year active = {int(2017 - (16408 - np.max(document.abspos)) / 365)})")
-            print_now(
-                f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}"
+        if do_log:
+            logger.debug(
+                f"RINPERSOON = {document.person_id}\n"
+                f"first year active = {int(2017 - (16408 - np.min(document.abspos)) / 365)}\n"
+                f"last year active = {int(2017 - (16408 - np.max(document.abspos)) / 365)}\n"
+                f"min time = {np.min(document.abspos)}, max time = {np.max(document.abspos)}, threshold = {self.time_range}\n"
+                f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}\n"
+                f"background\n{document.background}\n"
+                f"all events\n{document.sentences}\n"
+                f"all ages\n{document.age}"
             )
-            print_now(f"min event age = {np.min(document.age)}, max event age = {np.max(document.age)}")
-            print_now(f"background\n{document.background}")
-            print_now(f"all events\n{document.sentences}")
-            print_now(f"all ages\n{document.age}")
+
 
         # Slice document by time range
         len_before = len(document.sentences)
         document = self.slice_by_time(document)
         len_after = len(document.sentences)
 
-        if do_print:
-            print_now(f"len_before {len_before} & len_after {len_after}")
-            print_now(f"Sentences after time slicing\n{document.sentences}")
-            print_now(f"all ages\n{document.age}")
+        if do_log:
+            logger.debug(
+                f"len_before {len_before} & len_after {len_after}\n"
+                f"Sentences after time slicing\n{document.sentences}\n"
+                f"all ages\n{document.age}\n"
+            )
 
         # Get rid of all documents who have less than threshold # of events after slicing by time
         if len(document.sentences) < min_event_threshold:
@@ -122,9 +128,11 @@ class MLM(Task):
         indices = np.where(total_lengths < self.max_length)[0]
         THRESHOLD = indices[-1] + 1 if len(indices) > 0 else 0
 
-        if do_print:
-            print_now(f"total sentences = {len(sentence_lengths)}, ok = {THRESHOLD}")
-            print_now(f"lengths of sentences = {[(i, sentence_lengths[i]) for i in range(len(sentence_lengths))]}")
+        if do_log:
+            logger.debug(
+                f"total sentences = {len(sentence_lengths)}, ok = {THRESHOLD}\n"
+                f"lengths of sentences = {[(i, sentence_lengths[i]) for i in range(len(sentence_lengths))]}\n"
+            )
         # Slice the document to include only the sentences that fit
         if THRESHOLD > 0:
             document.sentences = document.sentences[-THRESHOLD:]
@@ -141,10 +149,11 @@ class MLM(Task):
             sentences = [prefix_sentence]
             sentence_lengths = np.array([len(s) for s in sentences])
 
-        if do_print:
-            print_now(f"Sentences after thresholding due to max_len\n{document.sentences}")
-            print_now(f"all ages\n{document.age}")
-
+        if do_log:
+            logger.debug(
+                f"Sentences after thresholding due to max_len\n{document.sentences}\n"
+                f"all ages\n{document.age}\n"
+            )
         # Efficiently expand properties using numpy.repeat
         x_abspos = np.array([0] + document.abspos)
         abspos_expanded = np.repeat(x_abspos, sentence_lengths)
@@ -169,8 +178,10 @@ class MLM(Task):
         self.found_max_len = max(self.found_max_len, length)
         self.found_min_len = min(self.found_min_len, length)
 
-        if do_print:
-            print(f"length = {length}, max = {self.found_max_len}, min = {self.found_min_len}")
+        if do_log:
+            logger.debug(
+                f"length = {length}, max = {self.found_max_len}, min = {self.found_min_len}"
+            )
 
         # Create padding mask
         padding_mask = np.zeros(self.max_length, dtype=bool)
