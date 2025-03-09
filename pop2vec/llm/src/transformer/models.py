@@ -16,22 +16,26 @@ import pop2vec.llm.src.transformer
 from pop2vec.llm.src.transformer.transformer_utils import *
 from pop2vec.llm.src.transformer.transformer import CLS_DecoderS, Transformer, MaskedLanguageModel
 
-log = logging.getLogger(__name__)
-HOME_PATH = str(Path.home())
+logging.basicConfig(
+  format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+  datefmt="%Y-%m-%d %H:%M:%S",
+  level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 class TransformerEncoder(pl.LightningModule):
     """Transformer with Masked Language Model"""
 
     def __init__(self, hparams):
         super(TransformerEncoder, self).__init__()
-        self.hparams.update(hparams)
+        self.save_hyperparameters(hparams)
         self.last_global_step = 0
         # 1. ENCODER
         self.transformer = Transformer(self.hparams)
 
         # 2. DECODER BLOCK
         self.task = self.hparams.training_task
-        log.info("Training task: %s" %self.task)
+        logger.info("Training task: %s" %self.task)
         if "mlm" in self.task:
             ##### Register constants
             self.register_buffer("cls_w", torch.tensor(0.2))
@@ -195,17 +199,24 @@ class TransformerEncoder(pl.LightningModule):
         cls_loss = self.cls_loss(cls_preds, target = cls_targs)
 
         self.log("train/loss_mlm", mlm_loss.detach(), on_step=True, on_epoch=True)
+        self.log(
+            "lr", 
+            self.optimizers().param_groups[0]['lr'], 
+            on_step=True, 
+            on_epoch=True
+        )
         self.log("train/loss_cls", cls_loss.detach(), on_step=True, on_epoch=True)
 
         loss = self.cls_w * cls_loss + self.mlm_w * mlm_loss
 
-        self.log("loss_total", loss.detach(), on_step=True, on_epoch=True)
+        self.log("train/loss_combined", loss.detach(), on_step=True, on_epoch=True)
         ## 3. METRICS
         if (self.global_step + 1) % (self.trainer.log_every_n_steps) == 0:
             self.log_metrics(
                 predictions=(mlm_preds.detach(), cls_preds.detach()),
                 targets=(mlm_targs.detach(),  cls_targs.detach()),
                 loss=loss.detach(),
+                mlm_loss=mlm_loss.detach(),
                 stage="train",
                 on_step=True,
                 on_epoch=True,
@@ -231,9 +242,10 @@ class TransformerEncoder(pl.LightningModule):
         # total_train_loss = sum(total_train_loss)
         # total_mlm_loss = sum(total_train_loss)
         # total_cls_loss = sum(total_train_loss)
-        print(f'Total training,mlm,cls loss after epoch {self.current_epoch}\n:') 
-        print(f'{self.total_train_loss:.4f}, {self.total_mlm_loss:.4f}, {self.total_cls_loss:.4f}')
-
+        logger.info(
+            f'Total training,mlm,cls loss after epoch {self.current_epoch}:\n'
+            f'{self.total_train_loss:.4f}, {self.total_mlm_loss:.4f}, {self.total_cls_loss:.4f}'
+        ) 
         self.total_train_loss = 0.0
         self.total_mlm_loss = 0.0
         self.total_cls_loss = 0.0
@@ -243,8 +255,10 @@ class TransformerEncoder(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         """Save the embedding on validation epoch end"""
-        print(f'Total validation,mlm,cls loss after epoch {self.current_epoch}\n:') 
-        print(f'{self.total_val_loss:.4f}, {self.total_val_mlm_loss:.4f}, {self.total_val_cls_loss:.4f}')
+        logger.info(
+            f'Total validation,mlm,cls loss after epoch {self.current_epoch}:\n' 
+            f'{self.total_val_loss:.4f}, {self.total_val_mlm_loss:.4f}, {self.total_val_cls_loss:.4f}'
+        )
 
         self.total_val_loss = 0.0
         self.total_val_mlm_loss = 0.0
@@ -261,16 +275,19 @@ class TransformerEncoder(pl.LightningModule):
         mlm_loss = self.mlm_loss(mlm_preds.permute(0, 2, 1), target=mlm_targs)
         cls_loss = self.cls_loss(cls_preds, target = cls_targs)
 
-        self.log("val/loss_mlm", mlm_loss.detach(), on_step=True, on_epoch=True)
-        self.log("val/loss_cls", cls_loss.detach(), on_step=True, on_epoch=True)
 
+        
         loss = self.cls_w * cls_loss + self.mlm_w * mlm_loss
-        self.log("val_loss_combined", loss.detach(), on_step=True, on_epoch=True, sync_dist=True)
+        self.log("val_loss_track", loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True)
+        self.log("val/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True)
+        
         ## 3. METRICS
         self.log_metrics(
             predictions=(mlm_preds.detach(), cls_preds.detach()),
             targets=(mlm_targs.detach(),  cls_targs.detach()),
             loss=loss.detach(),
+            mlm_loss=mlm_loss.detach(),
             stage="val",
             on_step=False,
             on_epoch=True,
@@ -298,6 +315,7 @@ class TransformerEncoder(pl.LightningModule):
             predictions=(mlm_preds.detach(), cls_preds.detach()),
             targets=(mlm_targs.detach(),  cls_targs.detach()),
             loss=loss.detach(),
+            mlm_loss=mlm_loss.detach(),
             stage="test",
             on_step=False,
             on_epoch=True,
@@ -343,9 +361,13 @@ class TransformerEncoder(pl.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": torch.optim.lr_scheduler.OneCycleLR(
-                    optimizer, max_lr=self.hparams.learning_rate, 
-                    epochs=300, steps_per_epoch=37500,
-                    three_phase=False, pct_start=0.05, max_momentum=self.hparams.beta1,
+                    optimizer, 
+                    max_lr=self.hparams.learning_rate, 
+                    epochs=self.hparams.epochs, 
+                    steps_per_epoch=self.hparams.steps_per_epoch,
+                    three_phase=False, 
+                    pct_start=0.05, 
+                    max_momentum=self.hparams.beta1,
                     div_factor=30
                 ),  
                 "interval": "step",
@@ -359,6 +381,7 @@ class TransformerEncoder(pl.LightningModule):
         predictions,
         targets,
         loss,
+        mlm_loss,
         stage,
         on_step: bool = True,
         on_epoch: bool = True,
@@ -375,7 +398,10 @@ class TransformerEncoder(pl.LightningModule):
 
             self.log("train/loss", loss, on_step=on_step, on_epoch=on_epoch)
             self.log(
-                "train/perplexity", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+                "train/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+            )
+            self.log(
+                "train/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch
             )
             self.log(
                 "train/accuracy",
@@ -418,7 +444,10 @@ class TransformerEncoder(pl.LightningModule):
         elif stage == "val":
             self.log("val/loss", loss, on_step=on_step, on_epoch=on_epoch)
             self.log(
-                "val/perplexity", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+                "val/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+            )
+            self.log(
+                "val/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch
             )
             self.log(
                 "val/accuracy",

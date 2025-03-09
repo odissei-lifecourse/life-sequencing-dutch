@@ -4,7 +4,12 @@ import os
 import pickle
 import re
 import sys
+import shutil
+
+import numpy as np
+
 from pathlib import Path
+import pandas as pd
 import torch
 from pytorch_lightning import Trainer
 
@@ -19,161 +24,142 @@ from torch.utils.data import random_split
 import pop2vec.llm.src.transformer
 from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
 from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
-from pop2vec.llm.src.new_code.utils import print_now
 from pop2vec.llm.src.new_code.utils import read_json
+from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.transformer.models import TransformerEncoder
+
 
 PRECISION = "32-true"
 
-def is_float(string):
-    try:
-      float(string)
-      return True
-    except ValueError:
-      return False
+logging.basicConfig(
+  format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+  datefmt="%Y-%m-%d %H:%M:%S",
+  level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# Read hparams from the text file
-def read_hparams_from_file(file_path):
-    with open(file_path) as file:
-        lines = file.readlines()
-        hparams = {}
-        for line in lines:
-            if len(line) < 2 or line.startswith("#"):
-              continue
-            #print(line)
 
-            line = line.strip().split("#")[0]
 
-            key, value = line.strip().split(": ")
-            value = value.replace('"',"")
-            if value in ["True", "False"]:
-              if value == "True":
-                value = True
-              else:
-                value = False
-            elif value.isdigit():
-              value = int(value)
-            elif is_float(value):
-              value = float(value)
-            hparams[key] = value # float(value) if value.isdigit() else value
-            #print(key, value)
-        return hparams
 
-def get_callbacks(ckpoint_dir, val_check_interval):
-  if os.path.exists(ckpoint_dir) is False:
-    os.mkdir(ckpoint_dir)
+def get_callbacks(ckpoint_dir):
+  os.makedirs(ckpoint_dir, exist_ok=True)
   callbacks = [
     ModelCheckpoint(
-      dirpath=ckpoint_dir,#'projects/baseball/models/2010',
-      filename="model-{epoch:02d}-{step}-{val_loss:.2f}",
-      monitor="val_loss_combined",
-      save_top_k=3,
+      dirpath=ckpoint_dir,
+      filename="model-{epoch:02d}-{step}-{val_loss_track:.2f}",
+      monitor="val_loss_track",
+      save_top_k=2,
       save_last=False,
+      mode='min',
       save_weights_only=False,
-      every_n_train_steps=val_check_interval+1,
       verbose=True,
     )
   ]
   return callbacks
 
-def pretrain(cfg, batch_size=None, hparams=None):
-  """Train the model with lightning trainer.
+def get_vocab_size(path):
+    return len(pd.read_csv(path))
 
-  Args:
-    cfg (dict): configuration dict from json config file
-    batch_size (int, optional): batch size to use. If None, uses batch size specified in config.
-    hparams (str, optional): path to file with hyperparameters. If None, uses file specified in config.
-  """
-  ckpoint_dir = cfg["CHECKPOINT_DIR"]
-  mlm_path = cfg["MLM_PATH"]
+# Helper: Load and update hyperparameters.
+def load_hparams(cfg, hparams=None):
+    hparams_path = cfg["HPARAMS_PATH"] if hparams is None else hparams
+    hparams = read_hparams(hparams_path)
+    hparams['vocab_size'] = get_vocab_size(cfg['VOCAB_PATH'])
+    hparams.update(cfg)
+    return hparams
 
-  hparams_path = cfg["HPARAMS_PATH"] if not hparams else hparams
-  hparams = read_hparams_from_file(hparams_path)
-
-  num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
-  batch_size = cfg["BATCH_SIZE"] if not batch_size else batch_size
-  val_check_interval = cfg.get(
-    "VAL_CHECK_INTERVAL",
-    int(num_val_items*5/batch_size)
-  )
-  logger = CSVLogger(ckpoint_dir)
-
-  if "RESUME_FROM_CHECKPOINT" in cfg:
-    print_now(f"resuming training from checkpoint {cfg['RESUME_FROM_CHECKPOINT']}")
-    model = TransformerEncoder.load_from_checkpoint(
-      cfg["RESUME_FROM_CHECKPOINT"],
-      hparams=hparams
+# Helper: Create training and validation dataloaders.
+def get_dataloaders(mlm_path, num_val_items, batch_size):
+    val_dataset = CustomInMemoryDataset(
+        mlm_path,
+        validation=True,
+        num_val_items=num_val_items
     )
-  else:
+    train_dataset = CustomInMemoryDataset(
+        mlm_path,
+        validation=False,
+        num_val_items=num_val_items
+    )
+    num_workers = max(len(os.sched_getaffinity(0)) - 2, 1)
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers
+    )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=True
+    )
+    return train_dataloader, val_dataloader
+
+
+# Helper: Determine the DDP strategy.
+def get_ddp_strategy():
+    if DDP_STRATEGY == "auto":
+        return "auto"
+    elif DDP_STRATEGY == "ddp":
+        return DDPStrategy()
+    elif DDP_STRATEGY == "ddp_mpi":
+        return DDPStrategy(process_group_backend="mpi")
+    elif DDP_STRATEGY == "gloo":
+        return DDPStrategy(process_group_backend="gloo")
+    else:
+        raise ValueError(f"Unsupported DDP_STRATEGY: {DDP_STRATEGY}")
+
+# Main training function.
+def pretrain(cfg, batch_size=None, hparams=None):
+    ckpt_dir = cfg["CHECKPOINT_DIR"]
+    mlm_path = cfg["MLM_PATH"]
+
+    # Load hyperparameters.
+    hparams = load_hparams(cfg, hparams)
+
+    # Determine batch size and validation interval.
+    num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
+    batch_size = hparams['batch_size'] if batch_size is None else batch_size
+    val_check_interval = 0.5
+    hparams['VAL_CHECK_INTERVAL'] = val_check_interval
+
+    # Create dataloaders.
+    train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
+    hparams['steps_per_epoch'] = len(train_dataloader)
+
+    # Set up CSV logger.
+    resume_ckpt = cfg.get("RESUME_FROM_CHECKPOINT", None)
+    csv_logger = CSVLogger(save_dir=ckpt_dir)
+
+    # Create callbacks.
+    callbacks = get_callbacks(ckpt_dir)
+
+    # Decide on the distributed strategy.
+    strategy = get_ddp_strategy()
+
+    # Initialize model. The Trainer will load checkpoint state if provided.
     model = TransformerEncoder(hparams)
 
-  callbacks = get_callbacks(ckpoint_dir, val_check_interval+1)
-  if DDP_STRATEGY == "auto":
+    # Create Trainer instance. The resume_from_checkpoint argument ensures that
+    # model state, optimizer, scheduler (e.g., OneCycleLR), global step, and epoch are resumed.
     trainer = Trainer(
-      default_root_dir=ckpoint_dir,
-      callbacks=callbacks,
-      max_epochs=cfg["MAX_EPOCHS"],
-      val_check_interval=val_check_interval,
-      accelerator=ACCELERATOR,
-      devices=N_DEVICES,
-      logger=logger,
-      precision=PRECISION,
-    )
-  else:
-      if DDP_STRATEGY == "ddp":
-          ddp = DDPStrategy()
-      elif DDP_STRATEGY == "ddp_mpi":
-          ddp = DDPStrategy(process_group_backend="mpi")
-      elif DDP_STRATEGY == "gloo":
-          ddp = DDPStrategy(process_group_backend="gloo")
-
-
-      trainer = Trainer(
-        strategy=ddp,
-        default_root_dir=ckpoint_dir,
+        strategy=strategy,
+        default_root_dir=ckpt_dir,
         callbacks=callbacks,
-        max_epochs=cfg["MAX_EPOCHS"],
+        max_epochs=hparams['epochs'],
         val_check_interval=val_check_interval,
         accelerator=ACCELERATOR,
         devices=N_DEVICES,
-        logger=logger,
-        precision=PRECISION
-      )
+        logger=csv_logger,
+        precision=PRECISION,
+        log_every_n_steps=1000,
+    )
 
-  val_dataset = CustomInMemoryDataset(
-    mlm_path,
-    validation=True,
-    num_val_items=num_val_items
-  )
-  train_dataset = CustomInMemoryDataset(
-      mlm_path,
-      validation=False,
-      num_val_items=num_val_items,
-  )
-
-  # val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
-  # train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
-
-  num_workers = 4  # Or any number of workers you prefer
-  val_dataloader = DataLoader(
-      val_dataset,
-      batch_size=batch_size,
-      num_workers=num_workers,
-  )
-  train_dataloader = DataLoader(
-      train_dataset,
-      batch_size=batch_size,
-      num_workers=num_workers,
-      shuffle=True
-  )
-
-  print_now("training and validation dataloaders are created")
-  trainer.fit(model, train_dataloader, val_dataloader)
-
+    logger.info("Starting Trainer.fit(...)")
+    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=resume_ckpt)
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, …)")
+    parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, ...)")
     parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
     parser.add_argument("--devices", default=1, help="Number of devices")
     parser.add_argument("--batch", default=None, type=int, help="Batch size to use. If None, uses `batch` size specified in the config file")
@@ -193,14 +179,9 @@ if __name__ == "__main__":
 
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
 
-    logging.basicConfig(
-      format="%(asctime)s %(name)s %(levelname)s: %(message)s",
-      datefmt="%Y-%m-%d %H:%M:%S",
-      level=logging.INFO
-    )
     torch.set_float32_matmul_precision("medium")
 
-    print_now(CFG_PATH)
+    logger.info(f"config path = {CFG_PATH}")
     cfg = read_json(CFG_PATH)
     pretrain(cfg, batch_size=BATCH_SIZE, hparams=HPARAMS)
 
