@@ -5,6 +5,7 @@ Embedding population registry data. This is the main code for the project [Model
 - `graph`: compute node embeddings from population network data.
 - `evaluation`: code for evaluating the embeddings on downstream prediction tasks.
 - `fake_data`: create fake data for code development
+- `clustering`: code for clustering (network) embeddings with various methods and evaluating them.
 
 Main code for the project [Modeling life outcomes](https://research-software-directory.org/projects/modeling-life-outcomes).
 
