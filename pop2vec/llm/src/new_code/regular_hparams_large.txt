@@ -1,15 +1,13 @@
-vocab_size: 2918 #this one you should knwo in advance (fix later)
-max_epochs: 100
-train_split: 0.8
-batch_size: 10
+epochs: 10
+batch_size: 50
 max_length: 512
-hidden_size: 500
-hidden_ff: 3940
+hidden_size: 768
+hidden_ff: 3072
 hidden_act: "swish"
-n_encoders: 9
-n_heads: 10
+n_encoders: 12
+n_heads: 12
 n_local: 7
-local_window_size: 38
+local_window_size: 64
 norm_type: "rezero"
 att_dropout: 0.1 ## Attention Layers
 fw_dropout: 0.1 ## Positionwise Layers
@@ -26,10 +24,10 @@ experiment_version: 1
 ## ATTENTION
 attention_type: "performer"
 multihead_dc: False
-num_random_features: 436
+num_random_features: 128
 
 # From trainer args..
-learning_rate: 1.e-5
+learning_rate: 5e-5
 weight_decay: 0.01
 beta1: 0.9
 beta2: 0.999

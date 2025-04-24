@@ -80,7 +80,7 @@ def get_dataloaders(mlm_path, num_val_items, batch_size):
         validation=False,
         num_val_items=num_val_items
     )
-    num_train_workers = max(len(os.sched_getaffinity(0)) - 3, 1)
+    num_workers = max(len(os.sched_getaffinity(0)) - 2, 2)
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
@@ -121,15 +121,20 @@ def pretrain(cfg, batch_size=None, hparams=None):
 
     # Load hyperparameters.
     hparams = load_hparams(cfg, hparams)
-
+    logger.info("hparams loaded")
+    logger.debug(f"hparams --\n{hparams}")
     # Determine batch size and validation interval.
     num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
     batch_size = hparams['batch_size'] if batch_size is None else batch_size
-    
+    val_check_interval = cfg.get('VAL_CHECK_INTERVAL', 0.5)
+    hparams['VAL_CHECK_INTERVAL'] = val_check_interval
+
     # Create dataloaders.
+    logger.info("loading dataloaders")
     train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
     hparams['steps_per_epoch'] = len(train_dataloader)
 
+    logger.info("dataloaders loaded")
     # Set up CSV logger.
     resume_ckpt = cfg.get("RESUME_FROM_CHECKPOINT", None)
     csv_logger = CSVLogger(save_dir=ckpt_dir)

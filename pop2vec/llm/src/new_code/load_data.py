@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from collections import Counter
 
 import h5py
 from torch.utils.data import IterableDataset
@@ -12,8 +13,17 @@ import os
 import numpy as np
 
 import pandas as pd
-from pathlib import Path
 from typing import Optional
+import logging
+
+
+
+logging.basicConfig(
+    format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.DEBUG
+)
+logger = logging.getLogger(__name__)
 
 class CustomIterableDataset(IterableDataset):
     def __init__(self, file_path, validation, num_val_items=None, val_split=0.1, mlm_encoded=True, inference=False):
@@ -173,15 +183,34 @@ class CustomDataset(Dataset):
         return ret_dict
 
 class CustomInMemoryDataset(Dataset):
-    def __init__(self, file_path, validation=False, num_val_items=None, val_split=0.1, mlm_encoded=True, inference=False):
+    def __init__(self, file_path, validation=False, num_val_items=None, val_split=None, mlm_encoded=True, inference=False):
+        if num_val_items is None and val_split is None:
+            raise ValueError("Both num_val_items and val_split cannot be None. One of them must have a value")
         self.file_path = file_path
         self.validation = validation
-        self.num_val_items = num_val_items
-        self.val_split = val_split
         self.inference = inference
         self.mlm_encoded = mlm_encoded
         self.set_mlm_encoded(mlm_encoded)
-        self.load_data()
+        self.loaded = False
+        self.num_val_items, self.length = self._fix_num_val_items(num_val_items, val_split)
+        
+    
+    def _fix_num_val_items(self, num_val_items, val_split):
+        with h5py.File(self.file_path, 'r') as hdf5:
+            n_items = hdf5['input_ids'].shape[0]
+            if num_val_items is None: 
+                num_val_items = int(n_items * val_split)
+                
+            num_train_items = n_items - num_val_items
+
+            if self.validation:
+                length = num_val_items 
+            elif self.inference:
+                length = n_items 
+            else:
+                length = num_train_items
+            return num_val_items, length
+
 
     def set_mlm_encoded(self, mlm_encoded, return_index=None):
         self.mlm_encoded = mlm_encoded
@@ -193,17 +222,13 @@ class CustomInMemoryDataset(Dataset):
     def load_data(self):
         with h5py.File(self.file_path, 'r') as hdf5:
             n_items = hdf5['input_ids'].shape[0]
-            num_val_items = self.num_val_items
-            if num_val_items is None:
-                num_val_items = int(n_items * self.val_split)
-            num_train_items = n_items - num_val_items
 
             if self.validation:
-                indices = np.arange(0, num_val_items)
+                indices = np.arange(0, self.num_val_items)
             elif self.inference:
                 indices = np.arange(0, n_items)
             else:
-                indices = np.arange(num_val_items, n_items)
+                indices = np.arange(self.num_val_items, n_items)
 
             # Load datasets into memory and move to shared memory
             self.input_ids = torch.from_numpy(hdf5['input_ids'][indices])#.share_memory_()
@@ -221,9 +246,12 @@ class CustomInMemoryDataset(Dataset):
             self.indices = indices
 
     def __len__(self):
-        return len(self.indices)
+        return self.length
 
     def __getitem__(self, idx):
+        if self.loaded == False:
+            self.load_data()
+            self.loaded = True
         ret_dict = {
             "input_ids": self.input_ids[idx],
             "padding_mask": self.padding_mask[idx],
@@ -267,6 +295,7 @@ class FineTuneInMemoryDataset(Dataset):
         val_split=0.1,
         return_sequence_id=False,  # Whether to return the sequence_id
         task_type='classification',  # 'classification' or 'regression'
+        assign_weights=False,
     ):
         """
         :param h5_file_path: Path to the .h5 file, e.g. 'sequences.h5'
@@ -288,13 +317,13 @@ class FineTuneInMemoryDataset(Dataset):
         self.val_split = val_split
         self.return_sequence_id = return_sequence_id
         self.task_type = task_type
-
+        self.assign_weights = assign_weights
         # 1) Read the label file (CSV or Parquet)
         self.label_df = self._load_label_file(self.train_file_path)
 
         # 2) Load data from the HDF5 and intersect with label_df
         self._load_h5_and_intersect()
-
+    
     def _load_label_file(self, path):
         """
         Load the CSV or Parquet into a DataFrame with columns:
@@ -313,7 +342,11 @@ class FineTuneInMemoryDataset(Dataset):
         if 'RINPERSOON' not in df.columns:
             raise ValueError("Train file must have a 'RINPERSOON' column")
 
+        logger.info(f'Before dropping nan values, len(df) = {len(df)}')
+        df.dropna(subset=[self.target_col, 'RINPERSOON'], inplace=True)
+        logger.info(f'After dropping nan values, len(df) = {len(df)}')
         df.set_index('RINPERSOON', inplace=True)
+
         return df
 
     def _load_h5_and_intersect(self):
@@ -321,66 +354,87 @@ class FineTuneInMemoryDataset(Dataset):
         Reads sequences.h5 and retains only those IDs that also exist in the label file.
         Splits data for train/validation/test as requested.
         """
+
         with h5py.File(self.h5_file_path, 'r') as hdf5:
             # 1) Get sequence IDs
-            all_seq_ids = hdf5['sequence_id'][:]  # shape: (N,)
-            n_items = len(all_seq_ids)
-
+            n_items = hdf5['input_ids'].shape[0]
+            self.num_val_items = self.num_val_items if self.num_val_items is not None else int(n_items * self.val_split)
+            logger.info(f"1 done, num_val_items = {self.num_val_items}, n_items = {n_items}")
             # 2) Figure out split
-            if self.num_val_items is None:
-                self.num_val_items = int(n_items * self.val_split)
             full_indices = np.arange(n_items)
-
             if self.phase == 'test':
-                selected_indices = full_indices
+                indices = full_indices
             elif self.phase == 'validation':
-                selected_indices = full_indices[:self.num_val_items]
+                print("inside validation")
+                indices = full_indices[:self.num_val_items]
+                print(indices[:10])
             else:  # 'train'
-                selected_indices = full_indices[self.num_val_items:]
+                print("inside train")
+                indices = full_indices[self.num_val_items:]
+                print(indices[:7])
+            print("x"*10)
+            print(f"phase = {self.phase}, {indices[:4]}")
+            self.input_ids = torch.from_numpy(hdf5['input_ids'][indices])#.share_memory_()
+            self.padding_mask = torch.from_numpy(hdf5['padding_mask'][indices])#.share_memory_()
+            self.sequence_id = torch.from_numpy(hdf5['sequence_id'][indices])#.share_memory_()
 
-            selected_seq_ids = all_seq_ids[selected_indices]
+            logger.info(f"2 done, {self.input_ids.shape, self.padding_mask.shape, self.sequence_id.shape}")
 
             # 3) Create a set for fast membership checks
             label_id_set = set(self.label_df.index)
-
-            # 4) Identify intersection: which IDs appear in both?
-            mask = np.array([sid in label_id_set for sid in selected_seq_ids])
-            final_indices = np.where(mask)[0]
+            logger.info(f"3 done, {len(label_id_set)}")
             
+            # 4) Identify intersection: which IDs appear in both?
+            mask = np.array([sid.item() in label_id_set for sid in self.sequence_id])
+            logger.info(f"{self.label_df.dtypes}, {self.label_df.index.dtype}, {self.label_df.index.inferred_type}, {self.sequence_id.dtype}")
+            logger.info(f"4 done, {mask.sum()}, {len(mask)}")
+            for i, x in enumerate(label_id_set):
+                if i == 4:
+                    break
+                print(x)
+                print(self.sequence_id[i])
+                print("*"*10)
+
             # 5) Build final subset of indices & sequence IDs
-            final_h5_indices = selected_indices[final_indices]
-            self.sequence_id = torch.from_numpy(selected_seq_ids[final_indices])
-
-            # 6) Load the relevant data from HDF5 only once
-            self.input_ids = torch.from_numpy(hdf5['input_ids'][final_h5_indices])
-            self.padding_mask = torch.from_numpy(hdf5['padding_mask'][final_h5_indices])
-
+            self.input_ids = self.input_ids[mask]
+            self.padding_mask = self.padding_mask[mask]
+            self.sequence_id = self.sequence_id[mask]
+            logger.info(f"5 done, {self.input_ids.shape, self.padding_mask.shape, self.sequence_id.shape}")
+            
+            
         # 7) Gather the labels in the correct order
         #    We know each self.sequence_id is in label_id_set, so no NaN.
         raw_labels = self.label_df.loc[self.sequence_id.numpy(), self.target_col].values
-
+        logger.info(f"6 done, {len(raw_labels)}")
+            
         if self.task_type == 'classification':
             self.labels = torch.tensor(raw_labels, dtype=torch.long)
+            if self.assign_weights:
+                labels = self.labels.tolist()
+                class_counts = Counter(labels)
+                weights = [1.0 / class_counts[label] for label in labels]
+                self.sampler = WeightedRandomSampler(
+                    weights, num_samples=len(labels), replacement=True
+                )
         elif self.task_type == 'regression':
             self.labels = torch.tensor(raw_labels, dtype=torch.float)
         else:
             raise ValueError(f"Unknown task_type: {self.task_type}")
 
-        # 8) Our final local indices array
-        self.indices = np.arange(len(final_indices))
-
+        logger.info(f"7 done")
+            
     def __len__(self):
-        return len(self.indices)
+        return len(self.input_ids)
 
     def __getitem__(self, idx):
-        arr_idx = self.indices[idx]
+
         ret_dict = {
-            "input_ids": self.input_ids[arr_idx],
-            "padding_mask": self.padding_mask[arr_idx],
-            "label": self.labels[arr_idx],
+            "input_ids": self.input_ids[idx],
+            "padding_mask": self.padding_mask[idx],
+            "target": self.labels[idx],
         }
         if self.return_sequence_id:
-            ret_dict["sequence_id"] = self.sequence_id[arr_idx]
+            ret_dict["sequence_id"] = self.sequence_id[idx]
         return ret_dict
 
 

@@ -30,7 +30,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
 from pop2vec.evaluation.prediction_settings.simple_mlp import SimpleMLP
-from pop2vec.evaluation.prediction_settings.attn_agg import AttentionMLP
+# from pop2vec.evaluation.prediction_settings.attn_agg import AttentionMLP
 
 PRIMARY_KEY = 'RINPERSOON'
 EARLY_STOP_PATIENCE = None

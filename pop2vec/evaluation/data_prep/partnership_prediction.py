@@ -4,12 +4,13 @@ from datetime import datetime
 import numpy as np
 
 
+START_YEAR=2021
 # Placeholder paths for the input files
-data_path = "data/raw_data/"
-PARTNERSHIP_FILE_PATH = data_path + "GBAVERBINTENISPARTNER2023BUSV1.sav"
-DEATH_FILE_PATH = data_path + "VRLGBAOVERLIJDENTABV2024061.sav"
-BIRTH_FILE_PATH = data_path + "VRLGBAPERSOONKTABV2024061.sav"
-OUTPUT_FILE_PATH = "data/partnership_after_2016.csv"
+ROOT = '/gpfs/ostor/ossc9424/homedir/data/'
+PARTNERSHIP_FILE_PATH = f"{ROOT}/cbs_data/Bevolking/GBAVERBINTENISPARTNERBUS/GBAVERBINTENISPARTNER2023BUSV1.sav"
+DEATH_FILE_PATH = f"{ROOT}/cbs_data/Bevolking/VRLGBAOVERLIJDENTAB/VRLGBAOVERLIJDENTABV2024031.sav"
+BIRTH_FILE_PATH = f"{ROOT}/cbs_data/Bevolking/VRLGBAPERSOONKTAB/VRLGBAPERSOONKTABV2024031.sav"
+OUTPUT_FILE_PATH = f"{ROOT}/partner/partnership_after_{START_YEAR-1}.csv"
 
 
 PARTNERSHIP_START = 'AANVANGVERBINTENIS'
@@ -77,8 +78,8 @@ def read_birth_data(file_path):
     return birth_data
 
 
-def filter_first_partnerships(partnership_data, start_year=2017):
-    """Filters for people whose first partnership occurred between 2017 and 2023.
+def filter_first_partnerships(partnership_data, start_year):
+    """Filters for people whose first partnership occurred between start_year and 2023.
     
     Args:
         partnership_data (pd.DataFrame): Dataframe containing partnership information.
@@ -97,7 +98,7 @@ def filter_first_partnerships(partnership_data, start_year=2017):
       PARTNERSHIP_START
     ).drop_duplicates(subset=[RINPERSOON], keep='first')
     
-    # Filter for partnerships between 2017 and 2023
+    # Filter for partnerships between start_year-1 and 2023
     partnership_data_filtered = partnership_data_sorted[
         (partnership_data_sorted[PARTNERSHIP_START] >= start_time)
     ]
@@ -115,7 +116,7 @@ def filter_eligible_non_married(
   birth_data, 
   death_data, 
   partnership_data, 
-  start_year=2017
+  start_year
 ):
     """Filters people who are alive, not older than 80, and have never been married.
     
@@ -169,21 +170,20 @@ def filter_eligible_non_married(
 
 
 def main():
-    start_year = 2017
     # Read the input files
     partnership_data = read_partnership_data(PARTNERSHIP_FILE_PATH)
     death_data = read_death_data(DEATH_FILE_PATH)
     birth_data = read_birth_data(BIRTH_FILE_PATH)
     
     # Filter data for first partnerships after start_year
-    first_partnerships = filter_first_partnerships(partnership_data, start_year)
+    first_partnerships = filter_first_partnerships(partnership_data, START_YEAR)
     
     # Filter data for people who never got married, are alive, and not older than 80
     eligible_non_married = filter_eligible_non_married(
       birth_data, 
       death_data, 
       partnership_data,
-      start_year
+      START_YEAR
     )
     
     overlap = set(first_partnerships[RINPERSOON]) & set(eligible_non_married[RINPERSOON])
@@ -199,7 +199,7 @@ def main():
     )
     assert combined_data[RINPERSOON].is_unique, f'final dataframe does not have unique values for {RINPERSOON}'
 
-    label = f'first_union_after_{start_year-1}'
+    label = f'first_union_after_{START_YEAR-1}'
     print(
       f"""
       final dataset length = {len(combined_data)},
