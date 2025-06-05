@@ -27,7 +27,7 @@ source requirements/load_venv.sh
 
 
 # ---------- run --------------------------------------------------------
-CFG="pop2vec/llm/projects/dutch_real/pretrain_cfg_medium2x.json"
+CFG="pop2vec/llm/configs/Snellius/pretrain_pt_gpu_1_test.cfg"
 
 date
 time python -m pop2vec.llm.src.pytorch_port.pretrain \
