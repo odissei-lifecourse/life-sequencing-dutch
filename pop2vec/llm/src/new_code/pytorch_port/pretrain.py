@@ -226,7 +226,8 @@ def _validation_epoch(
                             device=device)
 
     tot = _sync_average(tot / len(loader), world)
-    if dist.get_rank() == 0:
+    is_main = True if world == 1 else dist.get_rank() == 0
+    if is_main:
         with csv_step_path.open("a", encoding="utf-8") as f:
             f.write(f"{epoch},val,{global_step},{tot[0]:.6f},"
                     f"{tot[1]:.6f},{tot[2]:.6f},0.0\n")
@@ -256,9 +257,10 @@ def _train_epoch(
     """Runs one training epoch with optional mid-epoch validation."""
     model.train()
     tot = torch.zeros(3, device=device)
+    is_main = True if world == 1 else dist.get_rank() == 0
     iterator = (
         tqdm(loader, desc=f"train-e{epoch}", leave=False)
-        if dist.get_rank() == 0 else loader
+        if is_main else loader
     )
 
     for b_idx, batch in enumerate(iterator, start=1):
@@ -276,7 +278,7 @@ def _train_epoch(
                             device=device)
 
         # step-level train logging
-        if b_idx % log_every == 0 and dist.get_rank() == 0:
+        if b_idx % log_every == 0 and is_main:
             with csv_step_path.open("a", encoding="utf-8") as f:
                 f.write(f"{epoch},train,{global_step},{loss.item():.6f},"
                         f"{mlm.item():.6f},{cls.item():.6f},"
@@ -288,7 +290,7 @@ def _train_epoch(
                 model, val_loader, device, world, epoch,
                 csv_step_path, global_step,
             )
-            if dist.get_rank() == 0:
+            if is_main:
                 ckptr.maybe_save(model, optimizer, scheduler,
                                  epoch, global_step, v_c, hparams)
                 if stopper:
@@ -377,7 +379,7 @@ def _fit(args: argparse.Namespace) -> None:
         val_every = int(args.val_check_interval)
 
     model = TransformerEncoder(hparams).to(device)
-    optimizer, scheduler = model.make_optimizer()
+    optimizer, scheduler = model.configure_optimizers()
 
     ckpt_dir = Path(cfg["CHECKPOINT_DIR"])
     csv_epoch = ckpt_dir / "metrics_epoch.csv"

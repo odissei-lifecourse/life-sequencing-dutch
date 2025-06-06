@@ -15,6 +15,11 @@ from pop2vec.llm.src.transformer.transformer_utils import *
 logger = logging.getLogger(__name__)
 
 
+class AttrDict(dict):
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
+
 class TransformerEncoder(nn.Module):
     """Transformer with Masked Language Model"""
 
@@ -23,7 +28,8 @@ class TransformerEncoder(nn.Module):
     # ──────────────────────────────────────────────────────────────────────
     def __init__(self, hparams: dict[str, any]):
         super().__init__()
-        self.hparams = hparams
+        self.global_step = 0
+        self.hparams = AttrDict(hparams)
         torch.manual_seed(self.hparams["seed"])
 
         # 1. ENCODER
@@ -47,8 +53,8 @@ class TransformerEncoder(nn.Module):
         self.cls_decoder = CLS_DecoderS(self.hparams)
 
         # loss fns
-        self.mlm_loss_fn = nn.CrossEntropyLoss(ignore_index=0)
-        self.cls_loss_fn = nn.CrossEntropyLoss(
+        self.mlm_loss = nn.CrossEntropyLoss(ignore_index=0)
+        self.cls_loss = nn.CrossEntropyLoss(
             weight=self.cls_a, label_smoothing=0.1
         )
 
@@ -232,7 +238,7 @@ class TransformerEncoder(nn.Module):
 
         
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optim,
+            optimizer,
             max_lr=self.hparams["learning_rate"],
             epochs=self.hparams["epochs"],
             steps_per_epoch=self.hparams["steps_per_epoch"],
