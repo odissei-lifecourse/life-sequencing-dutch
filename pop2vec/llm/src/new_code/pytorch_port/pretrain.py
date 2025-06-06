@@ -29,7 +29,7 @@ from tqdm import tqdm
 
 from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
 from pop2vec.llm.src.new_code.utils import read_hparams
-from pop2vec.llm.src.pytorch_port.transformer_encoder import TransformerEncoder
+from pop2vec.llm.src.new_code.pytorch_port.transformer_encoder import TransformerEncoder
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -393,7 +393,7 @@ def _fit(args: argparse.Namespace) -> None:
     start_epoch, global_step = _resume(cfg, model, optimizer, scheduler)
 
     for epoch in range(start_epoch, hparams["epochs"]):
-        model.train_epoch_start(epoch)
+        # model.train_epoch_start(epoch)
 
         tr_loss, tr_mlm, tr_cls, global_step = _train_epoch(
             model, train_dl, optimizer, scheduler, device,

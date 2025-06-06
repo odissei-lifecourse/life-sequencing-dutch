@@ -45,3 +45,4 @@ cls_num_targs: 3
 stage: "pre_training"
 implementation: "v1"
 version: 1.0
+seed: 42
