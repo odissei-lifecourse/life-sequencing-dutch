@@ -1,6 +1,6 @@
 # ------- training loop ---------------------------
 epochs: 30
-batch_size: 192          # overridden earlier, but echoed here for clarity
+batch_size: 16         # overridden earlier, but echoed here for clarity
 max_length: 512
 
 # ------- model dims ------------------------------
