@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 from typing import Optional, Tuple
 
 import torch
@@ -122,7 +123,7 @@ class Checkpointer:
     """Simple implementation of Lightning's ``ModelCheckpoint``."""
 
     def __init__(
-        self, directory: Path, mode: str = 'min', top_k: int = 2
+        self, directory: Path, mode: str = 'min', save_last: bool = False, top_k: int = 2
     ) -> None:
         self._mode = mode
         if self._mode not in ['min', 'max']:
@@ -132,6 +133,7 @@ class Checkpointer:
     
         self._dir = directory
         self._dir.mkdir(parents=True, exist_ok=True)
+        self._save_last = save_last
         self._top_k = top_k
         self._buffer: list[Tuple[float, Path]] = []
     
@@ -162,6 +164,10 @@ class Checkpointer:
             },
             path,
         )
+
+        if self._save_last:
+            shutil.copy(path, self._dir / "last.ckpt")
+
         self._buffer.append((loss, path))
         if self._mode == 'min':
             # smaller is better → ascending sort
@@ -353,17 +359,30 @@ def _resume(
 # --------------------------------------------------------------------------- #
 # Training orchestration (UPDATED)
 # --------------------------------------------------------------------------- #
-def _fit(args: argparse.Namespace) -> None:
+def _fit(
+    config: str,
+    hparams_path: Optional[str],
+    ddpstrategy: str,
+    accelerator: str,
+    devices: int,
+    batch: Optional[int],
+    log_every: int,
+    val_check_interval: Optional[float],
+    save_last: bool,
+    early_stop: bool,
+    early_patience: int,
+    early_min_delta: float,
+) -> None:
     """High-level training routine."""
     torch.set_float32_matmul_precision("medium")
 
-    cfg = json.load(open(args.config, encoding="utf-8"))
-    hparams = _load_hparams(cfg, args.hparams)
+    cfg = json.load(open(config, encoding="utf-8"))
+    hparams = _load_hparams(cfg, hparams_path) # Renamed to avoid conflict with hparams parameter
 
-    ddp, world, rank = _init_distributed(args.ddpstrategy)
-    device = torch.device("cuda" if args.accelerator == "gpu" else "cpu")
+    ddp, world, rank = _init_distributed(ddpstrategy)
+    device = torch.device("cuda" if accelerator == "gpu" else "cpu")
 
-    batch_size = args.batch or hparams["batch_size"]
+    batch_size = batch or hparams["batch_size"]
     train_dl, val_dl = _make_dataloaders(
         cfg["MLM_PATH"], cfg.get("NUM_VAL_ITEMS", 100_000),
         batch_size, ddp
@@ -371,12 +390,12 @@ def _fit(args: argparse.Namespace) -> None:
     hparams["steps_per_epoch"] = len(train_dl)
 
     # derive mid-epoch validation frequency
-    if args.val_check_interval is None:
+    if val_check_interval is None:
         val_every = 0
-    elif args.val_check_interval < 1:
-        val_every = max(1, int(args.val_check_interval * len(train_dl)))
+    elif val_check_interval < 1:
+        val_every = max(1, int(val_check_interval * len(train_dl)))
     else:
-        val_every = int(args.val_check_interval)
+        val_every = int(val_check_interval)
 
     model = TransformerEncoder(hparams).to(device)
     optimizer, scheduler = model.configure_optimizers()
@@ -386,10 +405,10 @@ def _fit(args: argparse.Namespace) -> None:
     csv_step = ckpt_dir / "metrics_step.csv"
     _write_csv_headers(rank, csv_epoch, csv_step)
 
-    ckptr = Checkpointer(ckpt_dir)
+    ckptr = Checkpointer(ckpt_dir, save_last=save_last)
     stopper = (
-        EarlyStopper(args.early_patience, args.early_min_delta)
-        if args.early_stop else None
+        EarlyStopper(early_patience, early_min_delta)
+        if early_stop else None
     )
 
     start_epoch, global_step = _resume(cfg, model, optimizer, scheduler)
@@ -399,7 +418,7 @@ def _fit(args: argparse.Namespace) -> None:
 
         tr_loss, tr_mlm, tr_cls, global_step = _train_epoch(
             model, train_dl, optimizer, scheduler, device,
-            log_every=args.log_every, world=world, epoch=epoch,
+            log_every=log_every, world=world, epoch=epoch,
             csv_step_path=csv_step, global_step=global_step,
             val_loader=val_dl, val_every=val_every,
             ckptr=ckptr, stopper=stopper, hparams=hparams,
@@ -442,9 +461,9 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--accelerator", default="gpu")
     parser.add_argument("--ddpstrategy", default="auto")
-    parser.add_argument("--devices", type=int, default=1)
+    parser.add_argument("--devices", type=int, default=1) # TODO unused.
     parser.add_argument("--batch", type=int, default=None)
-    parser.add_argument("--hparams", type=str, default=None)
+    parser.add_argument("--hparams_path", type=str, default=None)
     parser.add_argument("--config", required=True)
     parser.add_argument("--log_every", type=int, default=1_000)
 
@@ -457,6 +476,8 @@ def _parse_args() -> argparse.Namespace:
         default=None,
     )
 
+    parser.add_argument("--save_last", action="store_true", help="Save the most recent checkpoint to last.ckpt")
+
     # Early-stopping flags (kept unchanged)
     parser.add_argument("--early_stop", action="store_true")
     parser.add_argument("--early_patience", type=int, default=3)
@@ -465,4 +486,4 @@ def _parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    _fit(_parse_args())
+    _fit(**vars(_parse_args()))

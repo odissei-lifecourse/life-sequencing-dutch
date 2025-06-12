@@ -5,6 +5,7 @@ import pickle
 import re
 import sys
 import shutil
+from typing import Optional
 
 import numpy as np
 
@@ -49,7 +50,7 @@ def get_callbacks(ckpoint_dir):
       filename="model-{epoch:02d}-{step}-{val_loss_track:.2f}",
       monitor="val_loss_track",
       save_top_k=2,
-      save_last=False,
+      save_last=SAVE_LAST,
       mode='min',
       save_weights_only=False,
       verbose=True,
@@ -165,17 +166,18 @@ def parse_args():
     parser.add_argument("--batch", default=None, type=int, help="Batch size to use. If None, uses `batch` size specified in the config file")
     parser.add_argument("--hparams", default=None, type=str, help="Path to hyperparameters file. If `None`, uses file specified in the config file")
     parser.add_argument("--config", required=True, help=".json config",type=str)
+    parser.add_argument("--save_last", action="store_true", help="Save the most recent checkpoint to last.ckpt")
     return parser.parse_args()
 
-if __name__ == "__main__":
-
-    args = parse_args()
-    ACCELERATOR=args.accelerator
-    N_DEVICES=args.devices
-    DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
-    BATCH_SIZE=args.batch
-    HPARAMS=args.hparams
-    CFG_PATH=args.config
+def main(accelerator: str, devices: int, ddpstrategy: str, batch: Optional[int], hparams: Optional[str], config: str, save_last: bool):
+    global ACCELERATOR, N_DEVICES, DDP_STRATEGY, BATCH_SIZE, HPARAMS, CFG_PATH, SAVE_LAST
+    ACCELERATOR = accelerator
+    N_DEVICES = devices
+    DDP_STRATEGY = ddpstrategy
+    BATCH_SIZE = batch
+    HPARAMS = hparams
+    CFG_PATH = config
+    SAVE_LAST = save_last
 
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
 
@@ -186,4 +188,6 @@ if __name__ == "__main__":
     pretrain(cfg, batch_size=BATCH_SIZE, hparams=HPARAMS)
 
 
+if __name__ == "__main__":
+    main(**vars(parse_args()))
 
