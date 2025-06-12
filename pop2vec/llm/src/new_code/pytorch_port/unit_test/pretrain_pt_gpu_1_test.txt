@@ -1,0 +1,48 @@
+# ------- training loop ---------------------------
+epochs: 1
+batch_size: 16
+max_length: 512
+
+# ------- model dims ------------------------------
+hidden_size: 280
+hidden_ff: 2210
+hidden_act: "swish"
+n_encoders: 5
+n_heads: 10
+n_local: 7
+local_window_size: 38
+
+# ------- dropout / norm --------------------------
+norm_type: "rezero"
+att_dropout: 0.1
+fw_dropout: 0.1
+dc_dropout: 0.1
+emb_dropout: 0.1
+parametrize_emb: True
+norm_input_emb: False
+norm_output_emb: True
+weight_tying: "wt"
+
+# ------- task & experiment -----------------------
+training_task: mlm
+experiment_name: pretrain_dutch_0
+experiment_version: 1
+
+# ------- attention -------------------------------
+attention_type: "performer"
+multihead_dc: False
+num_random_features: 436
+
+# ------- optimiser -------------------------------
+learning_rate: 1e-4
+weight_decay: 0.01
+beta1: 0.9
+beta2: 0.999
+epsilon: 1e-6
+
+# ------- misc ------------------------------------
+cls_num_targs: 3
+stage: "pre_training"
+implementation: "v1"
+version: 1.0
+seed: 42

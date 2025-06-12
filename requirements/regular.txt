@@ -152,7 +152,7 @@ poetry-core==1.6.1
 poetry-plugin-export==1.4.0
 polars==1.23.0
 pooch==1.7.0
-protobuf==4.24.0
+protobuf==6.31.1
 psutil==5.9.5
 ptyprocess==0.7.0
 py==1.11.0
