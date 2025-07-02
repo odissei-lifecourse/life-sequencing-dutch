@@ -64,7 +64,7 @@ def _make_dataloaders(
     mlm_path: str,
     n_val: int,
     batch_size: int,
-    ddp: bool,
+    is_ddp: bool,
 ) -> Tuple[DataLoader, DataLoader]:
     """Creates train/val dataloaders with optional distributed samplers."""
     val_ds = CustomInMemoryDataset(
@@ -73,9 +73,8 @@ def _make_dataloaders(
     train_ds = CustomInMemoryDataset(
         mlm_path, validation=False, num_val_items=n_val
     )
-    num_workers = max(len(os.sched_getaffinity(0)) - 2, 1)
-
-    if ddp:
+    
+    if is_ddp:
         rank, world = dist.get_rank(), dist.get_world_size()
         train_sampler = DistributedSampler(
             train_ds, num_replicas=world, rank=rank, shuffle=True
@@ -85,6 +84,8 @@ def _make_dataloaders(
         )
     else:
         train_sampler = val_sampler = None
+        world = 1
+    num_workers = max((len(os.sched_getaffinity(0)) - 2) // world, 1)
 
     train_loader = DataLoader(
         train_ds,
@@ -299,23 +300,50 @@ def _train_epoch(
                         break
 
     model.on_train_epoch_end()
-    tot = _sync_average(tot / len(loader), world)
+    tot = _sync_average(tot / b_idx, world)
     return tot[0].item(), tot[1].item(), tot[2].item(), global_step
 
 
 # --------------------------------------------------------------------- #
 # Training orchestration
 # --------------------------------------------------------------------- #
-def _init_distributed(strategy: str) -> Tuple[bool, int, int]:
-    """Initialises torch.distributed if requested."""
-    ddp = strategy not in ("auto",)
-    if ddp:
-        backend = "nccl" if torch.cuda.is_available() else "gloo"
-        dist.init_process_group(backend)
-        world, rank = dist.get_world_size(), dist.get_rank()
-    else:
-        world, rank = 1, 0
-    return ddp, world, rank
+# --------------------------------------------------------------------------- #
+# Distributed initialisation (NEW)
+# --------------------------------------------------------------------------- #
+def _init_distributed() -> tuple[int, int, int]:
+    """
+    Initialise torch.distributed from the environment created by **torchrun**
+    (or Slurm+MPI).  Idempotent — if the process-group already exists, it just
+    retrieves the cached values.
+
+    Returns
+    -------
+    local_rank : int   # index of this GPU on the current node
+    world      : int   # total number of ranks in the job
+    rank       : int   # global id of *this* rank (0 -- world-1)
+    """
+    # ── fast-path: already initialised ───────────────────────────────────
+    if dist.is_initialized():
+        world       = dist.get_world_size()
+        rank        = dist.get_rank()
+        local_rank  = int(os.getenv("LOCAL_RANK", rank))  # env still there
+        return local_rank, world, rank
+
+    # ── read launcher-provided env vars ──────────────────────────────────
+    world      = int(os.getenv("WORLD_SIZE", "1"))    # defaults for single-proc
+    rank       = int(os.getenv("RANK", "0"))
+    local_rank = int(os.getenv("LOCAL_RANK", rank))   # single-node fallback
+
+    # ── choose backend & start the process group ─────────────────────────
+    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    dist.init_process_group(backend=backend, init_method="env://")
+
+    # ── bind this rank to its GPU (critical for NCCL) ────────────────────
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
+
+    return local_rank, world, rank
+
 
 def _write_csv_headers(rank: int, csv_epoch: Path, csv_step: Path) -> None:
     if rank != 0:
@@ -336,12 +364,16 @@ def _resume(
     model: TransformerEncoder,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
+    is_ddp: bool,
 ) -> Tuple[int, int]:
     """Loads a checkpoint if `RESUME_FROM_CHECKPOINT` is set."""
     ckpt_path = cfg.get("RESUME_FROM_CHECKPOINT")
     if ckpt_path:
         ckpt = torch.load(ckpt_path, map_location="cpu")
-        model.load_state_dict(ckpt["model"])
+        if is_ddp:
+            model.module.load_state_dict(ckpt["model"])
+        else:
+            model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         scheduler.load_state_dict(ckpt["scheduler"])
         model.global_step = ckpt["step"]
@@ -360,14 +392,23 @@ def _fit(args: argparse.Namespace) -> None:
     cfg = json.load(open(args.config, encoding="utf-8"))
     hparams = _load_hparams(cfg, args.hparams)
 
-    ddp, world, rank = _init_distributed(args.ddpstrategy)
-    device = torch.device("cuda" if args.accelerator == "gpu" else "cpu")
+    mode, device, num_devices = _resolve_strategy(args)
+    is_ddp = (mode == "ddp")
+    if is_ddp:
+        local_rank, world, rank = _init_distributed()     # local_rank matches device
+        assert torch.device(f"cuda:{local_rank}") == device
+        assert device.index == local_rank
+    else:
+        world = 1
+        rank = 0
+
 
     batch_size = args.batch or hparams["batch_size"]
     train_dl, val_dl = _make_dataloaders(
         cfg["MLM_PATH"], cfg.get("NUM_VAL_ITEMS", 100_000),
-        batch_size, ddp
+        batch_size, is_ddp
     )
+
     hparams["steps_per_epoch"] = len(train_dl)
 
     # derive mid-epoch validation frequency
@@ -379,8 +420,17 @@ def _fit(args: argparse.Namespace) -> None:
         val_every = int(args.val_check_interval)
 
     model = TransformerEncoder(hparams).to(device)
-    optimizer, scheduler = model.configure_optimizers()
-
+    if is_ddp:
+        model = torch.nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[local_rank] if device.type == "cuda" else None,
+            output_device=local_rank if device.type == "cuda" else None,
+            find_unused_parameters=False,   # change to True if you sometimes drop branches
+        )
+    optimizer, scheduler = (
+        model.module.configure_optimizers() if is_ddp else model.configure_optimizers()
+    )
+    
     ckpt_dir = Path(cfg["CHECKPOINT_DIR"])
     csv_epoch = ckpt_dir / "metrics_epoch.csv"
     csv_step = ckpt_dir / "metrics_step.csv"
@@ -392,10 +442,12 @@ def _fit(args: argparse.Namespace) -> None:
         if args.early_stop else None
     )
 
-    start_epoch, global_step = _resume(cfg, model, optimizer, scheduler)
+    start_epoch, global_step = _resume(cfg, model, optimizer, scheduler, is_ddp)
 
     for epoch in range(start_epoch, hparams["epochs"]):
         # model.train_epoch_start(epoch)
+        if is_ddp:
+            train_dl.sampler.set_epoch(epoch)
 
         tr_loss, tr_mlm, tr_cls, global_step = _train_epoch(
             model, train_dl, optimizer, scheduler, device,
@@ -430,8 +482,41 @@ def _fit(args: argparse.Namespace) -> None:
                 _LOGGER.info("Early stopping triggered.")
             break
 
-    if ddp:
+    if is_ddp:
         dist.destroy_process_group()
+
+
+# ─── helper inside _fit() ──────────────────────────────────────────────
+def _resolve_strategy(args) -> tuple[str, torch.device, int]:
+    """Return (mode_string, device, num_devices)."""
+    if args.strategy == "auto":
+        if torch.cuda.is_available():
+            return "single_gpu", torch.device("cuda:0"), 1
+        else:
+            return "cpu", torch.device("cpu"), 1
+
+    if args.strategy == "single_gpu":
+        if not torch.cuda.is_available():
+            raise RuntimeError("single_gpu requested but no CUDA device!")
+        return "single_gpu", torch.device("cuda:0"), 1
+
+    if args.strategy == "ddp":
+        if not torch.cuda.is_available():
+            raise RuntimeError("ddp requested but no CUDA device!")
+        if torch.cuda.device_count() < args.num_devices:
+            raise RuntimeError(
+                f"requested num_devices = {args.num_devices} is more than available {torch.cuda.device_count()} gpus"
+            )
+        return (
+            "ddp", 
+            torch.device(f"cuda:{int(os.getenv('LOCAL_RANK', 0))}"), 
+            args.num_devices
+        )
+
+    if args.strategy == "cpu":
+        return "cpu", torch.device("cpu"), 1
+
+    raise ValueError(f"Unknown strategy: {args.strategy}")
 
 
 # --------------------------------------------------------------------------- #
@@ -440,9 +525,18 @@ def _fit(args: argparse.Namespace) -> None:
 def _parse_args() -> argparse.Namespace:
     """Parses command-line flags."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--accelerator", default="gpu")
-    parser.add_argument("--ddpstrategy", default="auto")
-    parser.add_argument("--devices", type=int, default=1)
+    parser.add_argument(
+        "--strategy",
+        default="auto",
+        choices=["auto", "single_gpu", "ddp", "cpu"],
+        help="""Execution strategy:
+             auto        --> pick single-GPU if CUDA is visible else CPU
+             single_gpu  --> force one GPU, no DDP
+             ddp         --> DistributedDataParallel over all visible GPUs
+             cpu         --> force pure-CPU run
+            """
+    )
+    parser.add_argument("--num_devices", type=int, default=1)
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--hparams", type=str, default=None)
     parser.add_argument("--config", required=True)
