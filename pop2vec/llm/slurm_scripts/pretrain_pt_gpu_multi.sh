@@ -5,17 +5,19 @@
 #SBATCH --nodes=1
 #SBATCH --time=0:20:00
 #SBATCH --mem=80G
-#SBATCH --gpus=4
+#SBATCH --gpus=2
 #SBATCH --partition=gpu_a100
 #SBATCH -e /home/tislampial/logs/%x.%j.err
 #SBATCH -o /home/tislampial/logs/%x.%j.out
+
+n_gpus=2
 
 echo "job started"
 
 # ---------- paths ------------------------------------------------------
 PROJECT_DIR="/home/tislampial/life-sequencing-dutch"
 cd "$PROJECT_DIR"
-
+# pip install -e .
 
 # ---------- modules / env ---------------------------------------------
 module purge
@@ -31,13 +33,13 @@ source requirements/load_venv.sh
 CFG="pop2vec/llm/configs/Snellius/pretrain_pt_gpu_1_test.cfg"
 
 date
-
+export PYTHON_EXEC=$(which python)
 torchrun \
   --standalone \
-  --nproc_per_node=$SLURM_GPUS_PER_NODE \
-  pop2vec/llm/src/new_code/pytorch_port/pretrain.py \
+  --nproc_per_node=$n_gpus \
+  -m pop2vec.llm.src.new_code.pytorch_port.pretrain \
      --config "$CFG" \
-     --num_devices $SLURM_GPUS_PER_NODE \
+     --num_devices $n_gpus \
      --strategy ddp \
      --val_check_interval 0.5 \
      --log_every 10

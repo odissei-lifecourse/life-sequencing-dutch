@@ -11,8 +11,10 @@ from pop2vec.llm.src.transformer.transformer import (
     CLS_DecoderS, Transformer, MaskedLanguageModel
 )
 from pop2vec.llm.src.transformer.transformer_utils import *
+import torch.distributed as dist
 
 logger = logging.getLogger(__name__)
+
 
 
 class AttrDict(dict):
@@ -99,6 +101,14 @@ class TransformerEncoder(nn.Module):
         self.total_val_mlm = 0.0
         self.total_val_cls = 0.0
 
+    def _rank_tag(self) -> str:
+        """Return '[rank N] ' if DDP is initialised, else ''."""
+        return (
+            f"[rank {dist.get_rank()}] "
+            if dist.is_available() and dist.is_initialized()
+            else ""
+        )
+
     # ──────────────────────────────────────────────────────────────────────
     # forward
     # ──────────────────────────────────────────────────────────────────────
@@ -153,8 +163,11 @@ class TransformerEncoder(nn.Module):
     def on_train_epoch_end(self):
         """Print epoch aggregates (trainer writes CSV)."""
         logger.info(
-            "Total training loss/MLM/CLS this epoch: %.4f / %.4f / %.4f",
-            self.total_train_loss, self.total_train_mlm, self.total_train_cls,
+            "%sTotal training loss/MLM/CLS this epoch: %.4f / %.4f / %.4f",
+            self._rank_tag(), 
+            self.total_train_loss, 
+            self.total_train_mlm, 
+            self.total_train_cls,
         )
         self.total_train_loss = self.total_train_mlm = self.total_train_cls = 0.0
 
@@ -191,8 +204,11 @@ class TransformerEncoder(nn.Module):
 
     def on_validation_epoch_end(self):
         logger.info(
-            "Total validation loss/MLM/CLS this epoch: %.4f / %.4f / %.4f",
-            self.total_val_loss, self.total_val_mlm, self.total_val_cls,
+            "%sTotal validation loss/MLM/CLS this epoch: %.4f / %.4f / %.4f",
+            self._rank_tag(),
+            self.total_val_loss, 
+            self.total_val_mlm, 
+            self.total_val_cls,
         )
         self.total_val_loss = self.total_val_mlm = self.total_val_cls = 0.0
 

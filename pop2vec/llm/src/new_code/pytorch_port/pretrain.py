@@ -30,6 +30,7 @@ from tqdm import tqdm
 from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
 from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.new_code.pytorch_port.transformer_encoder import TransformerEncoder
+from pop2vec.llm.src.new_code.pytorch_port.attr_proxy import AttrProxy
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -233,6 +234,7 @@ def _validation_epoch(
             f.write(f"{epoch},val,{global_step},{tot[0]:.6f},"
                     f"{tot[1]:.6f},{tot[2]:.6f},0.0\n")
     model.on_validation_epoch_end()
+    model.train()
     return tot.tolist()  # combined, mlm, cls
 
 # --------------------------------------------------------------------------- #
@@ -313,7 +315,7 @@ def _train_epoch(
 def _init_distributed() -> tuple[int, int, int]:
     """
     Initialise torch.distributed from the environment created by **torchrun**
-    (or Slurm+MPI).  Idempotent — if the process-group already exists, it just
+    (or Slurm+MPI).  Idempotent - if the process-group already exists, it just
     retrieves the cached values.
 
     Returns
@@ -370,10 +372,7 @@ def _resume(
     ckpt_path = cfg.get("RESUME_FROM_CHECKPOINT")
     if ckpt_path:
         ckpt = torch.load(ckpt_path, map_location="cpu")
-        if is_ddp:
-            model.module.load_state_dict(ckpt["model"])
-        else:
-            model.load_state_dict(ckpt["model"])
+        model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         scheduler.load_state_dict(ckpt["scheduler"])
         model.global_step = ckpt["step"]
@@ -419,17 +418,19 @@ def _fit(args: argparse.Namespace) -> None:
     else:
         val_every = int(args.val_check_interval)
 
-    model = TransformerEncoder(hparams).to(device)
+    core = TransformerEncoder(hparams).to(device)
     if is_ddp:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model,
+        core = torch.nn.parallel.DistributedDataParallel(
+            core,
             device_ids=[local_rank] if device.type == "cuda" else None,
             output_device=local_rank if device.type == "cuda" else None,
             find_unused_parameters=False,   # change to True if you sometimes drop branches
         )
-    optimizer, scheduler = (
-        model.module.configure_optimizers() if is_ddp else model.configure_optimizers()
-    )
+        model = AttrProxy(core)
+    else:
+        model = core
+
+    optimizer, scheduler = model.configure_optimizers()
     
     ckpt_dir = Path(cfg["CHECKPOINT_DIR"])
     csv_epoch = ckpt_dir / "metrics_epoch.csv"
