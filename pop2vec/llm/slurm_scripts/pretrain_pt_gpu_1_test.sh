@@ -35,6 +35,6 @@ time python -m pop2vec.llm.src.new_code.pytorch_port.pretrain \
          --config "$CFG" \
          --val_check_interval 0.5 \
          --log_every 10 \
-         --accelerator gpu
+         --strategy single_gpu
 
 echo "job ended successfully"
