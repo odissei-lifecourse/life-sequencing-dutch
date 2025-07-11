@@ -22,14 +22,14 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.data import random_split
 import pop2vec.llm.src.transformer
-from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
+from pop2vec.llm.src.new_code.load_data import CustomLazyHDF5Dataset
 from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 
 
-PRECISION = "32-true"
+PRECISION = "16-mixed"
 
 logging.basicConfig(
   format="%(asctime)s %(name)s %(levelname)s: %(message)s",
@@ -70,26 +70,31 @@ def load_hparams(cfg, hparams=None):
 
 # Helper: Create training and validation dataloaders.
 def get_dataloaders(mlm_path, num_val_items, batch_size):
-    val_dataset = CustomInMemoryDataset(
+    val_dataset = CustomLazyHDF5Dataset(
         mlm_path,
         validation=True,
         num_val_items=num_val_items
     )
-    train_dataset = CustomInMemoryDataset(
+    train_dataset = CustomLazyHDF5Dataset(
         mlm_path,
         validation=False,
         num_val_items=num_val_items
     )
-    num_workers = max(len(os.sched_getaffinity(0)) - 2, 2)
+    num_workers = len(os.sched_getaffinity(0)) - 3
+    logging.info(f"num of workers for train dataloader = {num_workers}")
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        num_workers=num_workers
+        num_workers=2,
+        prefetch_factor=2,
+        persistent_workers=True
     )
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
+        prefetch_factor=2,
+        persistent_workers=True,
         shuffle=True
     )
     return train_dataloader, val_dataloader
@@ -126,8 +131,10 @@ def pretrain(cfg, batch_size=None, hparams=None):
     # Create dataloaders.
     logger.info("loading dataloaders")
     train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
-    hparams['steps_per_epoch'] = len(train_dataloader)
-
+    accumulate_grad_batches = hparams.get('accumulate_grad_batches', 1)
+    hparams['steps_per_epoch'] = (
+        int(len(train_dataloader) / (N_DEVICES*accumulate_grad_batches))+2
+    )
     logger.info("dataloaders loaded")
     # Set up CSV logger.
     resume_ckpt = cfg.get("RESUME_FROM_CHECKPOINT", None)
@@ -155,6 +162,9 @@ def pretrain(cfg, batch_size=None, hparams=None):
         logger=csv_logger,
         precision=PRECISION,
         log_every_n_steps=1000,
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
+        accumulate_grad_batches=accumulate_grad_batches
     )
 
     logger.info("Starting Trainer.fit(...)")
@@ -174,7 +184,7 @@ if __name__ == "__main__":
 
     args = parse_args()
     ACCELERATOR=args.accelerator
-    N_DEVICES=args.devices
+    N_DEVICES=int(args.devices)
     DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
     BATCH_SIZE=args.batch
     HPARAMS=args.hparams
