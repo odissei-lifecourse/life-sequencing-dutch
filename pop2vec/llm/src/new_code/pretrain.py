@@ -80,11 +80,11 @@ def get_dataloaders(mlm_path, num_val_items, batch_size):
         validation=False,
         num_val_items=num_val_items
     )
-    # num_workers = max(len(os.sched_getaffinity(0)) - 2, 1)
+    num_train_workers = max(len(os.sched_getaffinity(0)) - 3, 1)
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        num_workers=8,
+        num_workers=min(num_train_workers, 2),
         prefetch_factor=2, 
         persistent_workers=True,  # keeps the worker processes + HDF5 handles alive
         pin_memory=True       
@@ -92,7 +92,7 @@ def get_dataloaders(mlm_path, num_val_items, batch_size):
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        num_workers=32,
+        num_workers=num_train_workers,
         shuffle=True,
         prefetch_factor=2, 
         persistent_workers=True,  # keeps the worker processes + HDF5 handles alive
