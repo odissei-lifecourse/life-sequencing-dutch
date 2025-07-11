@@ -142,6 +142,7 @@ class MLM(Task):
             sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
             sentence_lengths = np.array([len(s) for s in sentences])
         else:
+            # Not even one (the last) sentence can fit into context window
             document.sentences = []
             document.age = []
             document.abspos = []
