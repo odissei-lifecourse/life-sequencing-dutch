@@ -107,7 +107,7 @@ class MLM(Task):
             )
 
         # Get rid of all documents who have less than threshold # of events after slicing by time
-        if len(document.sentences) < min_event_threshold:
+        if len(document.sentences) < min_event_threshold and do_mlm:
             return None
 
         prefix_sentence = ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]
@@ -142,6 +142,7 @@ class MLM(Task):
             sentences = [prefix_sentence] + [s + ["[SEP]"] for s in document.sentences]
             sentence_lengths = np.array([len(s) for s in sentences])
         else:
+            # Not even one (the last) sentence can fit into context window
             document.sentences = []
             document.age = []
             document.abspos = []
