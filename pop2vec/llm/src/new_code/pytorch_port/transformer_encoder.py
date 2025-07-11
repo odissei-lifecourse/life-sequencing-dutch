@@ -1,5 +1,5 @@
 """
-TransformerEncoder – vanilla-PyTorch replacement for the LightningModule.
+TransformerEncoder - vanilla-PyTorch replacement for the LightningModule.
 Now includes Lightning-style hook methods (training_step, validation_step,
 train_epoch_start, on_train_epoch_end, on_validation_epoch_end) so that
 diffing against the original Lightning code is almost line-for-line.
@@ -216,7 +216,7 @@ class TransformerEncoder(nn.Module):
     # optimiser / scheduler fabric
     # ──────────────────────────────────────────────────────────────────────
     def configure_optimizers(self):
-        """Reproduces Lightning’s AdamW + OneCycleLR schedule."""
+        """Reproduces Lightning's AdamW + OneCycleLR schedule."""
 
         no_decay = [
             "bias",

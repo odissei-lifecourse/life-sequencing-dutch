@@ -262,6 +262,18 @@ def get_parquet_data(
               "type": "parquet"
             }
           )
+      elif 'background' in f1:
+          ret.append(
+            {
+              "input_data_parquet_path": os.path.join(root, f1),
+              "input_meta_parquet_path": None,
+              "write_path": os.path.join(
+                output_directory,
+                os.path.basename(f1)
+              ),
+              "type": "parquet"
+            }
+          )
 
     # if root.endswith('_parquet'):
     #   data_file, metadata_file = _get_data_and_metadata_from_files(files, root)
@@ -281,7 +293,10 @@ def get_parquet_data(
 
 def load_data(path_dict, primary_key):
   try:
-    if path_dict["type"] == "csv":
+    if "background" in path_dict["input_data_parquet_path"]:
+        df = pd.read_parquet(path_dict["input_data_parquet_path"])
+        meta = None
+    elif path_dict["type"] == "csv":
       logging.info(f"reading {path_dict['input_csv_path']}")
       df, meta = load_csv_and_create_metadata(
         path_dict["input_csv_path"],
