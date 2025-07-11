@@ -3,6 +3,11 @@ import json
 import logging
 import os
 import pandas as pd
+import numpy as np
+
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
+
 from pop2vec.llm.src.new_code.constants import AGE
 from pop2vec.llm.src.new_code.constants import BIRTH_MONTH
 from pop2vec.llm.src.new_code.constants import BIRTH_YEAR
@@ -16,6 +21,29 @@ from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 
+
+def _event_worker(args):
+    self_obj, source_path, valid_ids, primary_key, temp_dir, idx = args
+    temp_parquet_path = os.path.join(
+        temp_dir, f"temp__{Path(source_path).name}"
+    )
+    if os.path.isfile(temp_parquet_path):
+        logging.info(f"{temp_parquet_path} already exists. Skipping it!")
+        return None
+
+    grouped = self_obj.process_single_file(source_path, valid_ids)
+
+    if grouped.empty:
+        logging.info(f" {source_path} produced no rows")
+        return None
+
+    grouped.reset_index().to_parquet(temp_parquet_path, index=False)
+            
+    # Force release memory before next iteration
+    del grouped
+
+    logging.info(f"Finished processing file {source_path}")
+    return temp_parquet_path
 
 class CreatePersonDict:
     """Optimized class to create person data dictionary from Parquet files."""
@@ -152,7 +180,7 @@ class CreatePersonDict:
         df = df[[self.primary_key, "sentence", DAYS_SINCE_FIRST, AGE]]
 
         # Sort by primary_key, DAYS_SINCE_FIRST for consistent grouping
-        df = df.sort_values(by=[self.primary_key, DAYS_SINCE_FIRST])
+        # df = df.sort_values(by=[self.primary_key, DAYS_SINCE_FIRST])
 
         # Group by primary_key to store lists of sentences, abspos, age
         grouped = df.groupby(self.primary_key).agg({
@@ -171,7 +199,20 @@ class CreatePersonDict:
 
         return grouped
 
-    def generate_people_data(self, write_path):
+    def generate_people_data(self, write_path, pieces=10):
+        background_df = self._process_background_data()
+        bg_df_subsets = np.array_split(background_df, pieces)
+        for i, bg in tqdm(enumerate(bg_df_subsets)):
+            self._generate_people_data(
+                os.path.join(
+                    os.path.dirname(write_path), 
+                    f'data_{i}', 
+                    Path(write_path).name
+                ), 
+                bg
+            )
+
+    def _generate_people_data(self, write_path, background_df):
         """
         Main function:
           1) Read and process background data.
@@ -181,35 +222,48 @@ class CreatePersonDict:
           5) Merge with background data and write the final result.
         """
         # --- 1) Process background file
-        background_df = self._process_background_data()
         valid_ids = set(background_df.index)
 
         # # --- 2) Process each event file separately and write partial results
         temp_dir = os.path.join(os.path.dirname(write_path), "temp_event_files")
         os.makedirs(temp_dir, exist_ok=True)
 
-        for i, source_path in enumerate(self.source_paths):
-            grouped = self.process_single_file(source_path, valid_ids)
+        worker_args_iter = (
+            (self, src_path, valid_ids, self.primary_key, temp_dir, idx)
+            for idx, src_path in enumerate(self.source_paths)
+        )
 
-            if not grouped.empty:
-                # Write partial results to disk
-                temp_parquet_path = os.path.join(temp_dir, f"temp_{i}.parquet")
-                # Save index (which is the person ID) so we can group again
-                grouped.reset_index().to_parquet(temp_parquet_path, index=False)
+        with ProcessPoolExecutor(max_workers=14) as pool:
+            list(pool.map(_event_worker, worker_args_iter))
+
+        # for i, source_path in tqdm(enumerate(self.source_paths)):
+        #     temp_parquet_path = os.path.join(
+        #         temp_dir, f"temp__{Path(source_path).name}"
+        #     )
+        #     if os.path.isfile(temp_parquet_path):
+        #         logging.info(f"{temp_parquet_path} already exists.Skipping it!")
+        #         continue
+        #     grouped = self.process_single_file(source_path, valid_ids)
+
+        #     if not grouped.empty:
+        #         # Write partial results to disk
+
+        #         # Save index (which is the person ID) so we can group again
+        #         grouped.reset_index().to_parquet(temp_parquet_path, index=False)
             
-            # Force release memory before next iteration
-            del grouped
+        #     # Force release memory before next iteration
+        #     del grouped
 
-            logging.info(
-                f"Finished processing file {i+1}/{len(self.source_paths)}: {source_path}"
-            )
+        #     logging.info(
+        #         f"Finished processing file {i+1}/{len(self.source_paths)}: {source_path}"
+        #     )
 
         # --- 3) Read all partial parquet files, combine them with one more groupby
         temp_files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) 
                       if f.endswith(".parquet")]
         if temp_files:
             chunks = []
-            for tf in tqdm(temp_files):
+            for tf in temp_files:
                 chunks.append(pl.read_parquet(tf).to_pandas())
 
             logging.info("read all temp files")
