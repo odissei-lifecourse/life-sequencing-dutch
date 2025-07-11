@@ -16,10 +16,11 @@ PARTNERSHIP_TYPE_REGISTERED = "P"
 END_DATA_NA = "88888888"
 
 # Hard-coded variables
-START_YEAR = 2017  # Replace with your desired start year
+START_YEAR = 2021  # Replace with your desired start year
 
-PARTNERSHIP_FILE_PATH = "data/raw_data/GBAVERBINTENISPARTNER2023BUSV1.sav"
-OUTPUT_FILE_PATH = "data/divorce_after_2016.csv"
+ROOT = '/gpfs/ostor/ossc9424/homedir/data/'
+PARTNERSHIP_FILE_PATH = f"{ROOT}/cbs_data/Bevolking/GBAVERBINTENISPARTNERBUS/GBAVERBINTENISPARTNER2023BUSV1.sav"
+OUTPUT_FILE_PATH = f"{ROOT}/partner/divorce_after_{START_YEAR-1}.csv"
 
 def main():
     """Main function to execute the data preprocessing steps."""

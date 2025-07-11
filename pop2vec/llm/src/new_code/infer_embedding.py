@@ -20,7 +20,13 @@ DTYPE = np.float64
 def load_model(checkpoint_path, hparams_path):
     model = TransformerEncoder.load_from_checkpoint(
         checkpoint_path, 
-        hparams=read_hparams(hparams_path) 
+        # assuming you trained with a recent version of PyTorch-Lightning and 
+        # you called self.save_hyperparameters(hparams) in your __init__ 
+        # (which you did), Lightning will store all of your hparams in the 
+        # checkpoint and automatically pass them back into your constructor 
+        # when you call load_from_checkpoint. So no need to pass hparams separately
+
+        # hparams=read_hparams(hparams_path) 
     )
     model = model.transformer
     model.eval()
@@ -68,7 +74,8 @@ def inference(cfg, transform_to_parquet=True):
         tokenized_path,
         validation=False,
         inference=True,
-        mlm_encoded=False
+        mlm_encoded=False,              
+        num_val_items=0,
     )
     # dataset.set_mlm_encoded(False)
     dataloader = DataLoader(
@@ -94,7 +101,7 @@ def inference(cfg, transform_to_parquet=True):
 
         sequence_id = batch["sequence_id"]
         cls_emb = outputs[:, 0, :].cpu()
-
+        
         padding_mask = batch["padding_mask"].bool()  # Convert to boolean mask
         valid_token_counts = padding_mask.sum(dim=1, keepdim=True)  # Count non-padding tokens
         valid_token_counts = valid_token_counts.clamp(min=1)  # Avoid division by zero

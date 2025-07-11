@@ -1,8 +1,10 @@
 from functools import partial
+from tqdm import tqdm
 from typing import List, Dict
 
 import ast
 import csv
+import h5py
 import json
 import logging
 import numpy as np
@@ -437,3 +439,82 @@ def read_hparams(file_path):
         return read_yaml(file_path)
     else:
         return read_hparams_from_txt(file_path)
+
+
+def pad_after_x_abspos(input_h5_path, output_h5_path, cutoff_time):
+    """
+    Truncates each sequence in input_ids and padding_mask at the first index k
+    where abspos >= cutoff_time. The function loads the entire input into memory,
+    processes each row, and then writes out the result with gzip compression.
+    
+    Parameters
+    ----------
+    input_h5_path : str
+        Path to the input HDF5 file that contains 'input_ids', 'padding_mask', 'sequence_id'.
+    output_h5_path : str
+        Path to the output HDF5 file where the modified data will be saved.
+    cutoff_time : int
+        Truncation cutoff. The function will zero out input_ids from index k onward,
+        where input_ids[i][1][k] >= cutoff_time (i.e. abspos >= cutoff_time).
+    """
+    # Load the entire datasets into memory
+    with h5py.File(input_h5_path, "r") as fin:
+        input_ids = fin["input_ids"][:]         # shape: (N, 4, s_len)
+        padding_mask = fin["padding_mask"][:]     # shape: (N, s_len)
+        sequence_id = fin["sequence_id"][:]       # shape: (N,)
+    
+    num_sequences, _, s_len = input_ids.shape
+
+    # Create copies to store modified data
+    input_ids_out = np.copy(input_ids)
+    padding_mask_out = np.copy(padding_mask)
+    
+    # Process each sequence in memory
+    for i in tqdm(range(num_sequences)):
+        # Get the i-th row for input_ids and padding_mask
+        row = input_ids_out[i]     # shape: (4, s_len)
+        pm = padding_mask_out[i]   # shape: (s_len,)
+        abspos = row[1]            # abspos row
+
+        # Determine j from the padding_mask (number of valid tokens)
+        j = int(pm.sum())
+        
+        # Verify padding_mask: 1 for indices < j, 0 for indices >= j
+        if not (np.all(pm[:j] == 1) and np.all(pm[j:] == 0)):
+            raise ValueError(f"Row {i}: padding_mask is not 1 for x < j and 0 for x >= j.")
+        
+        # Verify that the non-zero values in abspos[:j] are non-decreasing
+        non_zero_vals = abspos[:j][abspos[:j] != 0]
+        if non_zero_vals.size > 1 and not np.all(np.diff(non_zero_vals) >= 0):
+            raise ValueError(f"Row {i}: non-zero abspos values up to index {j} are not non-decreasing.")
+        
+        # Find the first index k in [0, j) where abspos[k] >= cutoff_time
+        k = np.searchsorted(abspos[:j], cutoff_time, side="left")
+        
+        # If such an index is found before j, zero out from index k onward
+        if k < j:
+            row[:, k:] = 0
+            pm[k:] = 0
+
+    # Write the output arrays to the new HDF5 file with gzip compression
+    with h5py.File(output_h5_path, "w") as fout:
+        fout.create_dataset(
+            "input_ids", 
+            data=input_ids_out,
+            compression="gzip",
+            chunks=True,
+        )
+        fout.create_dataset(
+            "padding_mask", 
+            data=padding_mask_out,
+            compression="gzip",
+            chunks=True,
+        )
+        fout.create_dataset(
+            "sequence_id", 
+            data=sequence_id,
+            compression="gzip",
+            chunks=True,
+        )
+
+    print(f"Modified compressed HDF5 saved at {output_h5_path}")

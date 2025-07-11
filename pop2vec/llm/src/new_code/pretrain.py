@@ -29,7 +29,7 @@ from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 
 
-PRECISION = "32-true"
+PRECISION = "16-mixed"
 
 logging.basicConfig(
   format="%(asctime)s %(name)s %(levelname)s: %(message)s",
@@ -121,15 +121,20 @@ def pretrain(cfg, batch_size=None, hparams=None):
 
     # Load hyperparameters.
     hparams = load_hparams(cfg, hparams)
-
+    logger.info("hparams loaded")
+    logger.debug(f"hparams --\n{hparams}")
     # Determine batch size and validation interval.
     num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
     batch_size = hparams['batch_size'] if batch_size is None else batch_size
     
     # Create dataloaders.
+    logger.info("loading dataloaders")
     train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
-    hparams['steps_per_epoch'] = len(train_dataloader)
-
+    accumulate_grad_batches = hparams.get('accumulate_grad_batches', 1)
+    hparams['steps_per_epoch'] = (
+        int(len(train_dataloader) / (N_DEVICES*accumulate_grad_batches))+2
+    )
+    logger.info("dataloaders loaded")
     # Set up CSV logger.
     resume_ckpt = cfg.get("RESUME_FROM_CHECKPOINT", None)
     csv_logger = CSVLogger(save_dir=ckpt_dir)
@@ -156,6 +161,9 @@ def pretrain(cfg, batch_size=None, hparams=None):
         logger=csv_logger,
         precision=PRECISION,
         log_every_n_steps=1000,
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
+        accumulate_grad_batches=accumulate_grad_batches
     )
 
     logger.info("Starting Trainer.fit(...)")
@@ -175,7 +183,7 @@ if __name__ == "__main__":
 
     args = parse_args()
     ACCELERATOR=args.accelerator
-    N_DEVICES=args.devices
+    N_DEVICES=int(args.devices)
     DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
     BATCH_SIZE=args.batch
     HPARAMS=args.hparams

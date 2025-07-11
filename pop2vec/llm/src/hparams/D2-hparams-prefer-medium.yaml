@@ -1,0 +1,35 @@
+seed: 42
+## TASK AND LOGS
+training_task: finetune-prefer
+experiment_name: fp-medium-2020-cls
+experiment_version: 1 
+
+## OPTIMIZER
+optimizer_type: "adamw"
+learning_rate: 0.00001
+weight_decay: 0.001
+weight_decay_dc: 0.01
+beta1: 0.9
+beta2: 0.999
+layer_lr_decay: 0.95 # for encoder layers
+lr_gamma: 0.8
+epsilon: 1.e-6
+
+#### CLS SPECIFIC
+freeze_embeddings: False
+freeze_positions: False
+num_targets: 2
+loss_type: "entropy"
+loss_weights:  [1.0, 1.0]
+# pos_weight: 0.5
+# asym_penalty: ${asym_penalty}
+asym_alpha: 0.025
+asym_beta: 1.0
+
+pooled: True
+# num_pooled_sep: ${datamodule.task.num_pooled_sep}
+pretrained_model_path: /gpfs/ostor/ossc9424/homedir/data/llm/runs-pipeline-steps/D2-data-driven-simplified/models/2020_medium/model-epoch=15-step=881377-val_loss_track=1.62.ckpt
+pretrained_model_hparams: /gpfs/ostor/ossc9424/homedir/data/llm/runs-pipeline-steps/D2-data-driven-simplified/models/2020_medium/lightning_logs/version_2/hparams.yaml
+stage: finetuning
+implementation: sth
+version: 1

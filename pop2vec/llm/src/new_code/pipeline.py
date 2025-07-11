@@ -204,7 +204,7 @@ def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_pr
     if os.path.exists(write_path):
         logger.info("Deleting existing file %s", write_path)
         os.remove(write_path)
-    write_to_hdf5(write_path, data_dict, dtype=np.int64)
+    write_to_hdf5(write_path, data_dict, dtype=np.int32)
 
 
 def init_hdf5_datasets(h5f, data_dict, dtype="i4"):
@@ -408,7 +408,10 @@ if __name__ == "__main__":
             "encoding": "mlm" if cfg["DO_MLM"] else "nomlm",
             "masking": cfg.get("MASKING", "random")
             }
-    filename = "encoded.h5" if not dryrun else "encoded_dryrun.h5"
+    if 'FILENAME' in cfg:
+        filename = cfg['FILENAME']
+    else:
+        filename = "encoded.h5" if not dryrun else "encoded_dryrun.h5"
 
     save_file = create_nested_dir(nests, write_path_prefix, filename)
     merge_hdf5_files(chunk_files, save_file)
