@@ -278,9 +278,9 @@ class TransformerEncoder(pl.LightningModule):
 
         
         loss = self.cls_w * cls_loss + self.mlm_w * mlm_loss
-        self.log("val_loss_track", loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
-        self.log("val/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True)
-        self.log("val/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True)
+        self.log("val_loss_track", loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
+        self.log("val/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
+        self.log("val/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
         
         ## 3. METRICS
         self.log_metrics(
@@ -366,9 +366,11 @@ class TransformerEncoder(pl.LightningModule):
                     epochs=self.hparams.epochs, 
                     steps_per_epoch=self.hparams.steps_per_epoch,
                     three_phase=False, 
-                    pct_start=0.05, 
+                    pct_start=10000/(self.hparams.epochs*self.hparams.steps_per_epoch),#0.05, 
                     max_momentum=self.hparams.beta1,
-                    div_factor=30
+                    div_factor=1e4,#30,
+                    final_div_factor=1e4,
+                    anneal_strategy='linear',
                 ),  
                 "interval": "step",
                 "frequency": 1,
@@ -396,94 +398,106 @@ class TransformerEncoder(pl.LightningModule):
 
         if stage == "train":
 
-            self.log("train/loss", loss, on_step=on_step, on_epoch=on_epoch)
+            self.log("train/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=False)
             self.log(
-                "train/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+                "train/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch,
             )
             self.log(
-                "train/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch
+                "train/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
             )
             self.log(
                 "train/accuracy",
                 self.train_accuracy(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "train/recall",
                 self.train_recall(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "train/precision",
                 self.train_precision(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "train/f1",
                 self.train_f1(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "train/cls_acc",
                 self.train_cls_acc(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "train/cls_f1",
                 self.train_cls_f1(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
 
 
         elif stage == "val":
-            self.log("val/loss", loss, on_step=on_step, on_epoch=on_epoch)
+            self.log("val/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=False)
             self.log(
-                "val/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch
+                "val/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
             )
             self.log(
-                "val/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch
+                "val/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
             )
             self.log(
                 "val/accuracy",
                 self.val_accuracy(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "val/recall",
                 self.val_recall(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "val/precision",
                 self.val_precision(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "val/f1",
                 self.val_f1(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "val/cls_acc",
                 self.val_cls_acc(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
             self.log(
                 "val/cls_f1",
                 self.val_cls_f1(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
+                sync_dist=False
             )
 
     @staticmethod

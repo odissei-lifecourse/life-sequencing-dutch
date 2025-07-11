@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.data import random_split
 import pop2vec.llm.src.transformer
-from pop2vec.llm.src.new_code.load_data import CustomInMemoryDataset
+from pop2vec.llm.src.new_code.load_data import CustomLazyHDF5Dataset
 from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
 from pop2vec.llm.src.new_code.utils import read_json
 from pop2vec.llm.src.new_code.utils import read_hparams
@@ -70,27 +70,33 @@ def load_hparams(cfg, hparams=None):
 
 # Helper: Create training and validation dataloaders.
 def get_dataloaders(mlm_path, num_val_items, batch_size):
-    val_dataset = CustomInMemoryDataset(
+    val_dataset = CustomLazyHDF5Dataset(
         mlm_path,
         validation=True,
         num_val_items=num_val_items
     )
-    train_dataset = CustomInMemoryDataset(
+    train_dataset = CustomLazyHDF5Dataset(
         mlm_path,
         validation=False,
         num_val_items=num_val_items
     )
-    num_workers = max(len(os.sched_getaffinity(0)) - 2, 1)
+    # num_workers = max(len(os.sched_getaffinity(0)) - 2, 1)
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        num_workers=num_workers
+        num_workers=8,
+        prefetch_factor=2, 
+        persistent_workers=True,  # keeps the worker processes + HDF5 handles alive
+        pin_memory=True       
     )
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=True
+        num_workers=32,
+        shuffle=True,
+        prefetch_factor=2, 
+        persistent_workers=True,  # keeps the worker processes + HDF5 handles alive
+        pin_memory=True       
     )
     return train_dataloader, val_dataloader
 
@@ -119,9 +125,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
     # Determine batch size and validation interval.
     num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
     batch_size = hparams['batch_size'] if batch_size is None else batch_size
-    val_check_interval = 0.5
-    hparams['VAL_CHECK_INTERVAL'] = val_check_interval
-
+    
     # Create dataloaders.
     train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
     hparams['steps_per_epoch'] = len(train_dataloader)
@@ -146,7 +150,7 @@ def pretrain(cfg, batch_size=None, hparams=None):
         default_root_dir=ckpt_dir,
         callbacks=callbacks,
         max_epochs=hparams['epochs'],
-        val_check_interval=val_check_interval,
+        val_check_interval=hparams.get('val_check_interval', 0.5),
         accelerator=ACCELERATOR,
         devices=N_DEVICES,
         logger=csv_logger,

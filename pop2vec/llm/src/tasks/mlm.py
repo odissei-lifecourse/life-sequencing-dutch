@@ -107,7 +107,7 @@ class MLM(Task):
             )
 
         # Get rid of all documents who have less than threshold # of events after slicing by time
-        if len(document.sentences) < min_event_threshold:
+        if len(document.sentences) < min_event_threshold and do_mlm:
             return None
 
         prefix_sentence = ["[CLS]"] + Background.get_sentence(document.background) + ["[SEP]"]

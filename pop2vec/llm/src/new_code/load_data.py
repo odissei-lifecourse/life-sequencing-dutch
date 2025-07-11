@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import json
 import torch
 from torch.utils.data import Dataset, DataLoader
 
 import h5py
 from torch.utils.data import IterableDataset
+from pathlib import Path
+
 import os
 import numpy as np
 
 import pandas as pd
+from pathlib import Path
+from typing import Optional
 
 class CustomIterableDataset(IterableDataset):
     def __init__(self, file_path, validation, num_val_items=None, val_split=0.1, mlm_encoded=True, inference=False):
@@ -244,41 +250,6 @@ class CustomInMemoryDataset(Dataset):
 
         return ret_dict
 
-# class CustomDataset(Dataset):
-#     def __init__(self, data, mlm_encoded=True):
-#       self.data = data
-#       self.set_mlm_encoded(mlm_encoded)
-
-#     def set_mlm_encoded(self, mlm_encoded):
-#       self.mlm_encoded = mlm_encoded
-#       self.return_index = not self.mlm_encoded
-    
-#     def __len__(self):
-#         return self.data["input_ids"].shape[0]
-#     def __reduce__(self):
-#         return (self.__class__, (self.data,))
-
-#     def __getitem__(self, index):
-#         ret_dict = {            
-#             "input_ids": self.data["input_ids"][index],
-#             "padding_mask": self.data["padding_mask"][index],
-#         }
-
-#         if self.mlm_encoded:
-#           ret_dict.update(
-#             {
-#               "original_sequence": self.data["original_sequence"][index],
-#               "target_tokens": self.data["target_tokens"][index],
-#               "target_pos": self.data["target_pos"][index],
-#               "target_cls": self.data["target_cls"][index],
-#             }
-#           )
-
-#         if self.return_index:
-#           ret_dict["sequence_id"] = self.data["sequence_id"][index]
-
-#         return ret_dict
-
 
 class FineTuneInMemoryDataset(Dataset):
     """
@@ -411,3 +382,159 @@ class FineTuneInMemoryDataset(Dataset):
         if self.return_sequence_id:
             ret_dict["sequence_id"] = self.sequence_id[arr_idx]
         return ret_dict
+
+
+class CustomLazyHDF5Dataset(Dataset):
+    """
+    Lazy HDF5 reader that mirrors the behaviour of `CustomInMemoryDataset`
+    without loading the entire dataset into RAM.
+
+    Parameters
+    ----------
+    file_path : str | Path
+        Path to the `.h5` file.
+    validation : bool, default False
+        If True, yield the first *val_split* fraction of samples.
+    num_val_items : int | None, default None
+        Exact number of validation items.  Overrides *val_split*.
+    val_split : float, default 0.10
+        Fraction of the file that belongs to the validation split.
+    mlm_encoded : bool, default True
+        Whether the file contains masked-LM target columns.
+    return_index : bool | None, default None
+        If None, the index is returned only when *mlm_encoded* is False.
+        Otherwise forces returning the `"sequence_id"` column.
+    inference : bool, default False
+        If True, return the *whole* dataset irrespective of the split.
+    """
+
+    # ------------------------------------------------------------------ #
+    # constructor / helpers                                              #
+    # ------------------------------------------------------------------ #
+    def __init__(
+        self,
+        file_path: str | Path,
+        validation: bool = False,
+        num_val_items: Optional[int] = None,
+        val_split: float = 0.10,
+        mlm_encoded: bool = True,
+        return_index: Optional[bool] = None,
+        inference: bool = False,
+    ) -> None:
+        super().__init__()
+
+        self.file_path = Path(file_path)
+        self.validation = validation
+        self.val_split = val_split
+        self.inference = inference
+
+        # masked-LM columns
+        self.set_mlm_encoded(mlm_encoded, return_index)
+
+        # Compute split indices once (cheap, uses only the header)
+        with h5py.File(self.file_path, "r") as f:
+            n_items = len(f["input_ids"])
+        n_val = num_val_items or int(n_items * val_split)
+
+        if self.inference:
+            self._indices = np.arange(0, n_items, dtype=np.int64)
+        elif self.validation:
+            self._indices = np.arange(0, n_val, dtype=np.int64)
+        else:
+            self._indices = np.arange(n_val, n_items, dtype=np.int64)
+
+        # This attribute will hold the *worker-local* handle
+        self._h5: Optional[h5py.File] = None
+
+    def set_mlm_encoded(
+        self,
+        mlm_encoded: bool,
+        return_index: Optional[bool] = None,
+    ) -> None:
+        self.mlm_encoded = mlm_encoded
+        self.return_index = (not mlm_encoded) if return_index is None else return_index
+
+    # ------------------------------------------------------------------ #
+    # Dataset API                                                        #
+    # ------------------------------------------------------------------ #
+    def __len__(self) -> int:
+        return len(self._indices)
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        # 1) ensure the HDF5 handle is initialised for *this* worker
+        h5 = self._get_handle()
+
+        # 2) translate `idx` (0 … len(self)-1) into the row inside the file
+        row = self._indices[idx]
+
+        # 3) mandatory columns
+        sample: dict[str, torch.Tensor] = {
+            "input_ids": torch.as_tensor(h5["input_ids"][row]),
+            "padding_mask": torch.as_tensor(h5["padding_mask"][row]),
+        }
+
+        # 4) MLM-specific columns (optional)
+        if self.mlm_encoded:
+            tok = torch.as_tensor(h5["target_tokens"][row])
+            pos = torch.as_tensor(h5["target_pos"][row])
+
+            # cut at first -1 sentinel (variable-length targets)
+            try:
+                nz = (tok == -1).nonzero(as_tuple=False)
+                end = nz[0, 0].item() if nz.numel() else tok.size(0)
+                tok = tok[:end]
+                pos = pos[:end]
+            except IndexError:  # no -1 found
+                pass
+
+            sample.update(
+                original_sequence=torch.as_tensor(
+                    h5["original_sequence"][row]
+                ),
+                target_tokens=tok,
+                target_pos=pos,
+                target_cls=torch.as_tensor(h5["target_cls"][row]),
+            )
+
+        # 5) optionally return the sequence id
+        if self.return_index:
+            sample["sequence_id"] = torch.as_tensor(h5["sequence_id"][row])
+
+        return sample
+
+    # ------------------------------------------------------------------ #
+    # private utilities                                                  #
+    # ------------------------------------------------------------------ #
+    def _get_handle(self) -> h5py.File:
+        """
+        Open the HDF5 file *once per worker* (lazily).
+        Lightning / DataLoader forks workers, so every fork gets its own
+        copy of 'self._h5' -  this function ensures we open it lazily
+        instead of at import-time (which would break after fork/spawn).
+        """
+        if self._h5 is None:
+            # read-only, enable SWMR so many readers may coexist
+            self._h5 = h5py.File(
+                self.file_path,
+                mode="r",
+                libver="latest",
+                swmr=True,
+            )
+        return self._h5
+
+    # ------------------------------------------------------------------ #
+    # multiprocessing-pickling safety                                    #
+    # ------------------------------------------------------------------ #
+    def __getstate__(self):
+        """Drop the file handle so torch.multiprocessing can pickle us."""
+        state = self.__dict__.copy()
+        state["_h5"] = None
+        return state
+
+    def __del__(self):
+        """Close the HDF5 file when the worker exits."""
+        if self._h5 is not None:
+            try:
+                self._h5.close()
+            except Exception:
+                pass
