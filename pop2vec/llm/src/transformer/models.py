@@ -198,18 +198,31 @@ class TransformerEncoder(pl.LightningModule):
         mlm_loss = self.mlm_loss(mlm_preds.permute(0, 2, 1), target=mlm_targs)
         cls_loss = self.cls_loss(cls_preds, target = cls_targs)
 
-        self.log("train/loss_mlm", mlm_loss.detach(), on_step=True, on_epoch=True)
+        self.log("train/loss_mlm_step", mlm_loss.detach(), on_step=True, on_epoch=False, sync_dist=False)
+        self.log("train/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
+
         self.log(
-            "lr", 
+            "lr_step", 
             self.optimizers().param_groups[0]['lr'], 
             on_step=True, 
-            on_epoch=True
+            on_epoch=False,
+            sync_dist=False
         )
-        self.log("train/loss_cls", cls_loss.detach(), on_step=True, on_epoch=True)
+
+        self.log(
+            "lr_epoch", 
+            self.optimizers().param_groups[0]['lr'], 
+            on_step=False, 
+            on_epoch=True,
+            sync_dist=True
+        )
+        self.log("train/loss_cls_step", cls_loss.detach(), on_step=True, on_epoch=False, sync_dist=False)
+        self.log("train/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
 
         loss = self.cls_w * cls_loss + self.mlm_w * mlm_loss
 
-        self.log("train/loss_combined", loss.detach(), on_step=True, on_epoch=True)
+        self.log("train/loss_combined_step", loss.detach(), on_step=True, on_epoch=False, sync_dist=False, prog_bar=True)
+        self.log("train/loss_combined_epoch", loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
         ## 3. METRICS
         if (self.global_step + 1) % (self.trainer.log_every_n_steps) == 0:
             self.log_metrics(
@@ -219,7 +232,18 @@ class TransformerEncoder(pl.LightningModule):
                 mlm_loss=mlm_loss.detach(),
                 stage="train",
                 on_step=True,
+                on_epoch=False,
+                sync_dist=False
+            )
+            self.log_metrics(
+                predictions=(mlm_preds.detach(), cls_preds.detach()),
+                targets=(mlm_targs.detach(),  cls_targs.detach()),
+                loss=loss.detach(),
+                mlm_loss=mlm_loss.detach(),
+                stage="train",
+                on_step=False,
                 on_epoch=True,
+                sync_dist=True
             )
         self.total_train_loss += loss.item()  # Accumulate the total loss
         self.total_mlm_loss += mlm_loss.item()
@@ -278,9 +302,9 @@ class TransformerEncoder(pl.LightningModule):
 
         
         loss = self.cls_w * cls_loss + self.mlm_w * mlm_loss
-        self.log("val_loss_track", loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
-        self.log("val/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
-        self.log("val/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True, sync_dist=False)
+        self.log("val_loss_track", loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val/loss_mlm_epoch", mlm_loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val/loss_cls_epoch", cls_loss.detach(), on_step=False, on_epoch=True, sync_dist=True)
         
         ## 3. METRICS
         self.log_metrics(
@@ -291,6 +315,7 @@ class TransformerEncoder(pl.LightningModule):
             stage="val",
             on_step=False,
             on_epoch=True,
+            sync_dist=True
         )
 
         self.total_val_loss += loss.item()  # Accumulate the total loss
@@ -319,6 +344,7 @@ class TransformerEncoder(pl.LightningModule):
             stage="test",
             on_step=False,
             on_epoch=True,
+            sync_dist=True
         )
 
     def configure_optimizers(self):
@@ -356,19 +382,23 @@ class TransformerEncoder(pl.LightningModule):
             betas=(self.hparams.beta1, self.hparams.beta2),
             eps=self.hparams.epsilon,
         )
-
+        total_estimated_steps = self.trainer.estimated_stepping_batches
+        logger.info(f"total estimated steps by lightning = {total_estimated_steps}")
+        logger.info(f"total steps by hand = {self.hparams.epochs * self.hparams.steps_per_epoch}")
+        
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": torch.optim.lr_scheduler.OneCycleLR(
                     optimizer, 
                     max_lr=self.hparams.learning_rate, 
-                    epochs=self.hparams.epochs, 
-                    steps_per_epoch=self.hparams.steps_per_epoch,
+                    # epochs=self.hparams.epochs, 
+                    # steps_per_epoch=self.hparams.steps_per_epoch,
+                    total_steps=total_estimated_steps,
                     three_phase=False, 
-                    pct_start=10000/(self.hparams.epochs*self.hparams.steps_per_epoch),#0.05, 
+                    pct_start=0.01, 
                     max_momentum=self.hparams.beta1,
-                    div_factor=1e4,#30,
+                    div_factor=1e4,
                     final_div_factor=1e4,
                     anneal_strategy='linear',
                 ),  
@@ -387,117 +417,120 @@ class TransformerEncoder(pl.LightningModule):
         stage,
         on_step: bool = True,
         on_epoch: bool = True,
+        sync_dist: bool = False,
     ):
         """Compute on step/epoch metrics"""
-        loss = loss.cpu()
+        loss = loss.detach() #cpu()
         cls_preds = F.softmax(predictions[1], dim=-1)
         mlm_preds = F.softmax(predictions[0], dim=-1).permute(0, 2, 1)
 
         cls_targs = targets[1]
         mlm_targs = targets[0]
 
+        unit = 'step' if on_step else 'epoch'
+
         if stage == "train":
 
-            self.log("train/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=False)
+            self.log(f"train_{unit}/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist)
             self.log(
-                "train/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch,
+                f"train_{unit}/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist
             )
             self.log(
-                "train/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
+                f"train_{unit}/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist
             )
             self.log(
-                "train/accuracy",
+                f"train_{unit}/accuracy",
                 self.train_accuracy(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "train/recall",
+                f"train_{unit}/recall",
                 self.train_recall(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "train/precision",
+                f"train_{unit}/precision",
                 self.train_precision(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "train/f1",
+                f"train_{unit}/f1",
                 self.train_f1(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "train/cls_acc",
+                f"train_{unit}/cls_acc",
                 self.train_cls_acc(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "train/cls_f1",
+                f"train_{unit}/cls_f1",
                 self.train_cls_f1(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
 
 
         elif stage == "val":
-            self.log("val/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=False)
+            self.log(f"val_{unit}/loss", loss, on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist)
             self.log(
-                "val/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
+                f"val_{unit}/pseudo_pplx", torch.sqrt(loss), on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist
             )
             self.log(
-                "val/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=False
+                f"val_{unit}/perplexity", torch.exp(mlm_loss), on_step=on_step, on_epoch=on_epoch, sync_dist=sync_dist
             )
             self.log(
-                "val/accuracy",
+                f"val_{unit}/accuracy",
                 self.val_accuracy(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "val/recall",
+                f"val_{unit}/recall",
                 self.val_recall(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "val/precision",
+                f"val_{unit}/precision",
                 self.val_precision(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "val/f1",
+                f"val_{unit}/f1",
                 self.val_f1(mlm_preds, mlm_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "val/cls_acc",
+                f"val_{unit}/cls_acc",
                 self.val_cls_acc(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
             self.log(
-                "val/cls_f1",
+                f"val_{unit}/cls_f1",
                 self.val_cls_f1(cls_preds, cls_targs),
                 on_step=on_step,
                 on_epoch=on_epoch,
-                sync_dist=False
+                sync_dist=sync_dist
             )
 
     @staticmethod
