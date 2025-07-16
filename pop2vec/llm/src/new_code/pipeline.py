@@ -166,9 +166,7 @@ def encode_documents(row_group_id, parquet_file_path, primary_key, write_path_pr
             continue
 
         sentences = row.sentence
-        if len(sentences) < MIN_EVENT_THRESHOLD:
-            continue
-
+        
         person_document = PersonDocument(
             person_id=person_id,
             sentences=[x.tolist() for x in sentences],

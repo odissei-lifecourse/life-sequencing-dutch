@@ -3,6 +3,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from tqdm import tqdm
+
 
 def merge_hdf5_files(input_files, output_file, chunk_size=1000):
     if os.path.exists(output_file):
@@ -35,7 +37,7 @@ def merge_hdf5_files(input_files, output_file, chunk_size=1000):
             total_size = sum(h5f[key].shape[0] for h5f in h5_files)
             h5f_out[key].resize(total_size, axis=0)
             current_index = 0
-            for h5f in h5_files:
+            for h5f in tqdm(h5_files):
                 dataset = h5f[key]
                 num_rows = dataset.shape[0]
                 for start in range(0, num_rows, chunk_size):

@@ -21,7 +21,11 @@ from pytorch_lightning.strategies import DDPStrategy
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.data import random_split
+from datetime import timedelta
+
 import pop2vec.llm.src.transformer
+
+
 from pop2vec.llm.src.new_code.load_data import CustomLazyHDF5Dataset
 from pop2vec.llm.src.new_code.load_data import CustomIterableDataset
 from pop2vec.llm.src.new_code.utils import read_json
@@ -29,7 +33,8 @@ from pop2vec.llm.src.new_code.utils import read_hparams
 from pop2vec.llm.src.transformer.models import TransformerEncoder
 
 
-PRECISION = "16-mixed"
+
+
 
 logging.basicConfig(
   format="%(asctime)s %(name)s %(levelname)s: %(message)s",
@@ -38,6 +43,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+DEFAULT_VALS = {
+    'accumulate_grad_batches': 1,
+    'resume_from_checkpoint': None,
+    'val_check_interval': 1.0,
+    'gradient_clip_val': 1,
+    'training_precision': "32-true",
+    'load_model_weights_only': False,
+}
+
+# required keys 
+REQ_KEYS = [
+    'checkpoint_dir', 
+    'mlm_path', 
+    'num_val_items', 
+    'batch_size',
+    'epochs',
+    'vocab_path'
+]
+
+
+def hparams_integrity_check(hparams):
+    missing = [k for k in REQ_KEYS if k not in hparams]
+    if missing:
+        raise ValueError(f"Missing required hparams: {', '.join(missing)}")
+
+
+def update_hparams_with_defaults(hparams):
+    for key, val in DEFAULT_VALS.items():
+        hparams.setdefault(key, val)
+    return hparams 
 
 
 
@@ -53,7 +89,17 @@ def get_callbacks(ckpoint_dir):
       mode='min',
       save_weights_only=False,
       verbose=True,
-    )
+    ),
+    ModelCheckpoint(
+      dirpath=os.path.join(ckpoint_dir, "time_ckpts"),
+      filename="model-{epoch:02d}-{step}",
+      train_time_interval=timedelta(hours=1),
+      monitor=None,
+      save_top_k=1,
+      save_last=False,
+      save_weights_only=False,
+      verbose=True,
+    ),
   ]
   return callbacks
 
@@ -61,12 +107,11 @@ def get_vocab_size(path):
     return len(pd.read_csv(path))
 
 # Helper: Load and update hyperparameters.
-def load_hparams(cfg, hparams=None):
-    hparams_path = cfg["HPARAMS_PATH"] if hparams is None else hparams
+def load_hparams(hparams_path: str):
     hparams = read_hparams(hparams_path)
-    hparams['vocab_size'] = get_vocab_size(cfg['VOCAB_PATH'])
-    hparams.update(cfg)
-    return hparams
+    hparams_integrity_check(hparams)
+    hparams['vocab_size'] = get_vocab_size(hparams['vocab_path'])
+    return update_hparams_with_defaults(hparams)
 
 # Helper: Create training and validation dataloaders.
 def get_dataloaders(mlm_path, num_val_items, batch_size):
@@ -114,31 +159,24 @@ def get_ddp_strategy():
         raise ValueError(f"Unsupported DDP_STRATEGY: {DDP_STRATEGY}")
 
 # Main training function.
-def pretrain(cfg, batch_size=None, hparams=None):
-    ckpt_dir = cfg["CHECKPOINT_DIR"]
-    mlm_path = cfg["MLM_PATH"]
+def pretrain(hparams):
+    ckpt_dir = hparams["checkpoint_dir"]
+    mlm_path = hparams["mlm_path"]
 
-    # Load hyperparameters.
-    hparams = load_hparams(cfg, hparams)
-    logger.info("hparams loaded")
     logger.debug(f"hparams --\n{hparams}")
     # Determine batch size and validation interval.
-    num_val_items = cfg.get("NUM_VAL_ITEMS", 100000)
-    batch_size = hparams['batch_size'] if batch_size is None else batch_size
-    val_check_interval = cfg.get('VAL_CHECK_INTERVAL', 0.5)
-    hparams['VAL_CHECK_INTERVAL'] = val_check_interval
-
+    num_val_items = hparams['num_val_items']
+    batch_size = hparams['batch_size'] 
     # Create dataloaders.
     logger.info("loading dataloaders")
     train_dataloader, val_dataloader = get_dataloaders(mlm_path, num_val_items, batch_size)
-    accumulate_grad_batches = hparams.get('accumulate_grad_batches', 1)
+    accumulate_grad_batches = hparams['accumulate_grad_batches']
     hparams['steps_per_epoch'] = (
         int(len(train_dataloader) / (N_DEVICES*accumulate_grad_batches))+2
     )
     logger.info("dataloaders loaded")
     # Set up CSV logger.
-    resume_ckpt = cfg.get("RESUME_FROM_CHECKPOINT", None)
-    csv_logger = CSVLogger(save_dir=ckpt_dir)
+    csv_logger = CSVLogger(save_dir=hparams['checkpoint_dir'])
 
     # Create callbacks.
     callbacks = get_callbacks(ckpt_dir)
@@ -146,9 +184,20 @@ def pretrain(cfg, batch_size=None, hparams=None):
     # Decide on the distributed strategy.
     strategy = get_ddp_strategy()
 
-    # Initialize model. The Trainer will load checkpoint state if provided.
-    model = TransformerEncoder(hparams)
+    checkpoint_path = hparams.get("resume_from_checkpoint")
+    load_weights_only = hparams.get("load_model_weights_only")
 
+    if checkpoint_path and load_weights_only:
+        # ── WEIGHTS-ONLY ───────────────────────────────
+        model = TransformerEncoder(hparams)          # fresh LightningModule
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
+        missing, unexpected = model.load_state_dict(ckpt["state_dict"], strict=False)
+        logger.info(f"Weights loaded. missing={missing}, unexpected={unexpected}")
+        fit_ckpt_path = None                         # do NOT let Trainer resume
+    else:
+        # ── NORMAL RESUME or FRESH START ──────────────
+        model = TransformerEncoder(hparams)
+        fit_ckpt_path = checkpoint_path 
     # Create Trainer instance. The resume_from_checkpoint argument ensures that
     # model state, optimizer, scheduler (e.g., OneCycleLR), global step, and epoch are resumed.
     trainer = Trainer(
@@ -156,47 +205,39 @@ def pretrain(cfg, batch_size=None, hparams=None):
         default_root_dir=ckpt_dir,
         callbacks=callbacks,
         max_epochs=hparams['epochs'],
-        val_check_interval=hparams.get('val_check_interval', 0.5),
+        val_check_interval=hparams['val_check_interval'],
         accelerator=ACCELERATOR,
         devices=N_DEVICES,
         logger=csv_logger,
-        precision=PRECISION,
+        precision=hparams['training_precision'],
         log_every_n_steps=1000,
-        gradient_clip_val=1.0,
+        gradient_clip_val=hparams['gradient_clip_val'],
         gradient_clip_algorithm="norm",
         accumulate_grad_batches=accumulate_grad_batches
     )
 
     logger.info("Starting Trainer.fit(...)")
-    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=resume_ckpt)
+    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=fit_ckpt_path)
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--hparams", required=True, type=str, help="Path to hyperparameters file (REQUIRED).")
     parser.add_argument("--accelerator", default="gpu", help="Choose an accelerator that connects a Lightning Trainer to arbitrary hardware (CPUs, GPUs, TPUs, HPUs, MPS, ...)")
     parser.add_argument("--ddpstrategy", default="auto", help="pick ddp strategy (auto,gloo,mpi,...)")
-    parser.add_argument("--devices", default=1, help="Number of devices")
-    parser.add_argument("--batch", default=None, type=int, help="Batch size to use. If None, uses `batch` size specified in the config file")
-    parser.add_argument("--hparams", default=None, type=str, help="Path to hyperparameters file. If `None`, uses file specified in the config file")
-    parser.add_argument("--config", required=True, help=".json config",type=str)
+    parser.add_argument("--devices", default=1, type=int, help="Number of devices")
     return parser.parse_args()
 
 if __name__ == "__main__":
 
     args = parse_args()
     ACCELERATOR=args.accelerator
-    N_DEVICES=int(args.devices)
+    N_DEVICES=args.devices
     DDP_STRATEGY=args.ddpstrategy # strategy for pl.Trainer
-    BATCH_SIZE=args.batch
     HPARAMS=args.hparams
-    CFG_PATH=args.config
-
+    
     assert DDP_STRATEGY in ["auto", "ddp_mpi", "ddp", "gloo"]
 
-    torch.set_float32_matmul_precision("medium")
+    # torch.set_float32_matmul_precision("medium")
 
-    logger.info(f"config path = {CFG_PATH}")
-    cfg = read_json(CFG_PATH)
-    pretrain(cfg, batch_size=BATCH_SIZE, hparams=HPARAMS)
-
-
-
+    pretrain(load_hparams(HPARAMS))
+    
