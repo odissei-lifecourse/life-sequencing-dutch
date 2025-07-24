@@ -1,7 +1,27 @@
 
 Documentation for graph data.
 
-### Generating random walks
+## Pipeline for random walks
+
+The pipeline consists of 3 steps
+1. From raw files, create `.pkl` files with adjacency dictionaries.
+2. From adjacency dictionaries, create random walks.
+3. With random walks, train deepwalk.
+
+### 1. Processing raw files
+Scripts in `./src/`:
+- `combine_layer_adjacencies.py`, `combine_layer_adjacencies.py`, `fix_2010_adjacency.py`, `get_family_user_set.py`,
+    `get_full_edges.py`, `get_largest_cc.py`
+- No one on our team has worked with this code base directly. Roughly recalling from memory,
+    - we needed to find the largest connected component on the graph, using `get_largest_cc.py`. Effectively, everyone in this component
+    is connected through the family edges.
+- These scripts are most in need for an overhaul, and in particular to change how data are stored from `.pkl` to a better format that can
+be queried without loading the entire dataset into memory.
+- `remapping_test.py`: deepwalk requires node identifiers to start at 0 or 1, but person IDs in our graph are not indexed like that. For this reason,
+we need to map the person IDs to a new, zero- (one-)based index, and map the embeddings back to the original IDs at the end of the pipeline.
+`remapping_test.py` probably checks if this remapping works correctly.
+
+### 2. Generating random walks
 
 The random walks that record the edge types are created with the code in the separate [repository](https://github.com/odissei-lifecourse/layered_walk).
 The code there creates a parquet dataset with the following file partitioning
@@ -15,7 +35,14 @@ To generate the walks, the user needs to give a name to this particular iteratio
 
 If you create a new partitioning, make sure to use the same convention `partition=X`, and update the `ParquetWalk` dataclass described below.
 
-### Training `deepwalk`
+### 3. Training `deepwalk`
+
+Scripts in `src/`:
+- `deepwalk.py`, `deepwalk_dataset.py`, `model.py`
+- most of this script was taken from another repository. We edited parts of `deepwalk_dataset.py` and `deepwalk.py` to fit our needs.
+
+The file `config/deepwalk_data_config.py` has configuration for training the deepwalk model.
+
 
 The `deepwalk_dataset` uses the `ParquetWalk` class from `pop2vec.utils.parquet_walks`. This class handles the partitioning described
 above and loads the walks for one epoch into a Dataframe.
@@ -30,3 +57,9 @@ When `deepwalk` is run, models and embeddings are stored in the same structure a
 - even if deepwalk is run with different hyperparameters, because not all hyperparameters are stored in the file name, models and embeddings may be overwritten.
 
 An example of a slurm script to run deepwalk is in `pop2vec.graph.slurm_scripts.run_deepwalk.py`.
+
+## Other scripts
+- `src/compute_yearly_node_features.py`: this was intended to use for training graph neural networks, but we never got to use them.
+- `src/fix_2010_adjacency.py`: unclear if this is necessary; if anything, it is needed for step 1.
+- `get_summary_statistics.py`, `network_summary.sh`, `content_output.txt`: scripts used to create summary stats off the processed data in step 1.
+    Rarely used.
