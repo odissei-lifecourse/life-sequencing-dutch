@@ -41,6 +41,41 @@ LR = None
 DRY_RUN = True
 PARTNER_KEY = None
 
+REQUIRED_VALS = [
+    'data_path',
+    'emb_path',
+    'target_column',
+    'model_save_dir',
+    'result_path'
+]
+
+
+DEFAULT_VALS = {
+    'EARLY_STOP_PATIENCE': 3,
+    'MAX_EPOCHS': 50,
+    'DROPOUT_RATE': 0.0,
+    'LR': 5e-3,
+    'DRY_RUN': False,
+    'PARTNER_KEY': None,
+    'balance_dataset': False,
+    'model_type': 'mlp',
+    'special_value': [],
+    'transformation': None,
+    'num_layers': 2,
+    'activation_fn': 'ReLU',
+}
+
+def _integrity_check(hp):
+    missing = [k for k in REQ_KEYS if k not in hp]
+    if missing:
+        raise ValueError(f"Missing required hparams: {', '.join(missing)}")
+
+
+def _with_defaults(cfg):
+    for k, v in DEFAULT_VALS.items():
+        cfg.setdefault(k, v)
+    return cfg
+
 
 def load_config(cfg_path):
     """Loads JSON config from a file."""
@@ -200,14 +235,14 @@ def encode_target(X, y, target_type, cfg):
     print("--------------- Data Statistics -------------------")
     if target_type == 'numeric':
         _print_numeric_stats(y, label="(Before Transformation)")
-        if 'transformation' in cfg:
+        if cfg['transformation'] is not None:
             X, y = _apply_numeric_transformation(X, y, cfg['transformation'])
         _print_numeric_stats(y, label="(After Transformation)")
         return X, y, 1
 
     if target_type == 'binary':
         F1_AGG = 'binary'
-        if 'transformation' in cfg and cfg['transformation'] == 'MEDIAN-BOUNDARY':
+        if cfg['transformation'] == 'MEDIAN-BOUNDARY':
             y = (y > np.median(y)).astype(int)
         unique_vals = sorted(set(y))
         if len(unique_vals) != 2:
@@ -639,10 +674,16 @@ def load_global_settings(config):
     PARTNER_KEY = config.get('PARTNER_KEY', None)
 
 
+def load_cfg(cfg_path):
+    cfg = read_json(cfg_path)
+    _integrity_check(cfg)
+    return _with_defaults(cfg)
+
+
 def main():
     """Main entry point."""
     cfg_path = sys.argv[1]
-    cfg = load_config(cfg_path)
+    cfg = load_cfg(cfg_path)
     load_global_settings(cfg)
 
     data_df, emb_df = load_data(cfg)

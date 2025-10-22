@@ -1,0 +1,25 @@
+{
+  "task_file": "partnership-after-2020",
+  "target_column": {
+    "first_union_after_2020": [
+      "binary",
+      1
+    ]
+  },
+  "train_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/train/partnership-after-2020.parquet",
+  "val_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/val/partnership-after-2020.parquet",
+  "emb_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/ccall-random-D3/subsets/mean.parquet",
+  "model_name": "ccall-random",
+  "LR": 0.001,
+  "BATCH_SIZE": 128,
+  "result_dir": "/gpfs/ostor/ossc9424/data/evaluation_july25/results_25-07-25/partnership-after-2020/ccall-random/lr1e-03_bs128",
+  "model_save_dir": "/gpfs/ostor/ossc9424/data/evaluation_july25/models_25-07-25/partnership-after-2020/ccall-random/lr1e-03_bs128",
+  "EARLY_STOP_PATIENCE": 10,
+  "MAX_EPOCHS": 2000,
+  "DROPOUT_RATE": 0.0,
+  "DRY_RUN": false,
+  "balance_dataset": false,
+  "num_layers": 2,
+  "test_only": false,
+  "result_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/results_25-07-25/partnership-after-2020/ccall-random/lr1e-03_bs128/partnership-after-2020.csv"
+}

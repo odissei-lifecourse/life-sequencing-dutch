@@ -1,0 +1,41 @@
+{
+  "task_file": "divorce-after-2020",
+  "target_column": {
+    "divorce_after_2020": [
+      "binary",
+      1
+    ]
+  },
+  "train_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/data/subset-splits/train/divorce-after-2020.parquet",
+  "val_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/data/subset-splits/val/divorce-after-2020.parquet",
+  "sequence_encoded": "/gpfs/ostor/ossc9424/data/llm/runs-pipeline-steps/D3-parents-siblings/step-5/encoding=nomlm/masking=random/encoded.h5",
+  "model_name": "medium-random",
+  "LR": 5e-06,
+  "BATCH_SIZE": 8,
+  "result_dir": "/gpfs/ostor/ossc9424/data/evaluation_july25/fine-tuning_results_29-07-25/divorce-after-2020/medium-random/lr5e-06_bs8",
+  "model_save_dir": "/gpfs/ostor/ossc9424/data/evaluation_july25/data/subset-splits/models_25-07-25/divorce-after-2020/medium-random/lr5e-06_bs8",
+  "pretrained_model_path": "/gpfs/ostor/ossc9424/data/llm/runs-pipeline-steps/final_models/medium-random/model.h5",
+  "pretrained_model_hparams": "/gpfs/ostor/ossc9424/data/llm/runs-pipeline-steps/final_models/medium-random/hparams.yaml",
+  "EARLY_STOP_PATIENCE": 2,
+  "MAX_EPOCHS": 5,
+  "balance_dataset": true,
+  "test_only": false,
+  "devices": 4,
+  "freeze_positions": false,
+  "pooled": true,
+  "class-balanced-loss": false,
+  "accelerator": "gpu",
+  "ddpstrategy": "auto",
+  "accumulate_grad_batches": 1,
+  "gradient_clip_val": 1,
+  "training_precision": "bf16",
+  "val_check_interval": 1.0,
+  "weight_decay_enc": 0.01,
+  "layer_lr_decay": 0.95,
+  "beta1": 0.9,
+  "beta2": 0.999,
+  "epsilon": 1e-06,
+  "optimizer_type": "adamw",
+  "lr_scheduler": "onecycle",
+  "result_path": "/gpfs/ostor/ossc9424/data/evaluation_july25/fine-tuning_results_29-07-25/divorce-after-2020/medium-random/lr5e-06_bs8/divorce-after-2020.csv"
+}

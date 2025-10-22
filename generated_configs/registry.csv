@@ -1,0 +1,17 @@
+task,model,lr,batch,config
+twin,medium-random,0.001,128,generated_configs/twin/medium-random/lr1e-03_bs128.json
+twin,ccall-random,0.001,128,generated_configs/twin/ccall-random/lr1e-03_bs128.json
+preFer,medium-random,0.001,128,generated_configs/preFer/medium-random/lr1e-03_bs128.json
+preFer,ccall-random,0.001,128,generated_configs/preFer/ccall-random/lr1e-03_bs128.json
+partnership-after-2020,medium-random,0.001,128,generated_configs/partnership-after-2020/medium-random/lr1e-03_bs128.json
+partnership-after-2020,ccall-random,0.001,128,generated_configs/partnership-after-2020/ccall-random/lr1e-03_bs128.json
+INPA2023TABV1,medium-random,0.001,128,generated_configs/INPA2023TABV1/medium-random/lr1e-03_bs128.json
+INPA2023TABV1,ccall-random,0.001,128,generated_configs/INPA2023TABV1/ccall-random/lr1e-03_bs128.json
+INPA2022TABV1,medium-random,0.001,128,generated_configs/INPA2022TABV1/medium-random/lr1e-03_bs128.json
+INPA2022TABV1,ccall-random,0.001,128,generated_configs/INPA2022TABV1/ccall-random/lr1e-03_bs128.json
+divorce-after-2020,medium-random,0.001,128,generated_configs/divorce-after-2020/medium-random/lr1e-03_bs128.json
+divorce-after-2020,ccall-random,0.001,128,generated_configs/divorce-after-2020/ccall-random/lr1e-03_bs128.json
+divorce-after-2020,medium-random,0.001,128,generated_configs/divorce-after-2020/medium-random/lr1e-03_bs128.json
+divorce-after-2020,ccall-random,0.001,128,generated_configs/divorce-after-2020/ccall-random/lr1e-03_bs128.json
+liss_filtered,medium-random,0.001,128,generated_configs/liss_filtered/medium-random/lr1e-03_bs128.json
+liss_filtered,ccall-random,0.001,128,generated_configs/liss_filtered/ccall-random/lr1e-03_bs128.json

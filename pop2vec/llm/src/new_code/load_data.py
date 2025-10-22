@@ -16,6 +16,13 @@ import pandas as pd
 from typing import Optional
 import logging
 
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+
 
 
 logging.basicConfig(
@@ -474,6 +481,7 @@ class CustomLazyHDF5Dataset(Dataset):
         mlm_encoded: bool = True,
         return_index: Optional[bool] = None,
         inference: bool = False,
+        needed_id_set=None,
     ) -> None:
         super().__init__()
 
@@ -488,17 +496,54 @@ class CustomLazyHDF5Dataset(Dataset):
         # Compute split indices once (cheap, uses only the header)
         with h5py.File(self.file_path, "r") as f:
             n_items = len(f["input_ids"])
-        n_val = num_val_items or int(n_items * val_split)
-
-        if self.inference:
-            self._indices = np.arange(0, n_items, dtype=np.int64)
-        elif self.validation:
-            self._indices = np.arange(0, n_val, dtype=np.int64)
+        
+        if needed_id_set is not None:
+            self._indices = self._keep_needed_indices(
+                needed_id_set, num_val_items, val_split
+            )
         else:
-            self._indices = np.arange(n_val, n_items, dtype=np.int64)
+            n_val = int(n_items * val_split) if num_val_items is None else num_val_items
+            if self.inference:
+                self._indices = np.arange(0, n_items, dtype=np.int64)
+            elif self.validation:
+                self._indices = np.arange(0, n_val, dtype=np.int64)
+            else:
+                self._indices = np.arange(n_val, n_items, dtype=np.int64)
 
         # This attribute will hold the *worker-local* handle
         self._h5: Optional[h5py.File] = None
+
+    def _keep_needed_indices(
+        self,    
+        needed_id_set,
+        num_val_items: Optional[int],
+        val_split: float,
+    ) -> np.ndarray:
+        """
+        Determine which rows of the HDF5 we need *and* only keep those.
+        """
+        
+
+        with h5py.File(self.file_path, "r") as h5:
+            n_items = len(h5["sequence_id"])
+            n_val = int(n_items * val_split) if num_val_items is None else num_val_items
+            
+            # 1) choose the coarse split (train/val/test)
+            if self.inference:
+                candidate_rows = np.arange(0, n_items, dtype=np.int64)
+            elif self.validation:
+                candidate_rows = np.arange(0, n_val, dtype=np.int64)
+            else:
+                candidate_rows = np.arange(n_val, n_items, dtype=np.int64)
+
+            # 2) slice the *sequence_id* column just once
+            seq_ids = h5["sequence_id"][candidate_rows]
+
+            # 3) keep only rows that also appear in the needed_id_set
+            mask = np.isin(seq_ids, list(needed_id_set))
+            final_rows = candidate_rows[mask]
+            
+        return final_rows
 
     def set_mlm_encoded(
         self,
@@ -518,7 +563,7 @@ class CustomLazyHDF5Dataset(Dataset):
         # 1) ensure the HDF5 handle is initialised for *this* worker
         h5 = self._get_handle()
 
-        # 2) translate `idx` (0 … len(self)-1) into the row inside the file
+        # 2) translate 'idx' (0 ... len(self)-1) into the row inside the file
         row = self._indices[idx]
 
         # 3) mandatory columns
@@ -592,3 +637,213 @@ class CustomLazyHDF5Dataset(Dataset):
                 self._h5.close()
             except Exception:
                 pass
+
+class FineTuneLazyDataset(Dataset):
+    """
+    Lazy HDF5 reader for fine‑tuning tasks (classification/regression).
+
+    Combines a *large* HDF5 sequence file with a (small) CSV/Parquet
+    containing labels or other targets.
+
+    Parameters
+    ----------
+    h5_file_path : str | Path
+        Path to the sequences ``.h5`` file (must contain datasets
+        ``input_ids``, ``padding_mask`` and ``sequence_id``).
+    train_file_path : str | Path
+        Path to the label file (CSV or Parquet).  Must have a column that
+        matches ``sequence_id`` in the HDF5 plus one *target* column.
+    target_col : str, default "target_label"
+        The name of the column in *train_file_path* that holds the label.
+    phase : {"train","validation","test"}, default "train"
+        Dataset split.  "test" returns *all* matching rows; the others
+        honour *val_split* / *num_val_items*.
+    num_val_items : int | None, default None
+        Exact size of the validation split (takes precedence over
+        *val_split*).  Ignored if *phase=="test"*.
+    val_split : float, default 0.10
+        Fraction of the file that belongs to the validation split (only
+        used when *num_val_items* is None).
+    return_sequence_id : bool, default False
+        Include the ``sequence_id`` in each returned sample.
+    task_type : {"classification","regression"}, default "classification"
+        Determines the dtype of the *target* tensor.
+    assign_weights : bool, default False
+        If *classification*, compute an inverse‑frequency
+        ``WeightedRandomSampler`` and expose it via ``dataset.sampler``.
+    """
+
+    # ------------------------------------------------------------------ #
+    # constructor                                                         #
+    # ------------------------------------------------------------------ #
+    def __init__(
+        self,
+        h5_file_path: str | Path,
+        train_file_path: str | Path,
+        target_col: str = "target_label",
+        phase: str = "train",
+        num_val_items: Optional[int] = None,
+        val_split: float = 0.10,
+        return_sequence_id: bool = False,
+        task_type: str = "binary",
+        assign_weights: bool = False,
+    ) -> None:
+        super().__init__()
+
+        self.h5_path = Path(h5_file_path)
+        self.target_col = target_col
+        self.phase = phase
+        self.return_sequence_id = return_sequence_id
+        self.task_type = task_type
+        self.assign_weights = assign_weights
+
+        # -- 1) load the label file wholly into RAM (it is small) -------- #
+        self.label_df = self._load_label_file(train_file_path)
+
+        # -- 2) build the list of rows (HDF5 indices) we actually need ---- #
+        (
+            self._indices,
+            self._sequence_ids,
+            self._labels,
+        ) = self._build_indices_and_labels(
+            num_val_items=num_val_items,
+            val_split=val_split,
+        )
+
+        if self.phase == 'test':
+            self.labels_tensor = None
+        elif self.task_type in ["categorical", "binary", "ordinal"]:
+            # pre‑encode labels as a tensor so __getitem__ is cheap
+            self.labels_tensor = torch.tensor(self._labels, dtype=torch.long)
+            if self.assign_weights:
+                # inverse‑frequency weights for imbalanced classes
+                counts = Counter(self.labels_tensor.tolist())
+                weights = [1.0 / counts[int(label)] for label in self.labels_tensor]
+                self.sampler = WeightedRandomSampler(
+                    weights, num_samples=len(weights), replacement=True
+                )
+        elif self.task_type == "numeric":
+            self.labels_tensor = torch.tensor(self._labels, dtype=torch.float)
+        else:
+            raise ValueError(f"Unknown task_type: {self.task_type}")
+
+        # worker‑local HDF5 handle (lazily opened)
+        self._h5: Optional[h5py.File] = None
+
+        logger.info(
+            f"{self.phase} split: {len(self)} items "
+            f"({len(self._labels)} labels, {len(self._indices)} rows)"
+        )
+
+    # ------------------------------------------------------------------ #
+    # public helpers                                                      #
+    # ------------------------------------------------------------------ #
+    def __len__(self) -> int:
+        return len(self._indices)
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        h5 = self._get_handle()
+        row = self._indices[idx]
+
+        sample = {
+            "input_ids": torch.as_tensor(h5["input_ids"][row]),
+            "padding_mask": torch.as_tensor(h5["padding_mask"][row]),
+        }
+        if self.phase != 'test':
+            sample["target"] = self.labels_tensor[idx],
+        if self.return_sequence_id:
+            sample["sequence_id"] = torch.as_tensor(self._sequence_ids[idx])
+
+        return sample
+
+    # ------------------------------------------------------------------ #
+    # internal logic                                                      #
+    # ------------------------------------------------------------------ #
+    def _load_label_file(self, path: str | Path) -> pd.DataFrame:
+        """Read CSV / Parquet and set ``RINPERSOON`` as the index."""
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".csv":
+            df = pd.read_csv(path)
+        elif ext == ".parquet":
+            df = pd.read_parquet(path)
+        else:
+            raise ValueError(f"Unsupported label file extension: {ext}")
+
+        if "RINPERSOON" not in df.columns:
+            raise ValueError("Label file must contain a 'RINPERSOON' column")
+
+        subset = ['RINPERSOON']
+        if self.phase != 'test':
+            subset.insert(0, self.target_col) 
+        df.dropna(subset=subset, inplace=True)
+        df.set_index("RINPERSOON", inplace=True)
+        return df
+
+    def _build_indices_and_labels(
+        self,
+        num_val_items: Optional[int],
+        val_split: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Determine which rows of the HDF5 we need *and* fetch the labels
+        in matching order.
+        """
+        label_id_set = set(self.label_df.index)
+
+        with h5py.File(self.h5_path, "r") as h5:
+            n_items = len(h5["sequence_id"])
+            n_val = num_val_items or int(n_items * val_split)
+
+            # 1) choose the coarse split (train/val/test)
+            if self.phase == "test":
+                candidate_rows = np.arange(0, n_items, dtype=np.int64)
+            elif self.phase == "validation":
+                candidate_rows = np.arange(0, n_val, dtype=np.int64)
+            elif self.phase == "train":
+                candidate_rows = np.arange(n_val, n_items, dtype=np.int64)
+            else:
+                raise ValueError("phase must be one of train / validation / test")
+
+            # 2) slice the *sequence_id* column just once
+            seq_ids = h5["sequence_id"][candidate_rows]
+
+            # 3) keep only rows that also appear in the label file
+            mask = np.isin(seq_ids, list(label_id_set))
+            final_rows = candidate_rows[mask]
+            final_seq_ids = seq_ids[mask]
+
+        # 4) pull labels in the same order
+        if self.phase == 'test':
+            labels = np.empty(len(final_seq_ids), dtype=np.float32)
+        else:
+            labels = self.label_df.loc[final_seq_ids, self.target_col].values
+
+        return final_rows, final_seq_ids, labels
+
+    # ------------------------------------------------------------------ #
+    # HDF5 handle management                                              #
+    # ------------------------------------------------------------------ #
+    def _get_handle(self) -> h5py.File:
+        """Open the HDF5 file once per worker (lazily)."""
+        if self._h5 is None:
+            self._h5 = h5py.File(
+                self.h5_path, mode="r", libver="latest", swmr=True
+            )
+        return self._h5
+
+    # ------------------------------------------------------------------ #
+    # multiprocessing‑pickling safety                                     #
+    # ------------------------------------------------------------------ #
+    def __getstate__(self):
+        """Drop open file handle when pickling the Dataset."""
+        state = self.__dict__.copy()
+        state["_h5"] = None
+        return state
+
+    def __del__(self):
+        """Close the HDF5 file when the worker exits."""
+        try:
+            if self._h5 is not None:
+                self._h5.close()
+        except Exception:
+            pass

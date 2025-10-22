@@ -54,7 +54,7 @@ def h5_array_to_pq(
         cls_emb = h5file[emb_type][:]
 
     data_dict = {}
-    data_dict["rinpersoon_id"] = identifiers.astype(np.int64)
+    data_dict["RINPERSOON"] = identifiers.astype(np.int64)
 
     for idx in range(cls_emb.shape[1]):
         temp_col = pa.array(cls_emb[:, idx].astype(np.float32))
