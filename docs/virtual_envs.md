@@ -93,3 +93,18 @@ To create the same virtual environment, follow the steps here *on a Windows mach
 Make sure to test the created requirements file. Any lines with `--find-links` will have to be manually added to the requirements file. Note that the `--find-links` created some problems when importing via CBS; their package mirror Nexus at first did not seem to find the relevant PyTorch installation. In a second try, it worked.
 
 The current environment on the CBS RA is created with `requirements/cbs_ra.txt`.
+
+#### Installing Python package on isolated machines
+
+This is based on experience from working with SURF on the OSSC, but it holds in
+all cases when we as the users install a package ourselves, such as our 
+own code in editable mode.
+
+`pip` needs wheel files to install a package. If we as the user install it (instead of 
+SURF or CBS), we need to have access to the wheel files. Then, install the package as
+
+```bash
+pip install -e . --no-index --find-link ~/path/to/wheels/
+```
+
+
